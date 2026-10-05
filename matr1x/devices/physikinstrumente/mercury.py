@@ -126,8 +126,8 @@ class MercuryC663(VisaDevice):
         """
         Move to angle relative to current position.
 
-        The sum of the provided angle and the last commanded target position
-        is set as the new target position.
+        The sum of the provided angle and the last commanded
+        target position is set as the new target position.
 
         Parameters
         ----------

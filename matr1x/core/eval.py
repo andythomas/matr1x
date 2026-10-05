@@ -218,10 +218,10 @@ def _process_key_value_pair(
     """
     Process a key-value pair line within a nested structure.
 
-    Parses lines containing key-value pairs, handling both regular values
-    and multiline string starts. Empty values are treated as section
-    headers that extend the current path. Regular values are parsed and
-    stored in the appropriate nested location.
+    Parses lines containing key-value pairs, handling both regular
+    values and multiline string starts. Empty values are treated as
+    section headers that extend the current path. Regular values are
+    parsed and stored in the appropriate nested location.
 
     Parameters
     ----------
@@ -650,8 +650,8 @@ def loadmatrix(
     structured: bool, optional
         controls whether a structured or a plain numpy array is returned
     print_header : bool, optional
-        if true, prints the column names read from the file together with
-        their index
+        if true, prints the column names read from the file
+        together with their index
     replace_None : boolean, optional
         %deprecated: raises a NotImplementedError.
     to_polars : bool, optional
@@ -720,11 +720,11 @@ def delta_numpy(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Returns
     -------
     pos : np.array
-        Array with dimension 'm//2' containing the contribution symmetric in
-        current
+        Array with dimension 'm//2' containing the contribution
+        symmetric in current
     neg : np.array
-        Array with dimension 'm//2' containing the contribution antisymmetric in
-        current
+        Array with dimension 'm//2' containing the contribution
+        antisymmetric in current
 
     %seealso delta, delta_polars
     """
@@ -866,11 +866,11 @@ def delta3p_numpy(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     Returns
     -------
     pos : np.array
-        Array with dimension 'm//3' containing the contribution symmetric in
-        current
+        Array with dimension 'm//3' containing the contribution
+        symmetric in current
     neg : np.array
-        Array with dimension 'm//3' containing the contribution antisymmetric in
-        current
+        Array with dimension 'm//3' containing the contribution
+        antisymmetric in current
 
     %seealso delta3p, delta3p_polars
     """

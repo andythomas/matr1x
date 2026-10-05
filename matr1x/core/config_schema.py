@@ -57,7 +57,8 @@ def GuiField(
     decimals : int, optional
         The number of decimals to display for float values.
     ui_type : str, optional
-        The GUI hint for the field (e.g., 'scifloat', 'file', 'folder', 'visa_resource').
+        The GUI hint for the field (e.g., 'scifloat', 'file',
+        'folder', 'visa_resource').
     **kwargs
         Additional arguments passed to pydantic.Field.
     """

@@ -165,7 +165,8 @@ class MercurySingleAxisIPS(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
 
         Returns
         -------
@@ -195,7 +196,8 @@ class MercurySingleAxisIPS(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
 
         Returns
         -------
@@ -225,7 +227,8 @@ class MercurySingleAxisIPS(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
         """
         for key in queryDict:
             queryDict[key] = self.query(key, address, signal)
@@ -536,11 +539,12 @@ class MercuryIPS(VisaDevice):
     """
     Driver for multi-axis Mercury IPS.
 
-    dataDict contains the commands (keys) and also the response from the IPS
-    (values).
+    dataDict contains the commands (keys) and also the response from
+    the IPS (values).
 
     Mode of operation:
-        1. Querry dicts you want to read - results are written to dictionarys
+        1. Querry dicts you want to read - results are written
+           to dictionarys
         2. Results can now be read with the given functions
 
     Dicts for functions:
@@ -720,7 +724,8 @@ class MercuryIPS(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
 
         Returns
         -------
@@ -748,7 +753,8 @@ class MercuryIPS(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
 
         Returns
         -------
@@ -777,7 +783,8 @@ class MercuryIPS(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
         """
         for key in queryDict:
             queryDict[key] = self.query_merc(key, address, signal)
@@ -849,8 +856,10 @@ class MercuryIPS(VisaDevice):
         Returns
         -------
         tuple
-            (valid, (xval, yval, zval)) where valid is a boolean indicating if the
-            original values were within limits, and the tuple contains the adjusted values
+            (valid, (xval, yval, zval)) where valid is a
+            boolean indicating if the original values were
+            within limits, and the tuple contains the
+            adjusted values
         """
         valid = True
         # check -2 <= xval <= 2
@@ -940,8 +949,9 @@ class MercuryIPS(VisaDevice):
         Parameters
         ----------
         fields : list
-            List with three entries containing field values [x, y, z] in Tesla.
-            Values exceeding the boundaries will be clamped.
+            List with three entries containing field values
+            [x, y, z] in Tesla. Values exceeding the
+            boundaries will be clamped.
         """
         assert len(fields) == 3
         xval, yval, zval = fields
@@ -965,8 +975,10 @@ class MercuryIPS(VisaDevice):
         Returns
         -------
         tuple
-            If setp is False, returns (x_field, y_field, z_field)
-            If setp is True, returns (x_field, y_field, z_field, x_setpoint, y_setpoint, z_setpoint)
+            If setp is False, returns (x_field, y_field,
+            z_field) If setp is True, returns (x_field,
+            y_field, z_field, x_setpoint, y_setpoint,
+            z_setpoint)
         """
         if setp is True:
             return (
@@ -992,8 +1004,9 @@ class MercuryIPS(VisaDevice):
         Parameters
         ----------
         values : list
-            List of 3 floats specifying rates for [x, y, z] axes in T/min.
-            Values are clamped to valid ranges:
+            List of 3 floats specifying rates for [x, y, z]
+            axes in T/min. Values are clamped to valid
+            ranges:
             - x, y axes: 0 to 0.5 T/min
             - z axis: 0 to 1 T/min
         """
@@ -1023,8 +1036,10 @@ class MercuryIPS(VisaDevice):
         Returns
         -------
         float or tuple or list
-            If axis is -1, returns list of rates [x, y, z] (and setpoints if requested)
-            If axis is 0, 1, or 2, returns rate for that axis (and setpoint if requested)
+            If axis is -1, returns list of rates [x, y, z]
+            (and setpoints if requested) If axis is 0, 1, or
+            2, returns rate for that axis (and setpoint if
+            requested)
         """
         val = None
         if axis == -1:
@@ -1061,14 +1076,14 @@ class MercuryIPS(VisaDevice):
         Parameters
         ----------
         state : int or list
-            Status to set:
-            0 - HOLD
-            1 - RTOS (Ramp to setpoint)
-            2 - RTOZ (Ramp to zero)
-            3 - CLMP (Clamped, when current is 0) - disallowed
-            If axis is -1, state should be a list of 3 integers for each axis.
+            Status to set: 0 - HOLD 1 - RTOS (Ramp to
+            setpoint) 2 - RTOZ (Ramp to zero) 3 - CLMP
+            (Clamped, when current is 0) - disallowed If
+            axis is -1, state should be a list of 3 integers
+            for each axis.
         axis : int, optional
-            Axis to set: 0=x, 1=y, 2=z, -1=all axes (using state as list), by default -1
+            Axis to set: 0=x, 1=y, 2=z, -1=all axes (using
+            state as list), by default -1
 
         Notes
         -----
@@ -1119,12 +1134,10 @@ class MercuryIPS(VisaDevice):
         Returns
         -------
         int or list
-            Status of the magnet(s):
-            0 - HOLD
-            1 - RTOS (Ramp to setpoint)
-            2 - RTOZ (Ramp to zero)
-            3 - CLMP (Clamped, when current is 0)
-            If axis is -1, returns a list of statuses for all three axes.
+            Status of the magnet(s): 0 - HOLD 1 - RTOS (Ramp
+            to setpoint) 2 - RTOZ (Ramp to zero) 3 - CLMP
+            (Clamped, when current is 0) If axis is -1,
+            returns a list of statuses for all three axes.
         """
         if axis == -1:
             return [
@@ -1291,7 +1304,8 @@ class MercuryITC(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
 
         Returns
         -------
@@ -1319,9 +1333,11 @@ class MercuryITC(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
         integer : bool, optional
-            Whether to format the setpoint as an integer, by default False
+            Whether to format the setpoint as an integer, by
+            default False
 
         Returns
         -------
@@ -1375,7 +1391,8 @@ class MercuryITC(VisaDevice):
         address : str, optional
             Device address, by default ""
         signal : bool, optional
-            Whether to use the signal variant of the command, by default False
+            Whether to use the signal variant of the
+            command, by default False
         """
         for key in queryDict:
             queryDict[key] = self.query_merc(key, address, signal)
@@ -1494,7 +1511,8 @@ class MercuryITC(VisaDevice):
         Returns
         -------
         float or tuple
-            Current temperature in Kelvin, or (current_temp, setpoint) if setp=True
+            Current temperature in Kelvin, or (current_temp,
+            setpoint) if setp=True
         """
         val = self.getDictValue("Temp")
         if setp is True:
@@ -1561,7 +1579,8 @@ class MercuryITC(VisaDevice):
         Parameters
         ----------
         val : bool, optional
-            True to enable auto heater, False to disable, by default True
+            True to enable auto heater, False to disable, by
+            default True
         """
         if val is True:
             self.setVal("ON", *self.workingDict["AHTR"][1:])

@@ -393,9 +393,10 @@ def wait(
     until : str or datetime, optional
         A target time or relative time string. It can be:
             - An absolute timestamp: "YYYY-MM-DD HH:MM:SS" or "HH:MM".
-            - A relative time string starting with '+' followed by a number
-                and a unit (e.g., "+24h" for 24 hours, "+30m" for 30 min.,
-                "+1d" for 1 day).
+            - A relative time string starting with '+'
+              followed by a number and a unit (e.g., "+24h"
+              for 24 hours, "+30m" for 30 min., "+1d" for 1
+              day).
             - A `datetime` object representing a specific time.
     message : str, optional
         Print this string if the sleep exceeds the silent argument.
@@ -437,7 +438,8 @@ def input(query: str, timeout: float | None = None, default_value: str = "") -> 
     query : str
         Query string presented to the user so they know what to enter.
     timeout : float or None, optional
-        Max. time in seconds to wait for user input (default=None, no timeout).
+        Max. time in seconds to wait for user input
+        (default=None, no timeout).
     default_value : str, optional
         Value to return if timeout occurs. Default is empty string.
 
@@ -459,7 +461,8 @@ def input_bool(query: str, timeout: float | None = None, default_value: str = "y
     query : str
         Question to ask the user.
     timeout : float or None, optional
-        Max. time in seconds to wait for user input (default=None, no timeout).
+        Max. time in seconds to wait for user input
+        (default=None, no timeout).
     default_value : str, optional
         Value to return if timeout occurs. Default is yes.
 
@@ -492,7 +495,8 @@ def input_numerical(
     query : str
         Question to ask the user.
     timeout : float or None, optional
-        Max. time in seconds to wait for user input (default=None, no timeout).
+        Max. time in seconds to wait for user input
+        (default=None, no timeout).
     default_value : float, optional
         Value to return if timeout occurs. Default is 0.0.
     min_value : float, optional
@@ -604,8 +608,9 @@ def init_datafile(
         Flag to decide if the header information with column names and
         units should be printed.
     ntot : int, optional
-        Deprecated manual total number of expected datapoints. When omitted,
-        matrix-script infers the total from statically analyzable source.
+        Deprecated manual total number of expected datapoints.
+        When omitted, matrix-script infers the total from
+        statically analyzable source.
     reset_meta_data : bool, optional
         If True, reset metadata to the values captured at script start
         before creating a new file.

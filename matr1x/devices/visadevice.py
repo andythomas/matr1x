@@ -222,8 +222,9 @@ class VisaDevice:
         """
         Read data from the device.
 
-        If nbytes is set, only so many bytes are read.
-        If not, bytes are read until terminated by the specified character.
+        If nbytes is set, only so many bytes are read. If not,
+        bytes are read until terminated by the specified
+        character.
 
         Parameters
         ----------
@@ -270,11 +271,13 @@ class VisaDevice:
         Parameters
         ----------
         command : str or bytes
-            If a string is passed, terminator is appended and the message is
-            encoded before being sent to the devices.
-            If bytes are passed, this function falls back to visa's write_raw
-            function, which does not modify the commend but just transmits the
-            bytes to the device (no terminator is appended!).
+            If a string is passed, terminator is appended
+            and the message is encoded before being sent to
+            the devices. If bytes are passed, this function
+            falls back to visa's write_raw function, which
+            does not modify the commend but just transmits
+            the bytes to the device (no terminator is
+            appended!).
         """
         logger.debug("%s: Write: %s", self.name, command)
         if self.pts:

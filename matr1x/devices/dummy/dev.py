@@ -53,9 +53,10 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
     """
     Dummy device for testing.
 
-    Upon initialization the device starts a socket server which processes
-    queries received via this network socket. The server is hosted on the
-    loopback interface (localhost) and uses a high TCP/IP port number.
+    Upon initialization the device starts a socket server which
+    processes queries received via this network socket. The server
+    is hosted on the loopback interface (localhost) and uses a high
+    TCP/IP port number.
 
     Parameters
     ----------

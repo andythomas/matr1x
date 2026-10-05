@@ -73,8 +73,8 @@ class SimplePlotWidget(QGroupBox):
         If called with an empty string, it should clear the error.
     cb_index : callable
         Callback function that takes a PlotObject as parameter.
-        The function is called with the currently selected PlotObject if the
-        latter changes.
+        The function is called with the currently selected
+        PlotObject if the latter changes.
     """
 
     class PlotObject:
@@ -91,14 +91,16 @@ class SimplePlotWidget(QGroupBox):
             Callback function that takes a single string as parameter.
             The string will describe the present error.
         l_slider : QVBoxLayout
-            Layout into which the sliders are added using l_slider.addWidget.
+            Layout into which the sliders are added using
+            l_slider.addWidget.
         plot2d : bool
             Flag that defines whether plot is curve or 2d plot.
         index : int
             Index of the plot in the pyqtgraph.GraphicsLayoutWidget.
         desig : list of int
-            Designator that stores integers that connect the plotted values
-            to some external gui elements. Essentially a simple storage.
+            Designator that stores integers that connect the
+            plotted values to some external gui elements.
+            Essentially a simple storage.
         pen : bool or None, optional
             If True, lines will be displayed.
         """
@@ -162,7 +164,8 @@ class SimplePlotWidget(QGroupBox):
             Parameters
             ----------
             *args
-                Variable length argument list passed to the parent class.
+                Variable length argument list passed to
+                the parent class.
             **kwargs
             Arbitrary keyword arguments passed to the parent class.
             """
@@ -196,7 +199,8 @@ class SimplePlotWidget(QGroupBox):
                     ...
                 ]
 
-                Calls tickSpacing to determine the correct tick locations.
+                Calls tickSpacing to determine the
+                correct tick locations.
                 """
                 minVal, maxVal = sorted((minVal, maxVal))
 
@@ -293,7 +297,8 @@ class SimplePlotWidget(QGroupBox):
             Parameters
             ----------
             orientation : str
-                The orientation of the axis ('left', 'right', 'top', or 'bottom').
+                The orientation of the axis ('left',
+                'right', 'top', or 'bottom').
             mapping : dict, optional
                 Dictionary mapping numeric indices to category labels.
             *args
@@ -304,7 +309,8 @@ class SimplePlotWidget(QGroupBox):
             Attributes
             ----------
             mapping : dict
-                Dictionary storing the mapping between numeric indices and category labels.
+                Dictionary storing the mapping between
+                numeric indices and category labels.
             unique_ticks : set
                 Set storing unique tick values.
             """
@@ -318,7 +324,8 @@ class SimplePlotWidget(QGroupBox):
                 """
                 Return the strings that should be placed next to ticks.
 
-                For categorical data, shows all tick labels regardless of plot size.
+                For categorical data, shows all tick
+                labels regardless of plot size.
 
                 Parameters
                 ----------
@@ -514,17 +521,19 @@ class SimplePlotWidget(QGroupBox):
             """
             Apply the math operation to the two data arrays.
 
-            Applies the math operation depending on the value stored in
-            self.math_mode. See default_math for the default functions that
-            are implemented.
+            Applies the math operation depending on the
+            value stored in self.math_mode. See default_math
+            for the default functions that are implemented.
 
             Currently can be one of the following:
                 any key of self.default_math - applies the
                   functions defined there.
                 "custom" - custom math that can be specified via a
-                  string stored in self.math_texts that is passed to
-                  evaluated by eval(string). Available parameters are defined
-                  in self.exposed_functions
+                  string stored in self.math_texts
+                  that is passed to evaluated by
+                  eval(string). Available parameters
+                  are defined in
+                  self.exposed_functions
                 neither of the two above - no math is applied
 
             Parameters
@@ -690,12 +699,15 @@ class SimplePlotWidget(QGroupBox):
             Parameters
             ----------
             z : dict
-                Dictionary containing z data with keys "data", "label", "desig", and "unit".
+                Dictionary containing z data with keys
+                "data", "label", "desig", and "unit".
             x : dict
-                Dictionary containing x data with keys "data", "label", "desig", and "unit".
+                Dictionary containing x data with keys
+                "data", "label", "desig", and "unit".
             y : dict or None
-                Dictionary containing y data with keys "data", "label", "desig", and "unit",
-                or None if not applicable.
+                Dictionary containing y data with keys
+                "data", "label", "desig", and "unit", or
+                None if not applicable.
             """
             # Handle categorical data conversions
             self.zdata = self._convert_categorical(z["data"], is_x=False)
@@ -737,11 +749,13 @@ class SimplePlotWidget(QGroupBox):
             Parameters
             ----------
             index: int
-                Selects the math operation to be applied, see self.default_math.
+                Selects the math operation to be
+                applied, see self.default_math.
             math_texts: [str, str]
-                Contains two strings that are evaluated by eval(string). Are
-                only allowed to contain functions/variables that are defined
-                in self.exposed_functions.
+                Contains two strings that are evaluated
+                by eval(string). Are only allowed to
+                contain functions/variables that are
+                defined in self.exposed_functions.
             """
             self.math_mode = index
             self.math_texts = math_texts
@@ -1095,13 +1109,14 @@ class SimplePlotWidget(QGroupBox):
         """
         Handle mouse interaction and display x and y values at mouse position.
 
-        If the mouse is in one of the viewboxes, display the x and y value
-        at the mouse position.
+        If the mouse is in one of the viewboxes, display the x
+        and y value at the mouse position.
 
         Parameters
         ----------
         ev : tuple
-            Contains the coordinates of the mouse in coordinates of self.gl.
+            Contains the coordinates of the mouse in
+            coordinates of self.gl.
         """
         boxes = [plot.vb for plot in self.plots]
         vb_mouse = None
@@ -1121,13 +1136,15 @@ class SimplePlotWidget(QGroupBox):
         """
         Handle mouse interaction and set active plot in w_plots ComboBox.
 
-        If the mouse is in one of the viewboxes, change the currently active
-        plot on click, currently works for all types of click (left/right/middle)
+        If the mouse is in one of the viewboxes, change the
+        currently active plot on click, currently works for all
+        types of click (left/right/middle)
 
         Parameters
         ----------
         ev : MouseClickEvent
-            Contains the click event of the mouse in coordinates of self.gl.
+            Contains the click event of the mouse in
+            coordinates of self.gl.
         """
         boxes = [plot.vb for plot in self.plots]
         vb_mouse = None
@@ -1171,10 +1188,12 @@ class SimplePlotWidget(QGroupBox):
         Parameters
         ----------
         view_box : CustomViewBox
-            The `CustomViewBox` instance that emitted the `sigRangeChanged` signal.
+            The `CustomViewBox` instance that emitted the
+            `sigRangeChanged` signal.
         ranges : tuple[tuple[float, float], tuple[float, float]]
-            A tuple containing two tuples, representing the new X and Y ranges
-            of the `view_box`. Each inner tuple is `(min_value, max_value)`.
+            A tuple containing two tuples, representing the
+            new X and Y ranges of the `view_box`. Each inner
+            tuple is `(min_value, max_value)`.
         """
         # identify source
         source_plot = next((p for p in self.plots if p.vb is view_box), None)
@@ -1212,7 +1231,8 @@ class SimplePlotWidget(QGroupBox):
         index: int
           index of the plot to be replaced (refers to w_plots)
         new_state: bool
-          flag that determines whether the plot is supposed to be 2d or not
+          flag that determines whether the plot is supposed to
+          be 2d or not
         """
         # store index of plot in self.gl
         plotindex = self.plots[index].index
@@ -1274,7 +1294,8 @@ class SimplePlotWidget(QGroupBox):
         Parameters
         ----------
         filename : str
-            The path and name of the file where the PNG image will be saved.
+            The path and name of the file where the PNG
+            image will be saved.
         """
         exporter = ImageExporter(self.gl.scene())
         exporter.export(filename)
@@ -1293,7 +1314,8 @@ class SimplePlotWidget(QGroupBox):
         Parameters
         ----------
         filename : str
-            The path and name of the file where the text file will be saved.
+            The path and name of the file where the text
+            file will be saved.
         """
         index = self.w_plots.currentIndex()
         z, x = self.plots[index]._get_math(self.plots[index].z, self.plots[index].x)
@@ -1352,7 +1374,8 @@ class SimplePlotWidget(QGroupBox):
             Dictionary containing the y-axis data. Key "data" contains
             np.array of dimension 1 or 2. Default is None.
         plot2d : bool, optional
-            Determines whether the plot is 2D or a curve. Default is False.
+            Determines whether the plot is 2D or a curve.
+            Default is False.
         """
         index = self.w_plots.currentIndex()
         if self.plots[index].plot2d != plot2d:

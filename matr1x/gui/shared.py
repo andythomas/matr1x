@@ -1162,8 +1162,10 @@ class MeasurementThread(QThread, LoggerMixin):
         port : int
             The local TCP port the GUI is listening on.
         script_tempfile : IO[bytes] or None
-            Open temporary file containing the user script.  Must be provided
-            when ``parameters.kind == "script"``; ``None`` for sweep mode.
+            Open temporary file containing the user script.
+            Must be provided when
+            ``parameters.kind == "script"``; ``None`` for
+            sweep mode.
         temp_config_file : Path
             Path to the temporary TOML config file.
 

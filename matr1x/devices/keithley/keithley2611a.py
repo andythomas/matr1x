@@ -32,18 +32,20 @@ class Keithley2611A(VisaDevice):
     """
     Control interface for Keithley 2611A Source Measure Unit (SMU).
 
-    Provides methods to control and read data from the Keithley 2611A.
-    It supports voltage and current sourcing and sensing in both 2-wire and 4-wire
-    configurations.
+    Provides methods to control and read data from the Keithley
+    2611A. It supports voltage and current sourcing and sensing in
+    both 2-wire and 4-wire configurations.
 
     Attributes
     ----------
     config_params : dict
-        Dictionary of configuration parameters and their corresponding commands
+        Dictionary of configuration parameters and their
+        corresponding commands
     mode_int : dict
         Mapping of mode strings to numeric values
     mode_char : dict
-        Mapping of mode strings to character identifiers used in commands
+        Mapping of mode strings to character identifiers used in
+        commands
     """
 
     config_params: ClassVar[dict[str, str]] = {
@@ -69,9 +71,9 @@ class Keithley2611A(VisaDevice):
 
         Notes
         -----
-        Sets default termination characters and initializes the device.
-        Reads the initial state including source mode, four-wire setting,
-        and output state.
+        Sets default termination characters and initializes the
+        device. Reads the initial state including source mode,
+        four-wire setting, and output state.
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -158,9 +160,10 @@ class Keithley2611A(VisaDevice):
                                  fourWire=True, senseAutoRange=True,
                                  sourceRange=0.001, output=True)
 
-        This configures the instrument to source current, measure voltage,
-        use 4-wire sensing, automatically set the voltage measurement range,
-        set the current sourcing range to include 1mA, and enable the output.
+        This configures the instrument to source current, measure
+        voltage, use 4-wire sensing, automatically set the voltage
+        measurement range, set the current sourcing range to include
+        1mA, and enable the output.
         """
         # do nothing if source/sensemode is not defined
         if sourceMode is None or senseMode is None:

@@ -80,9 +80,11 @@ class Keithley2182A(VisaDevice):
         Parameters
         ----------
         *args : tuple
-            Variable length argument list to pass to the parent query method
+            Variable length argument list to pass to the
+            parent query method
         **kwargs : dict
-            Arbitrary keyword arguments to pass to the parent query method
+            Arbitrary keyword arguments to pass to the
+            parent query method
 
         Returns
         -------
@@ -121,11 +123,14 @@ class Keithley2182A(VisaDevice):
         NPLC : int or float, optional
             Number of power line cycles to integrate over
         dFil : bool, optional
-            If True, turn on the digital filter. If False, window and filter count are ignored
+            If True, turn on the digital filter. If False,
+            window and filter count are ignored
         voltage_range : float, optional
-            Range of the voltage detection. Selected by the instrument to include the value
+            Range of the voltage detection. Selected by the
+            instrument to include the value
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional time during measurements
+            Automatic detection of the measurement range.
+            Takes additional time during measurements
         trigBus : bool, optional
             Sets trigger source to BUS if True
         delay : float, optional
@@ -134,7 +139,8 @@ class Keithley2182A(VisaDevice):
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving
         reset : bool, optional
-            If True, the device is reset prior to configuration (default False)
+            If True, the device is reset prior to
+            configuration (default False)
 
         Returns
         -------

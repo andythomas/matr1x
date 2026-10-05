@@ -39,7 +39,8 @@ class ITC503(IsobusDevice):
         isobus_addr : int, optional
             Address of the device on the ISObus.
         **kwargs : dict
-            Additional keyword arguments to pass to the IsobusDevice constructor.
+            Additional keyword arguments to pass to the
+            IsobusDevice constructor.
         """
         kwargs["isobus_addr"] = isobus_addr
         if "write_termination" not in kwargs:
@@ -76,14 +77,16 @@ class ITC503(IsobusDevice):
         Parameters
         ----------
         setp : bool, optional
-            If True, return both temperature reading and set point, by default False.
+            If True, return both temperature reading and set
+            point, by default False.
         channel : int, optional
             The channel to read temperature from, by default 1.
 
         Returns
         -------
         float or list
-            Temperature reading in Kelvin, or [temperature, setpoint] if setp=True.
+            Temperature reading in Kelvin, or [temperature,
+            setpoint] if setp=True.
         """
         temp = self.query_float(f"R{channel:d}")
         if setp is False:
@@ -133,7 +136,8 @@ class ITC503(IsobusDevice):
         Returns
         -------
         bool
-            True if automatic heater control is enabled, False otherwise.
+            True if automatic heater control is enabled,
+            False otherwise.
         """
         astat = self.get_status_value(max_depth=11, index=3, default_value=0)
         return astat in (1, 3)
@@ -233,9 +237,9 @@ class ITC503(IsobusDevice):
         """
         Set the temperature sweep mode.
 
-        Configures the controller into sweep mode. When enabled, sweep is started
-        according to the previously defined parameters and made to start at the
-        current temperature.
+        Configures the controller into sweep mode. When enabled,
+        sweep is started according to the previously defined
+        parameters and made to start at the current temperature.
 
         Parameters
         ----------

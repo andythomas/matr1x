@@ -61,12 +61,15 @@ class HTMC11(ModbusDevice):
         baudrate : int, optional
             Serial communication speed in baud. Default is 115200
         request_delay : float, optional
-            Minimum time in seconds between Modbus requests. Default is 0.02.
+            Minimum time in seconds between Modbus requests.
+            Default is 0.02.
         write_delay : float, optional
-            Minimum time in seconds between Modbus writes. Default is 0.1.
+            Minimum time in seconds between Modbus writes.
+            Default is 0.1.
         startup_delay : float, optional
-            Time in seconds to wait after opening the serial connection before
-            the first register request. Default is 0.5.
+            Time in seconds to wait after opening the serial
+            connection before the first register request.
+            Default is 0.5.
         """
         super().__init__(portname, slaveaddress, baudrate, parity=serial.PARITY_NONE)
         if request_delay < 0:

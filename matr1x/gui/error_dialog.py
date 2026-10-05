@@ -15,11 +15,11 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Qt error dialog for uncaught exceptions.
 
-Qt sometimes "eats" exceptions: it prints them to the command line but does
-not quit the app, so the error becomes silent in a GUI that is not started
-from a terminal. `install_qt_error_dialog` registers a ``QMessageBox``
-handler with `matr1x.core.error_handling` so that uncaught exceptions
-are shown to the user. Each GUI app calls it before
+Qt sometimes "eats" exceptions: it prints them to the command line but
+does not quit the app, so the error becomes silent in a GUI that is not
+started from a terminal. `install_qt_error_dialog` registers a
+``QMessageBox`` handler with `matr1x.core.error_handling` so that
+uncaught exceptions are shown to the user. Each GUI app calls it before
 `QApplication.exec`.
 
 Keeping the Qt dependency here (instead of in the Qt-free

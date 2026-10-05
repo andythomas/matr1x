@@ -41,7 +41,8 @@ class ILM200(IsobusDevice):
         isobus_addr : int, optional
             ISOBUS address of the device.
         **kwargs : dict
-            Additional parameters to pass to the underlying VISA resource.
+            Additional parameters to pass to the underlying
+            VISA resource.
         """
         kwargs["isobus_addr"] = isobus_addr
         if "write_termination" not in kwargs:
@@ -86,7 +87,8 @@ class ILM200(IsobusDevice):
         Parameters
         ----------
         fast : bool
-            If True, set rate to fast mode. If False, set rate to slow mode.
+            If True, set rate to fast mode. If False, set
+            rate to slow mode.
         """
         if fast is True:
             self.query("T1")

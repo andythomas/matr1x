@@ -35,8 +35,9 @@ class HDI(VisaDevice):
     interface : str
         VISA resource identifier for the HDI device
     **kwargs : dict, optional
-        Additional keyword arguments to pass to the VisaDevice parent class.
-        Automatically sets appropriate communication parameters if not specified.
+        Additional keyword arguments to pass to the VisaDevice
+        parent class. Automatically sets appropriate
+        communication parameters if not specified.
     """
 
     def __init__(self, interface, **kwargs):
@@ -48,7 +49,8 @@ class HDI(VisaDevice):
         interface : str
             VISA resource identifier for the HDI device
         **kwargs : dict, optional
-            Additional keyword arguments to pass to the VisaDevice parent class
+            Additional keyword arguments to pass to the
+            VisaDevice parent class
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\r\n"

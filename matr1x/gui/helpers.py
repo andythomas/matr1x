@@ -149,17 +149,21 @@ def get_matrix_icon(
     """
     Look up 'name' and get corresponding QIcon back.
 
-    Icons from a theme such as QIcon.fromTheme("media-playback-start") are not available on all
-    platforms. Consequently, we fallback to the Qt icons, which are also repecting platform and
-    theme, at least to some extent. Additionally, icons can be generated or the Matrix
-    applications icons can be used.
+    Icons from a theme such as
+    QIcon.fromTheme("media-playback-start") are not available on all
+    platforms. Consequently, we fallback to the Qt icons, which are
+    also repecting platform and theme, at least to some extent.
+    Additionally, icons can be generated or the Matrix applications
+    icons can be used.
 
     Parameters
     ----------
     name : str
-        The name of the icon. If it starts 'SP_' it signifies to use the Qt build-in icon,
-        'CHAR_' will generate a circle with the letter in it, 'CUSTOM_' provides several
-        painted icons and 'matr1x-' will use the matrix application icons.
+        The name of the icon. If it starts 'SP_' it signifies to
+        use the Qt build-in icon, 'CHAR_' will generate a circle
+        with the letter in it, 'CUSTOM_' provides several
+        painted icons and 'matr1x-' will use the matrix
+        application icons.
     color : QColor or str
         The color of the icon if applicable.
     pencolor: QColor
@@ -202,7 +206,8 @@ def detect_shortcut(event, shortcut):
     event : QEvent
         The event that was detected
     shortcut : str or QKeySequence
-        The keyboard shortcut as used in QKeySequence(string) or directly
+        The keyboard shortcut as used in QKeySequence(string) or
+        directly
 
     Returns
     -------

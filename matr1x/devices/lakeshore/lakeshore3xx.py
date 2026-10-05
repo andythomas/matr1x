@@ -68,10 +68,14 @@ class Lakeshore3xx(VisaDevice):
         **kwargs : dict
             Additional keyword arguments.
             - channel: Default channel to use (default: "B")
-            - setlimit: Maximum allowed setpoint temperature (default: 321)
-            - write_termination: Command termination character (default: LF)
-            - read_termination: Response termination character (default: LF)
-            - timeout: Connection timeout in milliseconds (default: 2000)
+            - setlimit: Maximum allowed setpoint temperature
+              (default: 321)
+            - write_termination: Command termination
+              character (default: LF)
+            - read_termination: Response termination
+              character (default: LF)
+            - timeout: Connection timeout in milliseconds
+              (default: 2000)
             - cmdpers: Commands per second limit (default: 20)
         """
         self.channel = kwargs.pop("channel", "B")
@@ -180,7 +184,8 @@ class Lakeshore3xx(VisaDevice):
         Parameters
         ----------
         channel : str, optional
-            Channel to read temperature from, by default None which uses the default channel.
+            Channel to read temperature from, by default
+            None which uses the default channel.
 
         Returns
         -------
@@ -196,7 +201,8 @@ class Lakeshore3xx(VisaDevice):
         Parameters
         ----------
         channel : str, optional
-            Channel to read resistance from, by default None which uses the default channel.
+            Channel to read resistance from, by default None
+            which uses the default channel.
 
         Returns
         -------
@@ -420,7 +426,8 @@ class Lakeshore3xx(VisaDevice):
         Parameters
         ----------
         channel : str, optional
-            Channel to query, by default None which uses the default channel.
+            Channel to query, by default None which uses the
+            default channel.
 
         Returns
         -------
@@ -436,7 +443,8 @@ class Lakeshore3xx(VisaDevice):
         Parameters
         ----------
         channel : str, optional
-            Channel to query, by default None which uses the default channel.
+            Channel to query, by default None which uses the
+            default channel.
 
         Returns
         -------
@@ -455,7 +463,8 @@ class Lakeshore3xx(VisaDevice):
         curve : int
             Curve number to set as active.
         channel : str, optional
-            Channel to set curve for, by default None which uses the default channel.
+            Channel to set curve for, by default None which
+            uses the default channel.
         """
         try:
             curve = int(curve)
@@ -527,7 +536,8 @@ class Lakeshore335(Lakeshore3xx):
             - channel: Default channel to use (default: "A")
             - baud_rate: Serial communication baud rate (default: 57600)
             - data_bits: Number of data bits (default: 7)
-            - read_termination: Response termination character (default: CRLF)
+            - read_termination: Response termination
+              character (default: CRLF)
             - parity: Parity bit configuration (default: odd)
         """
         if "channel" not in kwargs:
@@ -571,7 +581,8 @@ class Lakeshore335(Lakeshore3xx):
 
         Notes
         -----
-        The function tests if the range would be correctly set, i.e. 0-3.
+        The function tests if the range would be correctly set,
+        i.e. 0-3.
         """
         heaterRange = int(heaterRange)
         if heaterRange < 0 or heaterRange > 3:
@@ -604,12 +615,14 @@ class Lakeshore335(Lakeshore3xx):
         Parameters
         ----------
         mode : int
-            The control mode to set (0 = Off, 1 = Closed Loop PID, 2 = Zone, 3 = Open Loop,
-            4 = Monitor out, 5 = Warmup Supply).
+            The control mode to set (0 = Off, 1 = Closed
+            Loop PID, 2 = Zone, 3 = Open Loop, 4 = Monitor
+            out, 5 = Warmup Supply).
         loop : int, optional
             Heater loop to set the control mode for, by default 1.
         channel : str, optional
-            Channel to set the control mode for (A or B), by default "A".
+            Channel to set the control mode for (A or B), by
+            default "A".
         """
         channel_num = 0
         if channel == "A":
@@ -678,7 +691,8 @@ class Lakeshore335(Lakeshore3xx):
         limit : int
             The temperature limit to set (in Kelvin).
         channel : str, optional
-            The channel to set the temperature limit for (A or B), by default "A".
+            The channel to set the temperature limit for (A
+            or B), by default "A".
         """
         limit = int(limit)
         self.write(f"TLIMIT {channel},{limit}")
@@ -787,7 +801,8 @@ class Lakeshore340(Lakeshore3xx):
         Parameters
         ----------
         templist : List[float]
-            Upper temperature limits for each zone (must be sorted from low to high).
+            Upper temperature limits for each zone (must be
+            sorted from low to high).
         plist : List[float]
             P (proportional) parameters for each temperature zone.
         ilist : List[float]
@@ -801,8 +816,8 @@ class Lakeshore340(Lakeshore3xx):
 
         Notes
         -----
-        All lists can have at most 10 entries.
-        Enables automatic adjustment of PID parameters based on temperature.
+        All lists can have at most 10 entries. Enables automatic
+        adjustment of PID parameters based on temperature.
         """
         assert (
             len(templist) == len(plist)

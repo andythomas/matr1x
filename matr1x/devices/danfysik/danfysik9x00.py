@@ -202,36 +202,37 @@ class Danfysik9100(VisaDevice):
         Returns
         -------
         dict
-            Dictionary containing status information for various device states.
-            Example output format: "! . ! . ! ! . . . ! . . . . ! . . . . . . . ! ."
+            Dictionary containing status information for
+            various device states. Example output format: "!
+            . ! . ! ! . . . ! . . . . ! . . . . . . . ! ."
 
         Notes
         -----
         Status bits:
-            #1   . . . . .    MAIN POWER OFF (!=OFF .=ON)
-            #2   . . . . .    POLARITY NORMAL (!=Polarity Normal)
-            #3   . . . . .    POLARITY REVERSED (!=Polarity REVERSED)
-            #4   . . . . .    NOT USED
-            #5   . . . . .    CROWBAR ON (!=ON .=OFF)
-            #6   . . . . .    I-MODE (!=I-mode  .=V-mode)
-            #7   . . . . .    != % ,  . = AMPS and VOLTS
-            #8   . . . . .    EXTERNAL INTERLOCK 0  (!=Interlock  .=No interlock)
-            #9   . . . . .    NOT USED.
-            #10  . . . . .    SUM – INTERLOCK  (!=Sum interlock  .=No sum interlock)
-            #11  . . . . .    OVER VOLTAGE (OVP) (!=over voltage  .=No over voltage)
-            #12  . . . . .    DC OVER CURRENT (OCP) (!=over current .=No over current)
-            #13  . . . . .    DC UNDERVOLTAGE  (!=Fault  .=OK)
-            #14  . . . . .    NOT USED
-            #15  . . . . .    PHASE FAILURE (AC LINE OK) (!=Fault  .=OK)
-            #16  . . . . .    NOT USED
-            #17  . . . . .    EARTH LEAKAGE (!=Fault  .=OK)
-            #18  . . . . .    FAN (!=Fault  .=OK)
-            #19  . . . . .    MPS OVERTEMPERATURE (!=Fault  .=OK)
-            #20  . . . . .    EXTERNAL INTERLOCK 1  (!=Interlock  .=No interlock)
-            #21  . . . . .    EXTERNAL INTERLOCK 2  (!=Interlock  .=No interlock)
-            #22  . . . . .    EXTERNAL INTERLOCK 3  (!=Interlock  .=No interlock)
-            #23  . . . . .    MPS NOT READY (!=Not ready  .=Ready)
-            #24  . . . . .    NOT USED.
+            #1 . . . . . MAIN POWER OFF (!=OFF .=ON) #2 . .
+            . . . POLARITY NORMAL (!=Polarity Normal) #3 . .
+            . . . POLARITY REVERSED (!=Polarity REVERSED) #4
+            . . . . . NOT USED #5 . . . . . CROWBAR ON (!=ON
+            .=OFF) #6 . . . . . I-MODE (!=I-mode .=V-mode)
+            #7 . . . . . != % , . = AMPS and VOLTS #8 . . .
+            . . EXTERNAL INTERLOCK 0 (!=Interlock .=No
+            interlock) #9 . . . . . NOT USED. #10 . . . . .
+            SUM – INTERLOCK (!=Sum interlock .=No sum
+            interlock) #11 . . . . . OVER VOLTAGE (OVP)
+            (!=over voltage .=No over voltage) #12 . . . . .
+            DC OVER CURRENT (OCP) (!=over current .=No over
+            current) #13 . . . . . DC UNDERVOLTAGE (!=Fault
+            .=OK) #14 . . . . . NOT USED #15 . . . . . PHASE
+            FAILURE (AC LINE OK) (!=Fault .=OK) #16 . . . .
+            . NOT USED #17 . . . . . EARTH LEAKAGE (!=Fault
+            .=OK) #18 . . . . . FAN (!=Fault .=OK) #19 . . .
+            . . MPS OVERTEMPERATURE (!=Fault .=OK) #20 . . .
+            . . EXTERNAL INTERLOCK 1 (!=Interlock .=No
+            interlock) #21 . . . . . EXTERNAL INTERLOCK 2
+            (!=Interlock .=No interlock) #22 . . . . .
+            EXTERNAL INTERLOCK 3 (!=Interlock .=No
+            interlock) #23 . . . . . MPS NOT READY (!=Not
+            ready .=Ready) #24 . . . . . NOT USED.
         """
         self.write("S1")
         a = self.read()

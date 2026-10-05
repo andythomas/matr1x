@@ -76,10 +76,10 @@ def validate_visa_resource(
     """
     Validate a VISA resource string without opening the instrument.
 
-    ``VisaResource`` can be used in Pydantic config models for systems that
-    need a VISA address. The config editor renders the field as an editable
-    combo box with discovered resource suggestions while still allowing free
-    text input.
+    ``VisaResource`` can be used in Pydantic config models for
+    systems that need a VISA address. The config editor renders the
+    field as an editable combo box with discovered resource
+    suggestions while still allowing free text input.
 
     Example
     -------
@@ -90,7 +90,9 @@ def validate_visa_resource(
 
 
     class DeviceConfig(SystemConfigModel):
-        address: VisaResource = Field(..., description="VISA resource address")
+        address: VisaResource = Field(
+            ..., description="VISA resource address"
+        )
     ```
     """
     if not value.strip():

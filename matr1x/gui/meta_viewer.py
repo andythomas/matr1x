@@ -480,7 +480,8 @@ class MetaViewerWidget(QDockWidget):
         """
         Resolve a Pydantic JSON schema to a flat dictionary of properties.
 
-        Handles $ref, anyOf, allOf by merging or picking the first non-null type.
+        Handles $ref, anyOf, allOf by merging or picking the
+        first non-null type.
         """
         if not isinstance(schema, dict):
             return {}
@@ -726,7 +727,8 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             dict
-                A Pydantic-compatible JSON schema dictionary representing the type.
+                A Pydantic-compatible JSON schema
+                dictionary representing the type.
             """
             if column == 0:
                 return {"type": "string"}
@@ -1005,7 +1007,8 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             str or None
-                The header data for the given section, orientation, and role.
+                The header data for the given section,
+                orientation, and role.
             """
             if role == Qt.ItemDataRole.DisplayRole:
                 if section == 0:
@@ -1126,7 +1129,8 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             int
-                The number of columns for the children of the given parent.
+                The number of columns for the children
+                of the given parent.
             """
             return 2
 
@@ -1371,7 +1375,8 @@ class ConfigEditWidget(MetaViewerWidget):
         Parameters
         ----------
         full_system_list : list
-            List of all system names (both configurable and non-configurable).
+            List of all system names (both configurable and
+            non-configurable).
         """
         self.full_system_list = full_system_list
 
@@ -1828,8 +1833,9 @@ class ConfigEditWidget(MetaViewerWidget):
         Returns
         -------
         dict or str or Any
-            A dictionary representing the parsed configuration, or a value
-            if the item has no children.
+            A dictionary representing the parsed
+            configuration, or a value if the item has no
+            children.
         """
         if item.child_count() > 0:
             return self._parse_container_item(item)
@@ -1871,9 +1877,10 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         Write a configuration dictionary to a temporary file.
 
-        The configuration data is normalized and written to a named temporary
-        file. This file persists after the function returns and can be used
-        as an optional configuration file.
+        The configuration data is normalized and written to a
+        named temporary file. This file persists after the
+        function returns and can be used as an optional
+        configuration file.
         """
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".toml") as tmpfile:
             temp_file = Path(tmpfile.name)

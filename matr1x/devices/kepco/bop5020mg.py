@@ -95,7 +95,8 @@ class BOP5020mg(VisaDevice):
         """
         Set the output current in A so that the actual current is within tolerance.
 
-        Adjusts the current incrementally until the desired value is reached.
+        Adjusts the current incrementally until the desired
+        value is reached.
 
         Parameters
         ----------

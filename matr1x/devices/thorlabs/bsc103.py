@@ -28,12 +28,11 @@ class BSC103(VisaDevice):
     """
     The Thorlabs BSC103 motor controller device class.
 
-    Could also be used for other devices using the
-    APT protocol with little to no change.
-    Note that multi channel operation is implemented to a certain degree,
-    but not completely and without documentation, as it is not used in
-    the BSC103.
-    Multi card devices are fully implemented.
+    Could also be used for other devices using the APT protocol with
+    little to no change. Note that multi channel operation is
+    implemented to a certain degree, but not completely and without
+    documentation, as it is not used in the BSC103. Multi card
+    devices are fully implemented.
 
     Attributes
     ----------
@@ -52,8 +51,8 @@ class BSC103(VisaDevice):
     ndrives : int
         The number of connected drives.
     uStepsPerStep : int
-        The ratio of (internal) micro steps to actual stepper motor steps.
-        Specific to the used controller.
+        The ratio of (internal) micro steps to actual stepper
+        motor steps. Specific to the used controller.
     """
 
     def __init__(self, interface, conf=None, debug=0x00):
@@ -65,24 +64,29 @@ class BSC103(VisaDevice):
         interface : str
             The serial port where the device is located.
         conf : dict
-            Contains the configuration of the device/motor in question, example
-            follows:
-                {"name": "Thorlabs DRV001", "mb address": 17,
-                "drive addresses": [33, 34, 35], "backlash dist": 0.01,
-                "ccw hard limit": 1, "ccw soft limit": 1.0, "cw hard limit": 3,
-                "cw soft limit": 3.0, "soft limit mode": 1, "def accn": 1.0,
-                "def max vel": 2.0, "def min vel": 0.0, "home dir": 2,
-                "home limit switch": 1, "home vel": 1.0, "home zero offset": 3,
-                "jog accn": 0.5, "jog max vel": 1.0, "jog min vel": 0.0,
-                "jog mode": 2, "jog step size": 0.05, "jog stop mode": 2,
-                "power rest" : 20, "power mov" : 100, "pitch": 0.5,
-                "steps per rev": 200, "units": 1}
+            Contains the configuration of the device/motor
+            in question, example follows:
+                {"name": "Thorlabs DRV001", "mb
+                address": 17, "drive addresses": [33,
+                34, 35], "backlash dist": 0.01, "ccw
+                hard limit": 1, "ccw soft limit": 1.0,
+                "cw hard limit": 3, "cw soft limit":
+                3.0, "soft limit mode": 1, "def accn":
+                1.0, "def max vel": 2.0, "def min vel":
+                0.0, "home dir": 2, "home limit switch":
+                1, "home vel": 1.0, "home zero offset":
+                3, "jog accn": 0.5, "jog max vel": 1.0,
+                "jog min vel": 0.0, "jog mode": 2, "jog
+                step size": 0.05, "jog stop mode": 2,
+                "power rest" : 20, "power mov" : 100,
+                "pitch": 0.5, "steps per rev": 200,
+                "units": 1}
         debug : int, optional
             The debugging mode, by default 0x00
             If byte 0x01 is set, debug information is written to a
                 log file using the logging module.
-            If byte 0x02 is set, debug information is written to console.
-            0x03 activates both.
+            If byte 0x02 is set, debug information is
+            written to console. 0x03 activates both.
         """
         if conf is None:
             conf = {}
@@ -109,7 +113,8 @@ class BSC103(VisaDevice):
         """
         Print a debug string to console or log file.
 
-        The writing location is decided based on the debug attribute of the class.
+        The writing location is decided based on the debug
+        attribute of the class.
 
         Parameters
         ----------
@@ -273,15 +278,14 @@ class BSC103(VisaDevice):
         """
         Send a packet to the device, and return the response.
 
-        If the debug option is turned on, check if the length
-        of the response matches the expected length,
-        as some command have a response length attribute leftover
-        from when the read method was used instead of the readPacket method.
-        Also check if the response ID is the request ID
-        incremented by 1, as this is usually the case
-        except for movement commands.
-        Display a warning in both cases, this is not totally
-        accurate, but sometimes useful.
+        If the debug option is turned on, check if the length of
+        the response matches the expected length, as some
+        command have a response length attribute leftover from
+        when the read method was used instead of the readPacket
+        method. Also check if the response ID is the request ID
+        incremented by 1, as this is usually the case except for
+        movement commands. Display a warning in both cases, this
+        is not totally accurate, but sometimes useful.
 
         Parameters
         ----------
@@ -318,17 +322,16 @@ class BSC103(VisaDevice):
         """
         The data structure that is used for communication using the APT protocol.
 
-        Messages (packets) consist of a 6 byte header
-        (2b message ID, 2b payload, 1b destination address, 1b source address)
-        sometimes followed by a variable length data packet.
-        If the destination is bitwise OR'd with 0x08,
-        a data packet will follow, with the length specified in the
-        payload section.
-        If not, the payload contains two 1b parameters.
-        Little endian convention is normally used for conversion
-        between bytes and integers.
-        Further information on the message structure can be obtained
-        from the APT protocol documentation.
+        Messages (packets) consist of a 6 byte header (2b
+        message ID, 2b payload, 1b destination address, 1b
+        source address) sometimes followed by a variable length
+        data packet. If the destination is bitwise OR'd with
+        0x08, a data packet will follow, with the length
+        specified in the payload section. If not, the payload
+        contains two 1b parameters. Little endian convention is
+        normally used for conversion between bytes and integers.
+        Further information on the message structure can be
+        obtained from the APT protocol documentation.
 
         Attributes
         ----------
@@ -357,7 +360,8 @@ class BSC103(VisaDevice):
             Parameters
             ----------
             msgID : int
-                The message ID, which usually specifies the used command.
+                The message ID, which usually specifies
+                the used command.
             payload : bytes or tuple
                 If the payload is of bytes type, a long packet is
                 created automatically.
@@ -480,8 +484,10 @@ class BSC103(VisaDevice):
             A tuple containing:
             - SerialNmbr: int - The serial number.
             - ModelNmbr: str - The model number.
-            - Notes: str - Information string from the device, usually contains the name.
-            - nChannels: int - The number of channels the device can use.
+            - Notes: str - Information string from the
+              device, usually contains the name.
+            - nChannels: int - The number of channels the
+              device can use.
         """
         resp = self.ReqResp(self.message(0x0005, (0x00, 0x00), dst, respLen=90)).data
 
@@ -509,7 +515,8 @@ class BSC103(VisaDevice):
         Returns
         -------
         dict
-            Motor status information as specified in parseMotorStatusPckt.
+            Motor status information as specified in
+            parseMotorStatusPckt.
         """
         return self.parseMotorStatusPckt(self.ReqResp(self.message(0x0480, (channel, 0x00), dst)))
 
@@ -531,16 +538,21 @@ class BSC103(VisaDevice):
         dict
             A dictionary containing motor status information:
             - channel: int - Channel number
-            - position: float - The current position of the drive in millimeters.
-            - encCount: int - Not used on the installed drives, as they have no encoder.
-            - switches: str - Hexadecimal representation of the switch status.
-                For further information, refer to the APT protocol documentation.
-            - ismoving: int - The sign indicates the direction, + is forward.
-                1 indicates normal, 2 indicates jogging movement.
-                0 means the drive is stationary.
-            - motor connected: bool - True if a motor is attached to the drive.
-                (not working properly)
-            - home status: str - One of {'not homed', 'homeing', 'homed'}
+            - position: float - The current position of the
+              drive in millimeters.
+            - encCount: int - Not used on the installed
+              drives, as they have no encoder.
+            - switches: str - Hexadecimal representation of
+              the switch status. For further information,
+              refer to the APT protocol documentation.
+            - ismoving: int - The sign indicates the
+              direction, + is forward. 1 indicates normal, 2
+              indicates jogging movement. 0 means the drive
+              is stationary.
+            - motor connected: bool - True if a motor is
+              attached to the drive. (not working properly)
+            - home status: str - One of {'not homed',
+              'homeing', 'homed'}
         """
         if packet.msgID == 0x0481 or packet.msgID == 0x0464:
             data = packet.data
@@ -596,12 +608,15 @@ class BSC103(VisaDevice):
         -------
         tuple
             A tuple containing:
-            - homeDir: bool - True if homing in positive direction, else false.
-            - limSwitch: bool - Limit switch settings, see APT protocol documentation for
-                more information.
+            - homeDir: bool - True if homing in positive
+              direction, else false.
+            - limSwitch: bool - Limit switch settings, see
+              APT protocol documentation for more
+              information.
             - homeVel: float - The homing velocity in mm/s.
-            - offsetDistance: float - The distance from the limit switch in mm, to where the drive
-                moves after homing.
+            - offsetDistance: float - The distance from the
+              limit switch in mm, to where the drive moves
+              after homing.
         """
         resp = self.ReqResp(self.message(0x0441, (channel, 0x00), dst, respLen=20)).data
 
@@ -729,7 +744,8 @@ class BSC103(VisaDevice):
         -------
         tuple
             A tuple containing:
-            - minVel : float - The minimum velocity in mm/s, usually zero.
+            - minVel : float - The minimum velocity in mm/s,
+              usually zero.
             - acc : float - The acceleration in mm/s².
             - maxVel : float - The maximum velocity in mm/s.
         """
@@ -768,9 +784,10 @@ class BSC103(VisaDevice):
         """
         Set drive according to basic config file settings.
 
-        This includes home, velocity and limit switch settings as well as
-        power settings and the backlash correction.
-        This method should always be called before attempting to move an axis.
+        This includes home, velocity and limit switch settings
+        as well as power settings and the backlash correction.
+        This method should always be called before attempting to
+        move an axis.
 
         Parameters
         ----------
@@ -893,18 +910,19 @@ class BSC103(VisaDevice):
         Parameters
         ----------
         axis : list of bool, optional
-            A list of boolean values, with a length equal to self.ndrives.
-            The order of the drives is specified in self.drives.
-            If a certain value is set to true, home the drive.
-            If set to None, all drives get homed.
-            Default is None.
+            A list of boolean values, with a length equal to
+            self.ndrives. The order of the drives is
+            specified in self.drives. If a certain value is
+            set to true, home the drive. If set to None, all
+            drives get homed. Default is None.
         channel : int, optional
             The channel number, by default 0x01
 
         Returns
         -------
         dict
-            A dictionary mapping drive addresses (in hex) to home status strings:
+            A dictionary mapping drive addresses (in hex) to
+            home status strings:
             - 'homed': if the drive was already homed, or if the
                 method waited for a response.
             - 'homing': if the drive is homing, but the method
@@ -966,8 +984,9 @@ class BSC103(VisaDevice):
         Parameters
         ----------
         distArr : [float]
-            List of the distances in mm, lenght should be equal to self.ndrives.
-            Order of the drives is specified in self.drives.
+            List of the distances in mm, lenght should be
+            equal to self.ndrives. Order of the drives is
+            specified in self.drives.
         channel : int
              (Default value = 0x01)
 

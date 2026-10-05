@@ -119,8 +119,9 @@ class SMS(VisaDevice):
         """
         Configure the drive settings for an axis.
 
-        Configures the parameters used by move_abs and move_rel. If drive/axis
-        settings are not configured, device internal defaults are used.
+        Configures the parameters used by move_abs and move_rel.
+        If drive/axis settings are not configured, device
+        internal defaults are used.
 
         Parameters
         ----------
@@ -173,7 +174,8 @@ class SMS(VisaDevice):
         Parameters
         ----------
         pos : float
-            Desired absolute position in units defined by _steps_per_deg.
+            Desired absolute position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
@@ -213,15 +215,16 @@ class SMS(VisaDevice):
         Parameters
         ----------
         pos : float
-            Desired relative position in units defined by _steps_per_deg.
+            Desired relative position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
         Returns
         -------
         None
-            Function returns silently if the movement would exceed limits
-            or if the motor is already moving.
+            Function returns silently if the movement would
+            exceed limits or if the motor is already moving.
         """
         if abs(pos) > abs(self._limits[ax]["hi"] - self._limits[ax]["lo"]):
             # ignore rotations that are guaranteed to exceed the limit
@@ -247,13 +250,15 @@ class SMS(VisaDevice):
         """
         Move to absolute position without blocking.
 
-        Initiates a movement to the specified position and returns immediately,
-        without waiting for the motion to complete.
+        Initiates a movement to the specified position and
+        returns immediately, without waiting for the motion to
+        complete.
 
         Parameters
         ----------
         pos : float
-            Desired absolute position in units defined by _steps_per_deg.
+            Desired absolute position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
@@ -296,15 +301,16 @@ class SMS(VisaDevice):
         Parameters
         ----------
         pos : float
-            Desired relative position in units defined by _steps_per_deg.
+            Desired relative position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
         Returns
         -------
         None
-            Function returns silently if the movement would exceed limits
-            or if the motor is already moving.
+            Function returns silently if the movement would
+            exceed limits or if the motor is already moving.
         """
         if abs(pos) > abs(self._limits[ax]["hi"] - self._limits[ax]["lo"]):
             # ignore rotations that are guaranteed to exceed the limit

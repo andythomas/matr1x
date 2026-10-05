@@ -294,8 +294,8 @@ class exampleDict(GuiDict):
         """
         Disable set buttons for testing purposes.
 
-        A real controlGUI should bring all parameters to a safe state here.
-        e.g. remove field from a magnet.
+        A real controlGUI should bring all parameters to a safe
+        state here. e.g. remove field from a magnet.
         """
         super().panic()
         self["toggle"].widgets[2].setEnabled(False)

@@ -34,7 +34,8 @@ class KeithleyDMM6500(VisaDevice):
     Attributes
     ----------
     config_params : dict
-        Dictionary of configuration parameters and their corresponding query commands.
+        Dictionary of configuration parameters and their
+        corresponding query commands.
     triggered : bool
         Flag indicating if a measurement has been triggered.
     """
@@ -55,8 +56,10 @@ class KeithleyDMM6500(VisaDevice):
         interface : str
             VISA resource name for the instrument.
         **kwargs : dict
-            Additional keyword arguments to pass to the VisaDevice constructor.
-            If not specified, read_termination and write_termination are set to LF.
+            Additional keyword arguments to pass to the
+            VisaDevice constructor. If not specified,
+            read_termination and write_termination are set
+            to LF.
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -99,14 +102,17 @@ class KeithleyDMM6500(VisaDevice):
             Range of the resistance measurement. Selected by the
             instrument to include the value of range.
         rangeAuto : bool, optional
-            If True, enables automatic detection of the measurement range.
-            Takes additional time during measurements.
+            If True, enables automatic detection of the
+            measurement range. Takes additional time during
+            measurements.
         trigBus : bool, optional
             Does nothing. Kept for backward compatibility.
         repeatingFilter : bool, optional
-            If True, set the filter to repeating. If False, set to moving.
+            If True, set the filter to repeating. If False,
+            set to moving.
         reset : bool, optional
-            If True, the device is reset prior to configuration. Default is False.
+            If True, the device is reset prior to
+            configuration. Default is False.
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -171,14 +177,17 @@ class KeithleyDMM6500(VisaDevice):
             Range of the resistance measurement. Selected by the
             instrument to include the value of range.
         rangeAuto : bool, optional
-            If True, enables automatic detection of the measurement range.
-            Takes additional time during measurements.
+            If True, enables automatic detection of the
+            measurement range. Takes additional time during
+            measurements.
         trigBus : bool, optional
             Does nothing. Kept for backward compatibility.
         repeatingFilter : bool, optional
-            If True, set the filter to repeating. If False, set to moving.
+            If True, set the filter to repeating. If False,
+            set to moving.
         reset : bool, optional
-            If True, the device is reset prior to configuration. Default is False.
+            If True, the device is reset prior to
+            configuration. Default is False.
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -243,14 +252,17 @@ class KeithleyDMM6500(VisaDevice):
             Range of the voltage detection. Selected by the
             instrument to include the value of range.
         rangeAuto : bool, optional
-            If True, enables automatic detection of the measurement range.
-            Takes additional time during measurements.
+            If True, enables automatic detection of the
+            measurement range. Takes additional time during
+            measurements.
         trigBus : bool, optional
             Does nothing. Kept for backward compatibility.
         repeatingFilter : bool, optional
-            If True, set the filter to repeating. If False, set to moving.
+            If True, set the filter to repeating. If False,
+            set to moving.
         reset : bool, optional
-            If True, the device is reset prior to configuration. Default is False.
+            If True, the device is reset prior to
+            configuration. Default is False.
         """
         cmdList = []
         if reset is True:
@@ -299,7 +311,8 @@ class KeithleyDMM6500(VisaDevice):
         Returns
         -------
         float
-            The measured value if a reading has been triggered, otherwise None.
+            The measured value if a reading has been
+            triggered, otherwise None.
 
         Notes
         -----

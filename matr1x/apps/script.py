@@ -204,7 +204,8 @@ class TimeoutDialogBase(QDialog):
         query : str
             The text to display on the label above the input field.
         timeout : float or None
-            Timeout in seconds before dialog automatically closes. None means no timeout.
+            Timeout in seconds before dialog automatically
+            closes. None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
         default_value : Any, optional
@@ -362,7 +363,8 @@ class TextInputDialog(TimeoutDialogBase):
         query : str
             The text to display on the label above the input field.
         timeout : float or None
-            Timeout in seconds before dialog automatically closes. None means no timeout.
+            Timeout in seconds before dialog automatically
+            closes. None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
         default_value : str, optional
@@ -414,7 +416,8 @@ class NumericalInputDialog(TimeoutDialogBase):
         query : str
             The text to display on the label above the input field.
         timeout : float or None
-            Timeout in seconds before dialog automatically closes. None means no timeout.
+            Timeout in seconds before dialog automatically
+            closes. None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
         default_value : float, optional
@@ -481,12 +484,13 @@ class YesNoAbortDialog(TimeoutDialogBase):
         question : str
             The question to display on the label.
         timeout : float or None
-            Timeout in seconds before dialog automatically returns default_value.
-            None means no timeout.
+            Timeout in seconds before dialog automatically
+            returns default_value. None means no timeout.
         parent : QWidget, optional
             The parent widget of the dialog.
         default_value : str, optional
-            Default value to return if timeout occurs. Should be "Yes", "No", or empty.
+            Default value to return if timeout occurs.
+            Should be "Yes", "No", or empty.
         """
         self._default_value = (
             default_value.lower() if default_value.lower() in ["yes", "no"] else "yes"
@@ -1377,9 +1381,11 @@ class MainWindow(LogWindowMixin, MMainWindow):
         Returns
         -------
         None
-            If the user accepted the dialog (input should be passed to script).
+            If the user accepted the dialog (input should be
+            passed to script).
         str
-            The abort character ("a" or "f") if the user clicked Abort or Finish.
+            The abort character ("a" or "f") if the user
+            clicked Abort or Finish.
         """
         result = dialog.result()
         if result == QDialog.DialogCode.Accepted:

@@ -90,7 +90,8 @@ class Keithley2400(Keithley24xx):
         interface : str
             VISA resource name for the instrument
         **kwargs : dict
-            Additional arguments to pass to the VISA device initialization
+            Additional arguments to pass to the VISA device
+            initialization
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -248,7 +249,8 @@ class Keithley2400(Keithley24xx):
         Parameters
         ----------
         current : float
-            The value to set for the source, either voltage or current depending on the source mode
+            The value to set for the source, either voltage
+            or current depending on the source mode
         """
         cmd = ":SOUR:" + self.sourceMode + ":LEV " + str(current)
         self.write(cmd)
@@ -302,7 +304,8 @@ class Keithley2450(Keithley24xx):
         interface : str
             VISA resource name for the instrument
         **kwargs : dict
-            Additional arguments to pass to the VISA device initialization
+            Additional arguments to pass to the VISA device
+            initialization
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -452,7 +455,8 @@ class Keithley2450(Keithley24xx):
         Parameters
         ----------
         current : float
-            The value to set for the source, either voltage or current depending on the source mode
+            The value to set for the source, either voltage
+            or current depending on the source mode
         """
         cmd = ":SOUR:" + self.sourceMode + " " + str(current)
         self.write(cmd)

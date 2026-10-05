@@ -43,9 +43,10 @@ class SelectLakeshoreInput(QDialog):
     """
     Open a dialog for selecting a sensor calibration curve for the Lakeshore temperature controller.
 
-    This dialog allows the user to choose from a list of available calibration curves
-    for the Lakeshore temperature controller. It displays the curve numbers and names,
-    and allows the user to set the selected curve for the controller.
+    This dialog allows the user to choose from a list of available
+    calibration curves for the Lakeshore temperature controller. It
+    displays the curve numbers and names, and allows the user to set
+    the selected curve for the controller.
 
     Attributes
     ----------
@@ -114,7 +115,8 @@ class TableModel(QAbstractTableModel):
     Parameters
     ----------
     data : numpy.ndarray
-        A 2D numpy array containing the data to be displayed in the table.
+        A 2D numpy array containing the data to be displayed in
+        the table.
     """
 
     def __init__(self, data: numpy.ndarray) -> None:
@@ -137,7 +139,8 @@ class TableModel(QAbstractTableModel):
         Returns
         -------
         Any
-            The requested data as a string if the role is DisplayRole, None otherwise.
+            The requested data as a string if the role is
+            DisplayRole, None otherwise.
         """
         if role == Qt.ItemDataRole.DisplayRole:
             value = self._data[index.row(), index.column()]
@@ -197,7 +200,8 @@ class TableModel(QAbstractTableModel):
         Returns
         -------
         str or None
-            The header data as a string if the conditions are met, QVariant() otherwise.
+            The header data as a string if the conditions
+            are met, QVariant() otherwise.
         """
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             if section == 0:
@@ -217,12 +221,13 @@ class WriteLakeshoreZonePID(QDialog):
     """
     Dialog to select a PID parameter table for use with the ZONE mode.
 
-    The PID parameter file must be a text file which contains columns for:
-    the upper temperature of the zones, P, I, D parameters, and heater range.
-    A total of 10 entries are allowed.
+    The PID parameter file must be a text file which contains
+    columns for: the upper temperature of the zones, P, I, D
+    parameters, and heater range. A total of 10 entries are allowed.
 
-    This dialog provides functionality to load a PID table from a file,
-    display it in a table view, and write the parameters to the Lakeshore device.
+    This dialog provides functionality to load a PID table from a
+    file, display it in a table view, and write the parameters to
+    the Lakeshore device.
     """
 
     def __init__(self, parent, lakeshore_dev=None):

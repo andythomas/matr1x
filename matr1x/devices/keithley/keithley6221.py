@@ -44,9 +44,10 @@ class Keithley6221(VisaDevice):
         interface : str
             VISA resource name for the instrument
         **kwargs : dict
-            Additional parameters to pass to the VISA driver.
-            Defaults for write_termination, read_termination, and timeout
-            are provided if not specified.
+            Additional parameters to pass to the VISA
+            driver. Defaults for write_termination,
+            read_termination, and timeout are provided if
+            not specified.
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\r\n"
@@ -207,7 +208,8 @@ class Keithley6221(VisaDevice):
         Raises
         ------
         ValueError
-            If the points list has fewer than 2 elements or more than 65535 elements.
+            If the points list has fewer than 2 elements or
+            more than 65535 elements.
         """
         # reset
         if reset is True:
@@ -281,11 +283,13 @@ class Keithley6221(VisaDevice):
         amplitude : float, optional
             Current amplitude in amps. Range: -0.105 to 0.105.
         autoRanging : bool, optional
-            Whether to enable auto ranging. If True, the measurement range
-            may change while performing measurements.
+            Whether to enable auto ranging. If True, the
+            measurement range may change while performing
+            measurements.
         sourceRange : float, optional
-            The measurement range to use in amps. Range: -0.105 to 0.105.
-            This determines the output current range that will be sourced.
+            The measurement range to use in amps. Range:
+            -0.105 to 0.105. This determines the output
+            current range that will be sourced.
         compliance : float, optional
             The compliance level in volts. Range: 0.1 to 105.
         reset : bool, optional
@@ -342,7 +346,8 @@ class Keithley6221(VisaDevice):
         ihigh : float
             Peak pulse current in amps. Range: -0.105 to 0.105.
         ilow : float
-            Low current (i.e., outside of pulse) in amps. Range: -0.105 to 0.105.
+            Low current (i.e., outside of pulse) in amps.
+            Range: -0.105 to 0.105.
         width : float
             Pulse width in seconds. Range: 50us to 12ms.
         sdel : float
@@ -360,7 +365,8 @@ class Keithley6221(VisaDevice):
         lme : int, optional
             Number of low measurements (0 to 2). Default is 1.
         reset : bool, optional
-            Whether to reset the device before configuring. Default is False.
+            Whether to reset the device before configuring.
+            Default is False.
 
         Returns
         -------
@@ -408,7 +414,8 @@ class Keithley6221(VisaDevice):
         comp_abort : bool, optional
             Whether to abort on compliance trigger. Default is True.
         reset : bool, optional
-            Whether to reset the device before configuring. Default is False.
+            Whether to reset the device before configuring.
+            Default is False.
 
         Returns
         -------

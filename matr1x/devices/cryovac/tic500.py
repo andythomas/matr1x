@@ -45,7 +45,8 @@ class TIC500(VisaDevice):
         write_termination : str, optional
             The string to append to each write command (default: CRLF)
         read_termination : str, optional
-            The string that marks the end of a read response (default: CRLF)
+            The string that marks the end of a read response
+            (default: CRLF)
         timeout : int, optional
             Timeout in milliseconds (default: 2000)
         setlimit : int, optional

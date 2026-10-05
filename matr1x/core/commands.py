@@ -100,8 +100,10 @@ class Command:
         Returns
         -------
         str
-            A string representation of the Command object, including its class name,
-            data type, setter function, getter function, and their respective arguments.
+            A string representation of the Command object,
+            including its class name, data type, setter
+            function, getter function, and their respective
+            arguments.
         """
         r = f"{self.__class__.__name__}: {self.dtype}, {self.setfunc}"
         if self.setargs:
@@ -176,7 +178,8 @@ class Set(Command):
         setargs : tuple or None, optional
             Optional additional arguments for the setter function.
         polling_cmd : str or None, optional
-            Optional command to poll to check if the setpoint was reached.
+            Optional command to poll to check if the
+            setpoint was reached.
         """
         super().__init__(dtype, setfunc, getfunc=None, setargs=setargs, polling_cmd=polling_cmd)
 

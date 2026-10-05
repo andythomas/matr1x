@@ -57,16 +57,17 @@ class PNA5225b(VisaDevice):
             The IP address and port where the device is located.
             e.g. TCPIP::192.98.143.1::5025::SOCKET
         reset : bool, optional
-            If true, the VNA is reset on object creation using the reset method.
-            Default is True.
+            If true, the VNA is reset on object creation
+            using the reset method. Default is True.
         timeout : int, optional
             The timeout of the ethernet connection in milliseconds.
             Default is 10e3 ms.
         **kwargs
             Keyword arguments passed to the VisaDevice constructor.
             'open' : bool, optional
-                If true, the connection to the VNA is opened on object creation.
-                Default is True.
+                If true, the connection to the VNA is
+                opened on object creation. Default is
+                True.
         """
         super().__init__(
             interface,
@@ -167,8 +168,9 @@ class PNA5225b(VisaDevice):
         fPoints : int or 'MIN'/'MAX'
             The number of points per sweep.
         if_bw : int
-            The bandwidth of the digital IF filter.
-            A lower value usually means a slower, but more accurate measurement.
+            The bandwidth of the digital IF filter. A lower
+            value usually means a slower, but more accurate
+            measurement.
         average : int, optional
             The number of averages which make up the final values.
             Default is None.
@@ -333,11 +335,11 @@ class PNA5225b(VisaDevice):
         channel : int
             The desired channel.
         precision : str, optional
-            One of {'single', 'double', 'ascii'}.
-            'single' and 'double' precisions are transferred as binary data,
-            and achieve much faster transfer speeds.
-            'ascii' is only implemented as a fallback method, as it is
-            much easier to debug.
+            One of {'single', 'double', 'ascii'}. 'single'
+            and 'double' precisions are transferred as
+            binary data, and achieve much faster transfer
+            speeds. 'ascii' is only implemented as a
+            fallback method, as it is much easier to debug.
             Default is 'single'.
 
         Returns
@@ -389,11 +391,11 @@ class PNA5225b(VisaDevice):
         channel : int
             The desired channel.
         precision : str, optional
-            One of {'single', 'double', 'ascii'}.
-            'single' and 'double' precisions are transferred as binary data,
-            and achieve much faster transfer speeds.
-            'ascii' is only implemented as a fallback method, as it
-            is much easier to debug.
+            One of {'single', 'double', 'ascii'}. 'single'
+            and 'double' precisions are transferred as
+            binary data, and achieve much faster transfer
+            speeds. 'ascii' is only implemented as a
+            fallback method, as it is much easier to debug.
             Default is 'single'.
 
         Returns
@@ -442,8 +444,8 @@ class PNA5225b(VisaDevice):
         """
         Prepare, trigger and fetch sweep data.
 
-        This is a convenience method to prepare and trigger the sweep and transfer
-        the data afterwards.
+        This is a convenience method to prepare and trigger the
+        sweep and transfer the data afterwards.
 
         Parameters
         ----------
@@ -469,7 +471,8 @@ class PNA5225b(VisaDevice):
         Parameters
         ----------
         channel : int
-            The channel for which the sweep parameters should be returned.
+            The channel for which the sweep parameters
+            should be returned.
 
         Returns
         -------

@@ -55,8 +55,8 @@ class PSA_E4440A(VisaDevice):
             The IP address and port where the device is located.
             e.g. TCPIP::192.168.5.52::5025::SOCKET
         reset : bool, optional
-            If true, the PSA is reset on object creation using the reset method.
-            Default is True.
+            If true, the PSA is reset on object creation
+            using the reset method. Default is True.
         timeout : int, optional
             The timeout of the ethernet connection in milliseconds.
             Default is 10e3 ms.
@@ -219,17 +219,18 @@ class PSA_E4440A(VisaDevice):
         """
         Transfer measurement data from the PSA.
 
-        Reads trace data in different formats based on the precision parameter.
+        Reads trace data in different formats based on the
+        precision parameter.
 
         Parameters
         ----------
         precision : {'single', 'double', 'ascii'}, optional
-            The data format precision to use:
-            'single' and 'double' precisions are transferred as binary data,
-            and achieve much faster transfer speeds.
-            'ascii' is only implemented as a fallback method, as it is
-            much easier to debug.
-            Default is 'single'.
+            The data format precision to use: 'single' and
+            'double' precisions are transferred as binary
+            data, and achieve much faster transfer speeds.
+            'ascii' is only implemented as a fallback
+            method, as it is much easier to debug. Default
+            is 'single'.
 
         Returns
         -------
@@ -274,8 +275,8 @@ class PSA_E4440A(VisaDevice):
         """
         Prepare, trigger, and get data from a sweep operation.
 
-        This is a convenience method that combines startSweep(), trigger(),
-        and getData() operations into a single call.
+        This is a convenience method that combines startSweep(),
+        trigger(), and getData() operations into a single call.
 
         Returns
         -------
@@ -291,16 +292,18 @@ class PSA_E4440A(VisaDevice):
         """
         Read the current sweep parameters from the PSA.
 
-        Queries the center frequency, span, and number of points settings
-        and calculates the start/stop frequencies. All frequencies are
-        returned in Hz.
+        Queries the center frequency, span, and number of points
+        settings and calculates the start/stop frequencies. All
+        frequencies are returned in Hz.
 
         Returns
         -------
         tuple
             A tuple containing (fStart, fStop, fPoints) where:
-            - fStart (float): The frequency at which the sweep starts in Hz
-            - fStop (float): The frequency at which the sweep stops in Hz
+            - fStart (float): The frequency at which the
+              sweep starts in Hz
+            - fStop (float): The frequency at which the
+              sweep stops in Hz
             - fPoints (int): The number of points in the sweep
         """
         self.write("FREQ:CENT?")

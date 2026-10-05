@@ -83,24 +83,26 @@ def linear_trend(
     Parameters
     ----------
     timestamps : array-like
-        time stamps of data in Unix-time in seconds (e.g. from `time.time()`)
+        time stamps of data in Unix-time in seconds (e.g. from
+        `time.time()`)
     data : array-like
         past data points (most recent data point has index 0!).
         shape is assumed to be same for the two arguments
     interval : float, optional
-        time interval of the data points which should be considered. Older data
-        points are ignored.
+        time interval of the data points which should be
+        considered. Older data points are ignored.
 
     Note
     ----
-    Best use collections.deque and appendleft to generate the needed data
+    Best use collections.deque and appendleft to generate the needed
+    data
 
     Returns
     -------
     slope, stdev
-        slope and standard deviation of past `interval` seconds. If there are
-        insufficient data points to calculate the statistics each value will be
-        `None`.
+        slope and standard deviation of past `interval` seconds.
+        If there are insufficient data points to calculate the
+        statistics each value will be `None`.
     """
     ret = (None, None)
     mask = (time.time() - numpy.asarray(timestamps)) < interval
@@ -149,8 +151,8 @@ def sendNotificationEmail(
     """
     Send messages to a list of email addresses.
 
-    Utility function that uses the sendmail command line function which has to
-    be configured to work as intended.
+    Utility function that uses the sendmail command line function
+    which has to be configured to work as intended.
 
     Parameters
     ----------

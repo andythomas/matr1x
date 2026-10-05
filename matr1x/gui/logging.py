@@ -224,7 +224,8 @@ class LoggingWindow(QMainWindow):
         """
         Prevent destruction when the user presses the close button.
 
-        The logging window is hidden instead to keep the C++ object alive.
+        The logging window is hidden instead to keep the C++
+        object alive.
         """
         event.ignore()
         self.hide()

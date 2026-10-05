@@ -96,8 +96,9 @@ class FH55(VisaDevice):
         """
         Set the measurement range based on the current field strength.
 
-        Automatically selects the appropriate range for the Hall probe based on
-        the measured field magnitude. Range selection criteria:
+        Automatically selects the appropriate range for the Hall
+        probe based on the measured field magnitude. Range
+        selection criteria:
         - Range 1: < 30 µT
         - Range 2: < 300 µT
         - Range 3: < 3 mT

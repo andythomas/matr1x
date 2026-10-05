@@ -187,7 +187,8 @@ class KeysightB2961(VisaDevice):
         """
         Set the output value of the source.
 
-        This happens immediately without changing the source output status.
+        This happens immediately without changing the source
+        output status.
 
         Parameters
         ----------
@@ -237,14 +238,15 @@ class KeysightB2961(VisaDevice):
         """
         Set up the SMU for triggered acquisition of the measurement system.
 
-        Note: the source still has another independent trigger system which is
-        not changed by this function!
+        Note: the source still has another independent trigger
+        system which is not changed by this function!
 
         Parameters
         ----------
         mode : str, optional
-            Trigger mode: AINT (=Automatic), BUS (for use with triggerReading),
-            TIMER (for time trace recording). Default is "BUS".
+            Trigger mode: AINT (=Automatic), BUS (for use
+            with triggerReading), TIMER (for time trace
+            recording). Default is "BUS".
         count : int or str, optional
             Amount of triggers (typically 1 for BUS), allowed are: None,
             integer, or "inf".
@@ -276,11 +278,13 @@ class KeysightB2961(VisaDevice):
         """
         Configure for generation of a sine wave.
 
-        Use configure first to set up the sourceMode. Use run_wave after this
-        command to actually start the output.
+        Use configure first to set up the sourceMode. Use
+        run_wave after this command to actually start the
+        output.
 
-        Note: this function also sets up the phase marker output (mapped to
-        EXT1) which can be used as a sync signal for a lockin.
+        Note: this function also sets up the phase marker output
+        (mapped to EXT1) which can be used as a sync signal for
+        a lockin.
 
         Parameters
         ----------
@@ -293,8 +297,9 @@ class KeysightB2961(VisaDevice):
         count : str, optional
             Number of sine waves to output. Default is "INF".
         onlysetamp : bool, optional
-            Flag to only set a new amplitude and leave the rest unchanged,
-            which keeps the output on. Default is False.
+            Flag to only set a new amplitude and leave the
+            rest unchanged, which keeps the output on.
+            Default is False.
         """
         cmdlist = [":ABOR"]
 
@@ -342,7 +347,8 @@ class KeysightB2961(VisaDevice):
         Parameters
         ----------
         dt : float, optional
-            Time interval between measurements in seconds. Default is 1e-3.
+            Time interval between measurements in seconds.
+            Default is 1e-3.
         points : int, optional
             Number of points to acquire. Default is 1000.
         """

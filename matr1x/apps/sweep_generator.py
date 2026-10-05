@@ -409,11 +409,13 @@ class ColumnData(BaseModel):
         Parameters
         ----------
         index : int
-            Index of the item in array for which the hierarchy is to be determined.
+            Index of the item in array for which the
+            hierarchy is to be determined.
         array : list
             The array defining the hierarchy.
         depth : int, optional
-            Recursion depth, does not need to be set when calling the function.
+            Recursion depth, does not need to be set when
+            calling the function.
 
         Returns
         -------
@@ -514,7 +516,8 @@ class QLabelWithColor(ThemeChangeMixin, QLabel):
         Parameters
         ----------
         color_bright : str
-            The six digit hex code for the bright mode color (e.g. #DCF5D4).
+            The six digit hex code for the bright mode color
+            (e.g. #DCF5D4).
         color_dark : str
             The six digit hex code for the dark mode color.
         """
@@ -1383,7 +1386,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         Parameters
         ----------
         append : bool, optional
-            Append the file (True) or create/ overwrite the file (False).
+            Append the file (True) or create/ overwrite the
+            file (False).
 
         Returns
         -------
@@ -1434,9 +1438,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         Parameters
         ----------
         append : bool, optional
-            Append the file (True) or create/ overwrite the file (False).
+            Append the file (True) or create/ overwrite the
+            file (False).
         dialog : bool, optional
-            Do (True) or do not (False) show a dialog to chose a filename.
+            Do (True) or do not (False) show a dialog to
+            chose a filename.
 
         Returns
         -------

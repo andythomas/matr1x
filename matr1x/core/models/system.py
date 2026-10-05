@@ -158,8 +158,9 @@ class SystemInfo(BaseModel):
     def configurable_sections(self) -> list[str]:
         """Return config sections for selections without a system file on disk.
 
-        For each selection whose ``source`` does not exist as a file, the
-        ``config_section`` is returned if set, otherwise the ``source``.
+        For each selection whose ``source`` does not exist as a
+        file, the ``config_section`` is returned if set,
+        otherwise the ``source``.
         """
         return [
             selection.config_section or selection.source

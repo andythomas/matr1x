@@ -69,8 +69,8 @@ class FSW8(VisaDevice):
             The ip andress and port where the device is located.
             e.g. TCPIP::192.168.5.52::5025::SOCKET
         reset : bool, optional
-            If true, the PSA is reset on object creation using the reset method.
-            Default is True.
+            If true, the PSA is reset on object creation
+            using the reset method. Default is True.
         timeout : int, optional
             The timeout of the ethernet connection in milliseconds.
             Default is 60e3 ms.
@@ -329,11 +329,12 @@ class FSW8(VisaDevice):
         Parameters
         ----------
         precision : str, optional
-            One of {'single', 'double', 'ascii'}
-            'single' and 'double' precisions are transferred as binary data,
-            and achieve much faster transfer speeds.
-            'ascii' is only implemented as a fallback method, as it is
-            much easier to debug. Default is 'single'.
+            One of {'single', 'double', 'ascii'} 'single'
+            and 'double' precisions are transferred as
+            binary data, and achieve much faster transfer
+            speeds. 'ascii' is only implemented as a
+            fallback method, as it is much easier to debug.
+            Default is 'single'.
 
         Returns
         -------
@@ -380,8 +381,8 @@ class FSW8(VisaDevice):
         """
         Prepare, trigger, and retrieve sweep data.
 
-        This is a convenience method to prepare and trigger the sweep and transfer
-        the data afterwards.
+        This is a convenience method to prepare and trigger the
+        sweep and transfer the data afterwards.
 
         Returns
         -------

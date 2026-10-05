@@ -120,7 +120,8 @@ def catchEmitError(method: _F) -> _F:
     """
     Define error handling decorator.
 
-    This decorator works only with ControlWindow which defines a sig_error signal.
+    This decorator works only with ControlWindow which defines a
+    sig_error signal.
 
     Parameters
     ----------
@@ -312,10 +313,12 @@ class guiObject(IntEnum):
         --------
         Generate a toggle button which changes its label upon being
         set:
-        >>> getWidget("Property", guiObject.togglebutton, init=("Slow", "Fast"))
+        >>> getWidget("Property", guiObject.togglebutton,
+        ...           init=("Slow", "Fast"))
 
         Generate a QComboBox with prefilled options:
-        >>> getWidget("Property", guiObject.combobox, init=("opt 1", "opt 2"))
+        >>> getWidget("Property", guiObject.combobox,
+        ...           init=("opt 1", "opt 2"))
 
         Generate a SpinBox (similar for DoubleSpinBox):
         >>> getWidget("Property", guiObject.spinbox, init=(0, 200))
@@ -692,10 +695,11 @@ class var(QObject):
         """
         Generate a list of Qt widgets corresponding to the label and columns.
 
-        These widgets can be used to build a graphical user interface. The
-        widgets property is filled with the corresponding items after this
-        function was executed. Variable values will be automatically linked to
-        these widgets with the connect_signal method.
+        These widgets can be used to build a graphical user
+        interface. The widgets property is filled with the
+        corresponding items after this function was executed.
+        Variable values will be automatically linked to these
+        widgets with the connect_signal method.
 
         Parameters
         ----------
@@ -716,12 +720,13 @@ class var(QObject):
 
         Note
         ----
-        In all cases above the label and first GUI element will be
-        declared read only since they are assumed to serve to show a value
-        read-out from an instrument.
+        In all cases above the label and first GUI element will
+        be declared read only since they are assumed to serve to
+        show a value read-out from an instrument.
 
-        In addition to the visible items a by default hidden checkbox will be
-        added which shows and changes the logging preferences.
+        In addition to the visible items a by default hidden
+        checkbox will be added which shows and changes the
+        logging preferences.
         """
         self._change_handlers = []
         self._gui_cache = {}
@@ -844,8 +849,8 @@ class var(QObject):
         """
         Return the value of the GUI element in the respective column.
 
-        On the widget-owning thread the widget is read directly. Otherwise
-        a cached GUI value is returned when available.
+        On the widget-owning thread the widget is read directly.
+        Otherwise a cached GUI value is returned when available.
 
         Parameters
         ----------
@@ -1017,8 +1022,8 @@ class GuiDict(dict[str, var]):
     """
     Custom dictionary representing elements and commands of the control GUI.
 
-    Additionally a System object with related devices can be stored in this
-    class as object variable.
+    Additionally a System object with related devices can be stored
+    in this class as object variable.
 
     Important class variables which shall be overwritten are:
 
@@ -1034,24 +1039,29 @@ class GuiDict(dict[str, var]):
         data = {"Example": var(None, columns=["Readout", "Setpoint"]),
                 "V1": var(int, columns=[go.combobox, go.combobox],
                           log=True, init=("i1", "i2")),
-                "V2": var(float, columns=[go.lineedit, go.lineedit], unit="mT"),
-                "Set": var(None, columns=[go.button, go.button],
+                "V2": var(float, columns=[go.lineedit,
+                go.lineedit], unit="mT"), "Set":
+                var(None, columns=[go.button,
+                go.button],
                            init=["Set", "Copy"]),
                }
     refresh_period : float
-        Period (in seconds) in which the timer attempts to run the refresh method
-        once. If the refresh method takes more execution time than this
-        period it's called without further delay. It will never be called more
-        often than once per this period. (default: 1 sec)
+        Period (in seconds) in which the timer attempts to run
+        the refresh method once. If the refresh method takes
+        more execution time than this period it's called without
+        further delay. It will never be called more often than
+        once per this period. (default: 1 sec)
     allow_disabling : bool
-        Flag to decide if the GuiDict can be disabled. If this is set to True the
-        underlying devices should all provide a `close` method or be a pymeasure
-        Instrument. Otherwise likely reenabling will fail.
+        Flag to decide if the GuiDict can be disabled. If this
+        is set to True the underlying devices should all provide
+        a `close` method or be a pymeasure Instrument. Otherwise
+        likely reenabling will fail.
     S : System
-        System used by this part of the control GUI. If omitted, an empty
-        system named after the GuiDict class is created. Every GuiDict used in
-        one ControlWindow must have a uniquely named System whose name is a
-        valid, non-keyword Python identifier.
+        System used by this part of the control GUI. If omitted,
+        an empty system named after the GuiDict class is
+        created. Every GuiDict used in one ControlWindow must
+        have a uniquely named System whose name is a valid,
+        non-keyword Python identifier.
     menu_actions : list
         Custom menu actions appended by the subclass, e.g. in
         `create_GUI`. The ControlWindow attaches them to the custom
@@ -1274,8 +1284,9 @@ class GuiDict(dict[str, var]):
         Parameters
         ----------
         wait : bool, optional
-            Flag to make this function block up to twice the refresh period or
-            until the refresh thread ended (default is True).
+            Flag to make this function block up to twice the
+            refresh period or until the refresh thread ended
+            (default is True).
 
         Returns
         -------

@@ -392,8 +392,9 @@ class CryogenicBipolarPS(VisaDevice):
     """
     Control interface for Cryogenic Bipolar Power Supply.
 
-    Provides methods to control and monitor a Cryogenic Bipolar Power
-    Supply using VISA communication. It supports both positive and negative fields.
+    Provides methods to control and monitor a Cryogenic Bipolar
+    Power Supply using VISA communication. It supports both positive
+    and negative fields.
 
     Parameters
     ----------
@@ -692,7 +693,8 @@ class CryogenicBipolarPS(VisaDevice):
         """
         Set the output field using MID value as setpoint.
 
-        Automatically sets the direction (+ or -) based on the sign of the value.
+        Automatically sets the direction (+ or -) based on the
+        sign of the value.
 
         Parameters
         ----------

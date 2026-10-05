@@ -125,7 +125,8 @@ def _is_template_content(template: str) -> bool:
     Returns
     -------
     bool
-        True if the string appears to be template content, False otherwise.
+        True if the string appears to be template content, False
+        otherwise.
     """
     # Check for excessive length (filesystem limits)
     if len(template) > 255:
@@ -480,9 +481,10 @@ class Elab(System):
 
         Notes
         -----
-        Searches for a resource with the given name and, if found,
-        queues it to be linked to the experiment entry that will be created.
-        If multiple resources are found with the same name, no linking occurs.
+        Searches for a resource with the given name and, if
+        found, queues it to be linked to the experiment entry
+        that will be created. If multiple resources are found
+        with the same name, no linking occurs.
         """
         resource_id = self._search_resource(resource)
         if resource_id:
@@ -506,8 +508,9 @@ class Elab(System):
         """
         Render a template string or file using Jinja2.
 
-        Takes a template (either a string or a file path) and renders it
-        using Jinja2, with the current filename and merged system data as context.
+        Takes a template (either a string or a file path) and
+        renders it using Jinja2, with the current filename and
+        merged system data as context.
 
         Parameters
         ----------
@@ -521,9 +524,10 @@ class Elab(System):
 
         Notes
         -----
-        If the template is a file path, the method will read the contents of the file
-        before rendering. The template has access to the `filename` and `dcdata` variables
-        in its context.
+        If the template is a file path, the method will read the
+        contents of the file before rendering. The template has
+        access to the `filename` and `dcdata` variables in its
+        context.
         """
         if _is_template_content(template):
             template_str = template
@@ -705,8 +709,9 @@ class Elab(System):
         """
         Create a new resource in elabFTW.
 
-        Creates a new resource with the given name and the category
-        specified in the configuration, and assigns configured group permissions.
+        Creates a new resource with the given name and the
+        category specified in the configuration, and assigns
+        configured group permissions.
 
         Parameters
         ----------
@@ -723,7 +728,8 @@ class Elab(System):
         Raises
         ------
         ValueError
-            If a valid resource category could not be found or creation fails.
+            If a valid resource category could not be found
+            or creation fails.
         """
         if not self.api_client:
             return None
@@ -823,12 +829,14 @@ class Elab(System):
         """
         Create a new experiment in elabFTW.
 
-        Will render the jinja template strings and upload queued attachments.
+        Will render the jinja template strings and upload queued
+        attachments.
 
         Parameters
         ----------
         status
-            Status string which will be attempted to set also in elabFTW.
+            Status string which will be attempted to set
+            also in elabFTW.
         reset_tags
             Controls whether tags are reset after experiment is posted
         """

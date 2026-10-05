@@ -826,8 +826,9 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
         Parameters
         ----------
         line_numbers: list[int]
-            Line numbers ordered from the innermost execution point to its
-            outermost user-script caller.
+            Line numbers ordered from the innermost
+            execution point to its outermost user-script
+            caller.
         """
         self._pending_highlight_lines = list(dict.fromkeys(line_numbers))
         self._highlight_timer.start(HIGHLIGHT_INTERVAL_MS)

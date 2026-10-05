@@ -29,8 +29,8 @@ class CS04(VisaDevice):
     """
     Cryomagnetics CS04 magnet power supply.
 
-    Typically connected via `GPIB::<address>::INSTR`
-    The user shall set `max_field` to a reasonable value upon initialization.
+    Typically connected via `GPIB::<address>::INSTR` The user shall
+    set `max_field` to a reasonable value upon initialization.
 
     Parameters
     ----------
@@ -129,12 +129,14 @@ class CS04(VisaDevice):
         setpoint : float, optional
             Target field in Tesla. If None, uses the internal setpoint.
         delta : float, optional
-            Acceptable difference between current and target field, defaults to 0.0002 T
+            Acceptable difference between current and target
+            field, defaults to 0.0002 T
 
         Notes
         -----
-        The method will wait until the field is within delta of the setpoint
-        for at least two consecutive readings, then pause the sweep.
+        The method will wait until the field is within delta of
+        the setpoint for at least two consecutive readings, then
+        pause the sweep.
         """
         if not setpoint:
             setpoint = self._setpoint

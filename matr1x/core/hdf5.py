@@ -51,8 +51,8 @@ def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) ->
     Notes
     -----
     Recursively writes nested dictionaries to HDF5 groups and
-    datasets. Lists are converted to datasets, and scalar values are saved as
-    attributes.
+    datasets. Lists are converted to datasets, and scalar values are
+    saved as attributes.
     """
 
     def write_dict(group: h5py.Group, d: dict) -> None:
@@ -90,7 +90,8 @@ def init_hdf5_skel(
     units : list
         Column units to be written into the header.
     chunks : list
-        List of ints that define the chunk length of the individual datasets.
+        List of ints that define the chunk length of the
+        individual datasets.
     dtypes : list
         List of strings specifying the dtype of the individual datasets.
     """
