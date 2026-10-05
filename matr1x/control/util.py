@@ -16,7 +16,7 @@
 """
 Contains utility functions for generating control GUIs or devices.
 
-This module provides functionality for creating control graphical user
+Provides functionality for creating control graphical user
 interfaces or devices based on the scpi_tcp_server.
 """
 
@@ -214,7 +214,7 @@ def control_main(
     """
     Run main function of control GUI.
 
-    This function exists to avoid duplication in all control GUIs.
+    Exists to avoid duplication in all control GUIs.
 
     Parameters
     ----------

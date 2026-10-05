@@ -28,7 +28,7 @@ class MercuryC663(VisaDevice):
     """
     Driver for PI stepper motor @ Rote Zora.
 
-    This class provides control for the PI stepper motor with ItemID of
+    Provides control for the PI stepper motor with ItemID of
     the axis used for communication being 1.
     """
 

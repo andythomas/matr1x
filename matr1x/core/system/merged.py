@@ -252,7 +252,7 @@ class MergedSystem(System):
         """
         Return methods/variables from subsystems.
 
-        This method is called when an attribute is not found in the
+        Is called when an attribute is not found in the
         MergedSystem instance. First, it searches for a subsystem of
         that name, then, it searches for the attribute in all
         subsystems.
@@ -327,7 +327,7 @@ class MergedSystem(System):
         """
         Set the filename property.
 
-        This method is needed to keep the filename on the subsystems in
+        Is needed to keep the filename on the subsystems in
         sync.
 
         Parameters
@@ -350,7 +350,7 @@ class MergedSystem(System):
         """
         Set the datafile initialized property.
 
-        This method is needed to keep the flag on the subsystems in sync.
+        Is needed to keep the flag on the subsystems in sync.
 
         Parameters
         ----------

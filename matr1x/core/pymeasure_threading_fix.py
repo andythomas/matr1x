@@ -16,7 +16,7 @@
 """
 Thread Safety Monkey Patch for PyMeasure Instruments.
 
-This module fixes thread safety issues in the pymeasure library where concurrent
+Fixes thread safety issues in the pymeasure library where concurrent
 communication operations can interfere with each other, causing errors like:
 "Wrong reply received when there should be an acknowledge."
 
@@ -260,7 +260,7 @@ def _patch_pymeasure_instrument_init():
     """
     Apply monkey patch to pymeasure.Instrument.__init__.
 
-    This function modifies the pymeasure Instrument class so that all new
+    Modifies the pymeasure Instrument class so that all new
     instances automatically receive thread safety patches. The original
     __init__ method is preserved and called normally, with thread safety
     applied afterward.

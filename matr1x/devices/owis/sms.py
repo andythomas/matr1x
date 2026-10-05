@@ -16,7 +16,7 @@
 """
 OWIS SMS motor controller interface module for stepper motor control.
 
-This module provides the SMS class which interfaces with OWIS motor
+Provides the SMS class which interfaces with OWIS motor
 controllers.
 """
 

@@ -254,7 +254,7 @@ class IPS120_switchheater(IsobusDevice):
 
         Notes
         -----
-        This method sets the field, turns off the switch heater, and then
+        Sets the field, turns off the switch heater, and then
         ramps the power supply to zero while keeping the field trapped in the magnet.
         """
         self.setMagneticFieldNonPersistent(field, block=True)

@@ -29,7 +29,7 @@ class Keithley2182A(VisaDevice):
     """
     Keithley2182A nanovoltmeter instrument driver.
 
-    This class provides methods to control and interface with a Keithley 2182A
+    Provides methods to control and interface with a Keithley 2182A
     nanovoltmeter over a VISA connection.
 
     Parameters
@@ -75,7 +75,7 @@ class Keithley2182A(VisaDevice):
         """
         Send a query to the instrument and return the response.
 
-        This method overrides the parent class query method.
+        Overrides the parent class query method.
 
         Parameters
         ----------
@@ -213,7 +213,7 @@ class Keithley2182A(VisaDevice):
         """
         Get the most recent reading from the instrument.
 
-        This method should be called after triggering a reading with
+        Should be called after triggering a reading with
         triggerReading(). Resets the triggered flag to False after
         retrieving the reading.
 

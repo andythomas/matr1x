@@ -95,7 +95,7 @@ class SelectLakeshoreInput(QDialog):
         """
         Set the selected calibration curve for the Lakeshore temperature controller.
 
-        This method reads the selected curve from the QListWidget, sets
+        Reads the selected curve from the QListWidget, sets
         it on the Lakeshore device if possible, and closes the dialog.
         """
         selectedcurve = int(self.curvesList.currentItem().text().split(":")[0])
@@ -264,7 +264,7 @@ class WriteLakeshoreZonePID(QDialog):
         """
         Load a PID table from a file and display it in the table view.
 
-        This method opens a file dialog for the user to select a PID
+        Opens a file dialog for the user to select a PID
         table file, loads the data from the file, creates a TableModel
         with the data, and sets it as the model for the table view. If
         the loaded data has the correct shape, it enables the write
@@ -286,7 +286,7 @@ class WriteLakeshoreZonePID(QDialog):
         """
         Write the loaded PID table to the Lakeshore device.
 
-        This method checks if the Lakeshore device has a 'writeZonePID'
+        Checks if the Lakeshore device has a 'writeZonePID'
         method. If it does, it calls this method with the loaded PID
         data as arguments. After writing the data (or if the method
         doesn't exist), it closes the dialog.

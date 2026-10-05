@@ -115,7 +115,7 @@ class Command:
         """
         Reset the Command object's setter and getter functions and arguments to None.
 
-        This method sets the setter function, getter function, and their
+        Sets the setter function, getter function, and their
         respective arguments to None or empty lists.
         """
         self.setfunc = None

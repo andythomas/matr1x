@@ -402,7 +402,7 @@ class ColumnData(BaseModel):
         """
         Determine the hierarchical depth of an item in an array.
 
-        This function checks how deeply nested an item is within a given
+        Checks how deeply nested an item is within a given
         array structure. It recursively follows references until it
         reaches the deepest level or detects a circular reference.
 

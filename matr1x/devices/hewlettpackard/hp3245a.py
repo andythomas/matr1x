@@ -16,7 +16,7 @@
 """
 HP3245A AC function generator interface module.
 
-This module provides a class for controlling the HP3245A AC function
+Provides a class for controlling the HP3245A AC function
 generator.
 """
 

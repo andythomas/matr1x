@@ -69,7 +69,7 @@ class Keithley2400(Keithley24xx):
     """
     Class for controlling Keithley 2400 SourceMeter.
 
-    This class provides methods to configure and control the Keithley
+    Provides methods to configure and control the Keithley
     2400 source measurement unit for various sourcing and measurement
     operations.
     """
@@ -283,7 +283,7 @@ class Keithley2450(Keithley24xx):
     """
     Class for controlling Keithley 2450 SourceMeter.
 
-    This class provides methods to configure and control the Keithley
+    Provides methods to configure and control the Keithley
     2450 source measurement unit for various sourcing and measurement
     operations.
     """

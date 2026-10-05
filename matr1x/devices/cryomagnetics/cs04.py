@@ -16,7 +16,7 @@
 """
 Interface for the Cryomagnetics CS04 magnet power supply.
 
-This module provides control functions for Cryomagnetics CS04
+Provides control functions for Cryomagnetics CS04
 superconducting magnet power supplies over VISA interface.
 """
 

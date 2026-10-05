@@ -28,7 +28,7 @@ class BSC103(VisaDevice):
     """
     The Thorlabs BSC103 motor controller device class.
 
-    This class could also be used for other devices using the
+    Could also be used for other devices using the
     APT protocol with little to no change.
     Note that multi channel operation is implemented to a certain degree,
     but not completely and without documentation, as it is not used in

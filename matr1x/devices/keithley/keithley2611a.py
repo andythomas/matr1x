@@ -16,7 +16,7 @@
 """
 Provides a driver for the Keithley 2611A Source Measure Unit.
 
-This module implements full control of the Keithley 2611A SMU, including
+Implements full control of the Keithley 2611A SMU, including
 voltage/current sourcing and measurement, range control, and various
 sensing configurations.
 """
@@ -32,7 +32,7 @@ class Keithley2611A(VisaDevice):
     """
     Control interface for Keithley 2611A Source Measure Unit (SMU).
 
-    This class provides methods to control and read data from the Keithley 2611A.
+    Provides methods to control and read data from the Keithley 2611A.
     It supports voltage and current sourcing and sensing in both 2-wire and 4-wire
     configurations.
 

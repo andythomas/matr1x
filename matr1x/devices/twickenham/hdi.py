@@ -16,7 +16,7 @@
 """
 Twickenham Helium Depth Indicator (HDI) interface module.
 
-This module provides a class to interface with the Twickenham Helium
+Provides a class to interface with the Twickenham Helium
 Depth Indicator device through a VISA connection.
 """
 
@@ -27,7 +27,7 @@ class HDI(VisaDevice):
     """
     Twickenham Helium Depth Indicator (HDI) interface.
 
-    This class provides an interface to communicate with and control a
+    Provides an interface to communicate with and control a
     Twickenham Helium Depth Indicator device through a VISA connection.
 
     Parameters

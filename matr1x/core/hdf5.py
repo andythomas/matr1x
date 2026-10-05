@@ -16,7 +16,7 @@
 """
 HDF5 data file handling.
 
-This module implements reading and writing of the matr1x HDF5 file
+Implements reading and writing of the matr1x HDF5 file
 format. It is the only module that imports h5py; other modules import
 it lazily so that h5py is only loaded when HDF5 files are used.
 """
@@ -50,7 +50,7 @@ def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) ->
 
     Notes
     -----
-    This function recursively writes nested dictionaries to HDF5 groups and
+    Recursively writes nested dictionaries to HDF5 groups and
     datasets. Lists are converted to datasets, and scalar values are saved as
     attributes.
     """
@@ -129,7 +129,7 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
     """
     Load a dictionary from an HDF5 file.
 
-    This function reads data from an HDF5 file and returns it as a
+    Reads data from an HDF5 file and returns it as a
     nested dictionary. It recursively traverses the HDF5 file structure,
     converting groups to subdictionaries and datasets to array-like
     objects.
@@ -149,7 +149,7 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
 
     Notes
     -----
-    This function assumes that the HDF5 file is already open when passed
+    Assumes that the HDF5 file is already open when passed
     as an argument. It's the caller's responsibility to close the file
     after use.
     """

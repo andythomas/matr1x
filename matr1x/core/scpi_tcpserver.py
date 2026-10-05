@@ -35,7 +35,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     """
     Reimplemented TCP server to provide proper default behavior.
 
-    This class combines ThreadingMixIn and TCPServer to create a
+    Combines ThreadingMixIn and TCPServer to create a
     threaded TCP server with specific default behaviors.
     """
 
@@ -48,7 +48,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     """
     Handles the TCP connection and parses the commands specified in the server's cmd_list.
 
-    This class extends StreamRequestHandler to handle TCP connections
+    Extends StreamRequestHandler to handle TCP connections
     and parse commands specified in the server's command list.
     """
 
@@ -75,7 +75,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         Set up the server on initial startup.
 
-        This method parses the cmd_list to generate the (normalized)
+        Parses the cmd_list to generate the (normalized)
         keys and the command instructions.
         """
         super().setup()
@@ -244,7 +244,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         Handle incoming connections and manage the interface.
 
-        This method runs continuously and parses incoming data to manage
+        Runs continuously and parses incoming data to manage
         the interface.
         """
         while not self.terminate:
@@ -330,7 +330,7 @@ class SCPI_TCP_Server:
         """
         Start the server.
 
-        This method starts the server if it's not already running.
+        Starts the server if it's not already running.
         """
         if self.running is False:
             server_thread = threading.Thread(target=self.server.serve_forever)
@@ -343,7 +343,7 @@ class SCPI_TCP_Server:
         """
         Stop the server.
 
-        This method stops the server if it's currently running.
+        Stops the server if it's currently running.
         """
         if self.running is True:
             self.server.shutdown()

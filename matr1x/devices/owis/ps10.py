@@ -30,7 +30,7 @@ class Ps10(VisaDevice):
     r"""
     Owis PS10 motor controller class for stepper motor control.
 
-    This class provides an interface to control Owis PS10 motor controllers,
+    Provides an interface to control Owis PS10 motor controllers,
     particularly for DMT100 stepper motors. It supports both absolute and
     relative movement modes.
 

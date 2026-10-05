@@ -156,7 +156,7 @@ class SimplePlotWidget(QGroupBox):
             """
             Custom date axis item for displaying dates with customizable formatting.
 
-            This class extends the pyqtgraph DateAxisItem to provide more flexible
+            Extends the pyqtgraph DateAxisItem to provide more flexible
             date formatting options based on the scale of the axis.
 
             Parameters
@@ -196,7 +196,7 @@ class SimplePlotWidget(QGroupBox):
                     ...
                 ]
 
-                This method calls tickSpacing to determine the correct tick locations.
+                Calls tickSpacing to determine the correct tick locations.
                 """
                 minVal, maxVal = sorted((minVal, maxVal))
 
@@ -287,7 +287,7 @@ class SimplePlotWidget(QGroupBox):
             """
             Custom axis item for displaying categorical data.
 
-            This class extends pyqtgraph's AxisItem to properly display categorical
+            Extends pyqtgraph's AxisItem to properly display categorical
             data by mapping numeric indices to category labels.
 
             Parameters
@@ -631,7 +631,7 @@ class SimplePlotWidget(QGroupBox):
             """
             Handle data redimensioning and selection according to slider position.
 
-            This method adjusts the data dimensions and selects
+            Adjusts the data dimensions and selects
             appropriate data based on the current slider positions for
             multi-dimensional data sets. It updates the x, y, and z data
             attributes of the object accordingly.
@@ -674,7 +674,7 @@ class SimplePlotWidget(QGroupBox):
             """
             Remove the plot and the widgets that belong to the PlotObject.
 
-            This method removes the plot from the provided layouts,
+            Removes the plot from the provided layouts,
             including the horizontal line, x-slider, and z-slider
             widgets associated with this PlotObject.
             """
@@ -1268,7 +1268,7 @@ class SimplePlotWidget(QGroupBox):
         """
         Export the currently displayed plots into a PNG file.
 
-        This method exports all plots currently visible in the graphics layout
+        Exports all plots currently visible in the graphics layout
         (self.gl) to a single PNG image file.
 
         Parameters

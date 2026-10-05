@@ -16,7 +16,7 @@
 """
 Utility functions for the matr1x data acquisition software.
 
-This module includes functions for file handling, script generation,
+Includes functions for file handling, script generation,
 sweep calculations, and various helper functions for data processing and
 system configuration.
 """
@@ -185,7 +185,7 @@ def create_temp_dir_with_symlinks(
     """
     Create temporary directory with symlinks.
 
-    This function works similarly on all major platforms,
+    Works similarly on all major platforms,
     but uses different ways to achieve this.
 
     Parameters

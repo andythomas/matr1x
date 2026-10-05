@@ -16,7 +16,7 @@
 """
 Defines a system for automatically defining an elabFTW entry for a successful measurement.
 
-This module provides functionality to create and manage entries in the
+Provides functionality to create and manage entries in the
 elabFTW electronic lab notebook system.
 """
 
@@ -199,7 +199,7 @@ class Elab(System):
     """
     System for interfacing with elabFTW electronic lab notebook.
 
-    This class provides functionality to create experiment entries,
+    Provides functionality to create experiment entries,
     attach files, add tags and link resources in an elabFTW instance.
     """
 
@@ -480,7 +480,7 @@ class Elab(System):
 
         Notes
         -----
-        This method searches for a resource with the given name and, if found,
+        Searches for a resource with the given name and, if found,
         queues it to be linked to the experiment entry that will be created.
         If multiple resources are found with the same name, no linking occurs.
         """
@@ -506,7 +506,7 @@ class Elab(System):
         """
         Render a template string or file using Jinja2.
 
-        This method takes a template (either a string or a file path) and renders it
+        Takes a template (either a string or a file path) and renders it
         using Jinja2, with the current filename and merged system data as context.
 
         Parameters
@@ -705,7 +705,7 @@ class Elab(System):
         """
         Create a new resource in elabFTW.
 
-        This method creates a new resource with the given name and the category
+        Creates a new resource with the given name and the category
         specified in the configuration, and assigns configured group permissions.
 
         Parameters
@@ -823,7 +823,7 @@ class Elab(System):
         """
         Create a new experiment in elabFTW.
 
-        This function will render the jinja template strings and upload queued attachments.
+        Will render the jinja template strings and upload queued attachments.
 
         Parameters
         ----------

@@ -27,7 +27,7 @@ class KeithleyDMM6500(VisaDevice):
     """
     Class for controlling the Keithley DMM6500 multimeter.
 
-    This class provides methods to configure and take measurements with the
+    Provides methods to configure and take measurements with the
     Keithley DMM6500 digital multimeter for voltage, 2-wire and 4-wire
     resistance measurements.
 
@@ -303,7 +303,7 @@ class KeithleyDMM6500(VisaDevice):
 
         Notes
         -----
-        This method resets the triggered flag to False after reading.
+        Resets the triggered flag to False after reading.
         """
         if self.triggered is True:
             result = self.query(":READ?")

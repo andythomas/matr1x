@@ -16,7 +16,7 @@
 """
 Module for Keithley 2701 multimeter control.
 
-This module provides an interface to the Keithley 2701 multimeter for
+Provides an interface to the Keithley 2701 multimeter for
 precise measurements of resistance, voltage, and other electrical
 parameters through VISA communication.
 """
@@ -33,7 +33,7 @@ class Keithley2701(VisaDevice):
     """
     Interface for the Keithley 2701 multimeter.
 
-    This class provides methods to configure and control the Keithley 2701
+    Provides methods to configure and control the Keithley 2701
     for various measurement types including resistance and voltage.
 
     Attributes
@@ -323,7 +323,7 @@ class Keithley2701(VisaDevice):
         """
         Trigger a measurement reading from the device.
 
-        This method sends the trigger command to the device and
+        Sends the trigger command to the device and
         sets the triggered flag to True.
 
         Returns
@@ -337,7 +337,7 @@ class Keithley2701(VisaDevice):
         """
         Get a reading from the device if it has been triggered.
 
-        This method retrieves the measurement data from the device,
+        Retrieves the measurement data from the device,
         clears the triggered flag, and returns the result as a float.
 
         Returns
@@ -347,7 +347,7 @@ class Keithley2701(VisaDevice):
 
         Notes
         -----
-        This method only works if triggerReading() has been called previously.
+        Only works if triggerReading() has been called previously.
         """
         if self.triggered is True:
             self.write(":SENS:DATA:FRES?")

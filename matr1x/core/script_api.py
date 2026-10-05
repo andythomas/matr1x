@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Script API for matrix-script user scripts.
 
-This module implements the functions that are available inside
+Implements the functions that are available inside
 matrix-script user scripts (`set_value`, `wait`, `measure_system`,
 ...). The generated script (see `_matrix_script_template.py`) calls
 `install` with the execution context of the `ExecThread` and imports

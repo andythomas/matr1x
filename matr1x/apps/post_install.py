@@ -322,7 +322,7 @@ def unix_integration() -> None:
     """
     Perform Linux/Unix/BSD integration tasks for Matr1x applications.
 
-    This function installs desktop entries, icons, and MIME types for various
+    Installs desktop entries, icons, and MIME types for various
     Matr1x applications on Posix compatible systems.
     """
     executables = [
@@ -449,7 +449,7 @@ def macos_integration(pyexec: Path) -> None:
     """
     Perform MacOs integration tasks for Matr1x applications.
 
-    This function installs desktop entries, icons, and MIME types for
+    Installs desktop entries, icons, and MIME types for
     various Matr1x applications on Linux systems.
 
     Parameters
@@ -533,7 +533,7 @@ def windows_integration() -> None:
     """
     Perform Windows integration tasks for Matr1x applications.
 
-    This function creates shortcuts in the Start Menu and sets up file
+    Creates shortcuts in the Start Menu and sets up file
     associations for various Matr1x applications on Windows systems.
     """
     start_menu_path.mkdir(parents=True, exist_ok=True)
@@ -550,7 +550,7 @@ def windows_integration() -> None:
         """
         Get the location of an icon file.
 
-        This function determines the path of an icon file based on
+        Determines the path of an icon file based on
         whether the installation is editable or not.
 
         Parameters
@@ -650,7 +650,7 @@ def core_desktop_integration() -> None:
     """
     Perform desktop integration for core Matr1x applications.
 
-    This function retrieves the paths of core Matr1x executables and
+    Retrieves the paths of core Matr1x executables and
     calls the appropriate integration function based on the operating
     system.
     """
@@ -669,7 +669,7 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
     """
     Perform desktop integration for control GUIs.
 
-    This function installs desktop entries and icons for control GUI
+    Installs desktop entries and icons for control GUI
     applications on Linux and macOS systems.
 
     Parameters
@@ -759,7 +759,7 @@ def finalize_desktop_integration() -> None:
     """
     Finalize desktop integration by updating databases on Linux.
 
-    This function updates the desktop database, MIME database, and icon
+    Updates the desktop database, MIME database, and icon
     cache on Linux systems to ensure that newly installed applications
     and file associations are recognized by the system.
 
@@ -820,7 +820,7 @@ def uninstall_core_desktopintegration() -> None:
     """
     Uninstall core desktop integration for Matr1x applications.
 
-    This function removes desktop entries, icons, and MIME types for
+    Removes desktop entries, icons, and MIME types for
     various Matr1x applications on Linux, macOS, and Windows systems.
 
     Raises

@@ -41,7 +41,7 @@ class Hdf5(System):
     """
     Measurement system with HDF5 support for testing matr1x-matrix.
 
-    This class extends the base System class to provide a dummy system
+    Extends the base System class to provide a dummy system
     with HDF5 capabilities for testing purposes.
     """
 

@@ -32,7 +32,7 @@ class IsobusDevice(VisaDevice):
     """
     Base class for Oxford Instruments devices using the ISOBUS protocol.
 
-    This class extends VisaDevice to handle the specific communication
+    Extends VisaDevice to handle the specific communication
     requirements of Oxford Instruments devices connected via ISOBUS.
     """
 

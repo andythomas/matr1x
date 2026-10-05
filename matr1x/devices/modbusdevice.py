@@ -34,7 +34,7 @@ class ModbusDevice(minimalmodbus.Instrument):
     """
     A class for communicating with Modbus devices using the minimalmodbus library.
 
-    This class extends minimalmodbus.Instrument to provide thread-safe register read/write
+    Extends minimalmodbus.Instrument to provide thread-safe register read/write
     operations with error handling.
 
     Note that devices implemented based on this class will likely be deprecated in the future.

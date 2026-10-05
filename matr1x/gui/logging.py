@@ -95,7 +95,7 @@ class _QTableLogger(logging.Handler):
         """
         Add a log record as a new row in the table.
 
-        This method is thread-safe by emitting a signal that will be
+        Is thread-safe by emitting a signal that will be
         processed on the main thread.
 
         Parameters

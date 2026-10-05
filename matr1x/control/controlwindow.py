@@ -16,7 +16,7 @@
 """
 Provide a base class for creating control GUIs for data acquisition systems.
 
-This module includes functionality for:
+Includes functionality for:
 - Setting up a GUI with collapsible sections
 - Managing multiple GuiDict objects for different parts of the interface
 - Handling device connections and communication
@@ -264,7 +264,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     """
     Base class for control GUIs.
 
-    This class prepares a lot of things behind the scenes for use in typical
+    Prepares a lot of things behind the scenes for use in typical
     control GUIs.
 
     Parameters
@@ -448,7 +448,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Restore previously saved GUI settings from persistent storage.
 
-        This method restores various GUI elements to their previous states,
+        Restores various GUI elements to their previous states,
         including:
         - GuiDict state and features
         - Window geometry (size, position)
@@ -712,7 +712,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Set up status and logging user interface.
 
-        This method creates and configures the widgets for status display
+        Creates and configures the widgets for status display
         and logging controls.
         """
         # initialize common widgets
@@ -1070,7 +1070,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Start the local TCP server with the driver functions specified in cmds.
 
-        This method initializes and starts a SCPI TCP server using the
+        Initializes and starts a SCPI TCP server using the
         command list defined in the class.
         """
         self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, port=self._port)
@@ -1136,7 +1136,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Disable all GUI elements.
 
-        This method is typically called after an error occurs to prevent further
+        Is typically called after an error occurs to prevent further
         interaction with the GUI.
 
         Parameters
@@ -1175,7 +1175,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Save current window and dock geometry.
 
-        This method saves the current size, position, and state of the
+        Saves the current size, position, and state of the
         window, as well as the visibility of the status box and toolbar
         visibility state. These settings will be reloaded upon restart
         of the Control GUI.

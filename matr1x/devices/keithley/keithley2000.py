@@ -30,7 +30,7 @@ class Keithley2000(VisaDevice):
     """
     Class for controlling Keithley 2000 multimeter.
 
-    This class provides methods to configure and control the Keithley 2000
+    Provides methods to configure and control the Keithley 2000
     multimeter for various measurements including voltage, 2-wire resistance,
     and 4-wire resistance.
 
@@ -328,7 +328,7 @@ class Keithley2000(VisaDevice):
         """
         Trigger a measurement reading on the device.
 
-        This method sends a trigger command to the device and sets the
+        Sends a trigger command to the device and sets the
         triggered flag to True.
         """
         self.write("*TRG")
@@ -345,7 +345,7 @@ class Keithley2000(VisaDevice):
 
         Notes
         -----
-        This method only returns a value if a reading has been triggered
+        Only returns a value if a reading has been triggered
         using the triggerReading method. After retrieving the reading,
         the triggered flag is set to False.
         """

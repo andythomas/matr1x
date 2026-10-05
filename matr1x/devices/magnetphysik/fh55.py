@@ -16,7 +16,7 @@
 """
 Module for controlling Magnet Physik FH55 Hall probe.
 
-This module provides a driver class for interfacing with the FH55 Hall
+Provides a driver class for interfacing with the FH55 Hall
 probe from Magnet Physik via VISA communication protocols. It enables
 control and reading of magnetic field measurements, temperature
 readings, and various device settings such as range, filter, and

@@ -26,7 +26,7 @@ class PicoVNA(VisaDevice):
     """
     Driver for PicoVNA Vector Network Analyzer instruments.
 
-    This class provides control and data acquisition capabilities for
+    Provides control and data acquisition capabilities for
     PicoVNA instruments using the VISA communication protocol.
     """
 

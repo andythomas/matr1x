@@ -16,7 +16,7 @@
 """
 Git repository interface module for the matr1x data acquisition system.
 
-This module provides classes for interacting with Git repositories.
+Provides classes for interacting with Git repositories.
 """
 
 from typing import ClassVar

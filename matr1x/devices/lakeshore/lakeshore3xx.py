@@ -16,7 +16,7 @@
 """
 Interface implementation for Lakeshore temperature controllers.
 
-This module provides classes to interact with various Lakeshore
+Provides classes to interact with various Lakeshore
 temperature controllers of the 3xx series.
 """
 
@@ -38,7 +38,7 @@ class Lakeshore3xx(VisaDevice):
     """
     Base class for Lakeshore 3xx series temperature controllers.
 
-    This class provides common functionality for all Lakeshore 3xx series
+    Provides common functionality for all Lakeshore 3xx series
     temperature controllers.
 
     Attributes
@@ -91,7 +91,7 @@ class Lakeshore3xx(VisaDevice):
         """
         Send a query to the device and return the response.
 
-        This method includes automatic retry logic and error handling.
+        Includes automatic retry logic and error handling.
 
         Parameters
         ----------
@@ -489,7 +489,7 @@ class Lakeshore3xx(VisaDevice):
 
         Notes
         -----
-        This method only supports Cernox sensors currently.
+        Only supports Cernox sensors currently.
         """
         index = int(index)
         assert (
@@ -510,7 +510,7 @@ class Lakeshore335(Lakeshore3xx):
     """
     Interface for Lakeshore 335 temperature controller.
 
-    This class extends the base Lakeshore3xx class with specific
+    Extends the base Lakeshore3xx class with specific
     features for the Lakeshore 335 model.
     """
 
@@ -688,7 +688,7 @@ class Lakeshore340(Lakeshore3xx):
     """
     Interface for Lakeshore 340 temperature controller.
 
-    This class extends the base Lakeshore3xx class with specific
+    Extends the base Lakeshore3xx class with specific
     features for the Lakeshore 340 model.
     """
 

@@ -16,7 +16,7 @@
 """
 TIC500 temperature controller interface module.
 
-This module provides an interface to control TIC500 temperature
+Provides an interface to control TIC500 temperature
 controllers.
 """
 

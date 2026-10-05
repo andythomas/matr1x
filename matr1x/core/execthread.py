@@ -16,7 +16,7 @@
 """
 Execution thread control for matrix-script.
 
-This module includes function and variable definitions used for
+Includes function and variable definitions used for
 execution of the matrix-script process.
 """
 
@@ -459,7 +459,7 @@ class ExecThread(threading.Thread):
         """
         Handle user input requests from the script.
 
-        This method manages the input request workflow, including
+        Manages the input request workflow, including
         displaying prompts, waiting for user response, and handling
         timeouts and interrupts.
 

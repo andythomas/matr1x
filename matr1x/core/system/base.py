@@ -75,7 +75,7 @@ class DcDict(dict):
     """
     Custom dictionary class that only allows append if key already exists.
 
-    This class extends the built-in dictionary class to modify its behavior
+    Extends the built-in dictionary class to modify its behavior
     when in append mode or when a merged system exists.
     In append mode non-empty entries are extended.
 
@@ -94,7 +94,7 @@ class DcDict(dict):
         """
         Set item in the dictionary with modified behavior.
 
-        This method wraps dict.__setitem__ to change behavior when in append mode
+        Wraps dict.__setitem__ to change behavior when in append mode
         or when a merged system exists (append in that case).
 
         Parameters
@@ -869,7 +869,7 @@ class System:
         """
         Get whether the system requires or uses HDF5 format for data storage.
 
-        This property determines if HDF5 format is needed based on the structure
+        Determines if HDF5 format is needed based on the structure
         of parameter chunks. HDF5 is required if any parameter:
         - Has a list/tuple of chunks but single name
         - Has nested tuple chunks
@@ -1886,7 +1886,7 @@ class System:
         """
         Prepare the header of a matrix file for the matrix program.
 
-        This function inserts all relevant information including the setstr into
+        Inserts all relevant information including the setstr into
         the header of a matrix file. If the file already exists, no second header
         will be added. The header will also include information queried from the
         devices.

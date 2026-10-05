@@ -16,7 +16,7 @@
 """
 Driver module for Danfysik power supplies.
 
-This module provides classes to control and interact with Danfysik power
+Provides classes to control and interact with Danfysik power
 supply models 9100 and 9700.
 """
 
@@ -29,7 +29,7 @@ class Danfysik9100(VisaDevice):
     """
     Driver for Danfysik 9100 power supply.
 
-    This class provides methods to control and monitor Danfysik 9100
+    Provides methods to control and monitor Danfysik 9100
     power supplies through a VISA interface.
     """
 
@@ -302,7 +302,7 @@ class Danfysik9700(Danfysik9100):
     """
     Danfysik System 9700 power supply + polarity switch unit.
 
-    This class extends the Danfysik9100 driver with additional functions
+    Extends the Danfysik9100 driver with additional functions
     for power supplies with polarity switch unit.
     """
 

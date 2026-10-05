@@ -16,7 +16,7 @@
 """
 Configuration management for the matr1x data acquisition software.
 
-This module loads, validates, and manages the matr1x configuration. It owns
+Loads, validates, and manages the matr1x configuration. It owns
 the live configuration globals (``config``, ``datetimefmt``) together with the
 derived directories and the logging setup. The ``matr1x`` package imports this
 module and re-exports these names for backward compatibility.
@@ -233,7 +233,7 @@ def _find_differences(
     """
     Recursively compares two dictionaries and finds differences.
 
-    This function compares a dictionary representing default settings with
+    Compares a dictionary representing default settings with
     a dictionary representing current settings. It returns a new
     dictionary containing only the keys and values that differ from the
     default settings.

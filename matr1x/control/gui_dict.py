@@ -1161,7 +1161,7 @@ class GuiDict(dict[str, var]):
         """
         Create the real content of the GuiDict.
 
-        This function takes the variables from the GuiDict and generates
+        Takes the variables from the GuiDict and generates
         the respective GUI widgets. If a user overwrites this function
         it will need to attach its output to self.container!
         """
@@ -1535,7 +1535,7 @@ class GuiDict(dict[str, var]):
         """
         Update values from the device and show them in the GUI.
 
-        This method has to be implementated by every derived class.
+        Has to be implemented by every derived class.
 
         It should contain code to refresh the GUI values a single time
         (no endless loop). If some items should be updated infrequently

@@ -284,7 +284,7 @@ class PSG8257D(VisaDevice):
 
         Notes
         -----
-        This method configures the device for step sweeping with automatic sweep timing.
+        Configures the device for step sweeping with automatic sweep timing.
         """
         self.write(":SWE:GEN STEP")  # sweep type: ANALog or STEPped.
         # automatically sweep through frequency range
