@@ -166,7 +166,7 @@ def _parse_permissions(value: str | None) -> dict[str, object]:
     except json.JSONDecodeError as error:
         raise ValueError("Invalid eLabFTW permission JSON") from error
     if not isinstance(permissions, dict):
-        raise ValueError("eLabFTW permissions must be a JSON object")
+        raise TypeError("eLabFTW permissions must be a JSON object")
     return permissions
 
 
@@ -175,7 +175,7 @@ def _merge_teamgroup_ids(field_val: str | None, group_ids: list[int]) -> tuple[b
     perm_dict = _parse_permissions(field_val)
     raw_teamgroups = perm_dict.setdefault("teamgroups", [])
     if not isinstance(raw_teamgroups, list):
-        raise ValueError("eLabFTW permission 'teamgroups' must be a list")
+        raise TypeError("eLabFTW permission 'teamgroups' must be a list")
     current_teamgroups = cast(list[object], raw_teamgroups)
 
     if not all(isinstance(group_id, int) for group_id in current_teamgroups):
@@ -261,7 +261,7 @@ class Elab(System):
         try:
             info_client = elabapi_python.InfoApi(self.api_client)
             info_client.get_info()
-        except Exception as error:
+        except (ApiException, HTTPError, OSError) as error:
             self._handle_connection_error(error)
 
     def _link_or_create_sample_resources(self) -> None:
