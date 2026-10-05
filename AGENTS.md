@@ -74,6 +74,12 @@ Most parts are written in Python and the editor uses some JavaScript.
 - Docstrings are rendered as Markdown by great-docs: do not use
   RST/Sphinx markup (no double-backtick literals, no `:func:`/`:class:`
   roles); use plain text or single-backtick code spans instead.
+- Keep docstrings short by default: a one-line summary for internal code,
+  and full numpy sections (`Parameters`, `Returns`, `Raises`) only for
+  public-API items listed in `great-docs.yml`. Document behavior, not
+  implementation details (internal dict layouts, call sequences) -- those
+  belong in comments or the user guide. Do not copy the length or style of
+  a neighboring docstring; size the new one to what the item actually needs.
 - We keep function complexity in check with `complexipy` (max complexity
   15, see `pyproject.toml`). Run `uv run complexipy` (it covers both
   `matr1x/` and `tests/`) and keep every new function at or below the
