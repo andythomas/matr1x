@@ -53,9 +53,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QWidget
 
 from matr1x.core.error_handling import InternalInvariantError
-from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
-
-from .helpers import _format_local_timestamp, get_install_info
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, _format_local_timestamp, get_install_info
 
 logger = logging.getLogger(__name__)
 

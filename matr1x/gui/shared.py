@@ -94,9 +94,10 @@ from matr1x.core.models import (
     SystemInfo,
     SystemReference,
 )
-from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, matrix_cmdline
+from matr1x.core.system import get_system_capability, get_system_info
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, get_importable_module_name, matrix_cmdline
 from matr1x.gui.app import MApplication, SaferQSettings
-from matr1x.gui.helpers import get_matrix_icon, get_system_capability, get_system_info
+from matr1x.gui.helpers import get_matrix_icon
 from matr1x.gui.meta_viewer import ConfigEditWidget, blocked_signals
 from matr1x.gui.mixins import LoggerMixin
 from matr1x.gui.widgets import ReadOnlyTable
@@ -457,9 +458,7 @@ class SystemListWidget(QListWidget):
             module = None
         resolved = Path(source).resolve()
         candidate = str(
-            module.name
-            if module is not None
-            else self.get_importable_module_name(resolved) or resolved
+            module.name if module is not None else get_importable_module_name(resolved) or resolved
         )
         capability_result = self.test_import(candidate)
         if isinstance(capability_result, Error):
@@ -707,33 +706,6 @@ class SystemListWidget(QListWidget):
         )[0]
         if filenames != []:
             self.add_systems(filenames)
-
-    @staticmethod
-    def get_importable_module_name(filename_str: str | Path) -> str | None:
-        """
-        Return the module name for a package, else None.
-
-        It returns the deepest matching entry.
-        """
-        path = Path(filename_str).resolve()
-        if path.is_file() and path.suffix == ".py":
-            module_path = path.with_suffix("")
-        elif path.is_dir() and (path / "__init__.py").is_file():
-            module_path = path
-        else:
-            return None
-        matches = []
-        for base in map(Path, sys.path):
-            try:
-                rel = module_path.relative_to(base.resolve())
-                matches.append((len(base.parts), rel))
-            except ValueError:
-                pass
-        if not matches:
-            return None
-        _, relative = max(matches, key=lambda x: x[0])
-        module_name = ".".join(relative.parts)
-        return module_name if importlib.util.find_spec(module_name) else None
 
 
 @final

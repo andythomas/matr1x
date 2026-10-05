@@ -27,6 +27,7 @@ from matr1x.core.system.base import (
     System,
     T,
 )
+from matr1x.core.system.info import get_system_capability, get_system_info
 from matr1x.core.system.merged import MergedSystem
 
 __all__ = [
@@ -41,4 +42,6 @@ __all__ = [
     "StatefulSystem",
     "System",
     "T",
+    "get_system_capability",
+    "get_system_info",
 ]

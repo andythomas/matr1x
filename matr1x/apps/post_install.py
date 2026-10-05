@@ -28,8 +28,7 @@ from pathlib import Path
 
 import matr1x as matr1xpackage
 import matr1x.core.config as core_config
-from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
-from matr1x.gui.helpers import get_install_info
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, get_install_info
 from matr1x.gui.shared import SaferQSettings
 
 __all__ = [

@@ -21,6 +21,7 @@ sweep calculations, and various helper functions for data processing and
 system configuration.
 """
 
+import datetime
 import importlib.util
 import logging
 import math
@@ -29,16 +30,18 @@ import subprocess
 import sys
 import textwrap
 from collections.abc import Iterable, Iterator, Sequence
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeVar
+
+import pygit2
 
 from matr1x.core.error_handling import Error, Result, Success
 
 # conditional import for type checkers
 if TYPE_CHECKING:
-    import types
-
     from _typeshed import SupportsWrite
 
     _T_contra = TypeVar("_T_contra", contravariant=True)
@@ -108,6 +111,63 @@ def get_package_path(package_name: str) -> Path | None:
     return None
 
 
+def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool = False) -> str:
+    """Format a POSIX timestamp in the local timezone."""
+    text = datetime.datetime.fromtimestamp(value, datetime.timezone.utc).astimezone().strftime(fmt)
+    return text.rstrip("0") if trim_trailing_zeros else text
+
+
+def _get_package_version(module: ModuleType) -> str:
+    """Return the version of the given module."""
+    if hasattr(module, "__version__"):
+        return module.__version__
+    try:
+        return version(module.__name__)
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def get_install_info(
+    imported_package: ModuleType,
+) -> tuple[str, str, str, Literal["not available"] | int]:
+    """
+    Receive git infos about the installed version.
+
+    Parameters
+    ----------
+    imported_package: ModuleType
+        Any module (package) that was already imported.
+
+    Returns
+    -------
+    installed_version: str,
+    commit_branch: str,
+    commit_short_sha: str,
+    commit_time: str or int
+        The version and commit info(s) of the package.
+    """
+    commit_branch = "not available"
+    commit_time = "not available"
+    commit_short_sha = "not available"
+    try:
+        repo = pygit2.Repository(imported_package.__file__)
+        commit_branch = repo.head.shorthand
+        last_commit = repo[repo.head.target]
+        commit_short_sha = str(last_commit.id)[:7]
+        commit_time = last_commit.author.time
+        if commit_branch == "HEAD":
+            # Attempt to find the remote branch
+            for ref_name in repo.references:
+                ref = repo.lookup_reference(ref_name)
+                if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
+                    commit_branch = ref.shorthand
+                    break
+    except pygit2.GitError:
+        pass
+    installed_version = _get_package_version(imported_package)
+    return (installed_version, commit_branch, commit_short_sha, commit_time)
+
+
 def resolve_pkgroot_path(path: str | Path, package_path: Path | None) -> Path:
     """Resolve a path that starts with the ``<pkgroot>`` placeholder."""
     placeholder = "<pkgroot>"
@@ -166,7 +226,7 @@ def create_temp_dir_with_symlinks(
     return temp_dir
 
 
-def module_from_path(filename: Path) -> "types.ModuleType":
+def module_from_path(filename: Path) -> ModuleType:
     """
     Create a module from a file path.
 
@@ -191,6 +251,43 @@ def module_from_path(filename: Path) -> "types.ModuleType":
         raise ImportError(f"Could not import {filename}.")
     loader.exec_module(module)
     return module
+
+
+def get_importable_module_name(filename_str: str | Path) -> str | None:
+    """
+    Return the module name for a package, else None.
+
+    It returns the deepest matching entry.
+
+    Parameters
+    ----------
+    filename_str : str or Path
+        Path to a Python file or package directory.
+
+    Returns
+    -------
+    str or None
+        The dotted module name if the path is importable, else None.
+    """
+    path = Path(filename_str).resolve()
+    if path.is_file() and path.suffix == ".py":
+        module_path = path.with_suffix("")
+    elif path.is_dir() and (path / "__init__.py").is_file():
+        module_path = path
+    else:
+        return None
+    matches = []
+    for base in map(Path, sys.path):
+        try:
+            rel = module_path.relative_to(base.resolve())
+            matches.append((len(base.parts), rel))
+        except ValueError:
+            pass
+    if not matches:
+        return None
+    _, relative = max(matches, key=lambda x: x[0])
+    module_name = ".".join(relative.parts)
+    return module_name if importlib.util.find_spec(module_name) else None
 
 
 def get_formatted_line(
