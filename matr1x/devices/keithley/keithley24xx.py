@@ -144,34 +144,34 @@ class Keithley2400(Keithley24xx):
         Parameters
         ----------
         sourceMode : str, optional
-            "VOLT" or "CURR", predefined physical parameter to source
+            "VOLT" or "CURR", physical parameter to source.
         senseMode : str, optional
-            "VOLT" or "CURR", parameter to measure
+            "VOLT" or "CURR", parameter to measure.
         fourWire : bool, optional
-            Four wire measurement. Default: None (use current configuration)
+            Four wire measurement; None uses the current
+            configuration.
         senseAutoRange : bool, optional
-            Autodetect the sense range. Default: None
+            Autodetect the sense range.
         senseRange : float, optional
-            Largest expected measurement value, device will
-            pick the next inclusive range. Default: None
+            Largest expected measurement value; the device picks the
+            next inclusive range.
         sourceAutoRange : bool, optional
-            Autodetect the source range. Default: None
+            Autodetect the source range.
         sourceRange : float, optional
-            Largest expected source current, device will
-            pick the next inclusive range. Default: None
+            Largest expected source current; the device picks the
+            next inclusive range.
         senseLimit : float, optional
-            Voltage limit. Default: 10V
+            Voltage limit.
         output : bool, optional
-            Turn the output on. Default: None
+            Turn the output on.
         delayAuto : bool, optional
-            Automatically choose the delay for stabilizing
-            the output. Default: None
+            Automatically choose the delay for stabilizing the
+            output.
         delay : float, optional
-            Delay in seconds for stabilizing the output before
-            doing an internal measurement. WON'T AFFECT/DELAY
-            OTHER DEVICES! Default: 0.1(s)
+            Delay in seconds for stabilizing the output before doing
+            an internal measurement. Does not affect other devices.
         reset : bool, optional
-            If true, reset the device. Default: False
+            If True, reset the device.
 
         Examples
         --------
@@ -336,42 +336,43 @@ class Keithley2450(Keithley24xx):
         reset=False,
     ):
         """
-        Configure the Keithley 2450 to source current and sense voltage.
+        Configure the Keithley 2450 to source current and sense
+        voltage.
 
         Parameters
         ----------
         sourceMode : str, optional
-            "VOLT" or "CURR", predefined physical parameter to source
+            "VOLT" or "CURR", physical parameter to source.
         senseMode : str, optional
-            "VOLT" or "CURR", parameter to measure
+            "VOLT" or "CURR", parameter to measure.
         fourWire : bool, optional
-            Four wire measurement. Default: None (use current configuration)
+            Four wire measurement; None uses the current
+            configuration.
         senseAutoRange : bool, optional
-            Autodetect the sense range. Default: None
+            Autodetect the sense range.
         senseRange : float, optional
-            Largest expected measurement value, device will
-            pick the next inclusive range. Default: None
+            Largest expected measurement value; the device picks the
+            next inclusive range.
         sourceAutoRange : bool, optional
-            Autodetect the source range. Default: None
+            Autodetect the source range.
         sourceRange : float, optional
-            Largest expected source current, device will
-            pick the next inclusive range. Default: None
+            Largest expected source current; the device picks the
+            next inclusive range.
         senseLimit : float, optional
-            Voltage limit. Default: None
+            Voltage limit.
         output : bool, optional
-            Turn the output on. Default: None
+            Turn the output on.
         delayAuto : bool, optional
-            Automatically choose the delay for stabilizing
-            the output. Default: None
+            Automatically choose the delay for stabilizing the
+            output.
         delay : float, optional
-            Delay in seconds for stabilizing the output before
-            doing an internal measurement. WON'T AFFECT/DELAY
-            OTHER DEVICES! Default: 0.1(s)
+            Delay in seconds for stabilizing the output before doing
+            an internal measurement. Does not affect other devices.
         resetUnits : bool, optional
-            If true, Ampere and Volt are restored as default unit for
-            current and voltage measurements. Default: True
+            If True, Ampere and Volt are restored as default units
+            for current and voltage measurements. Default is True.
         reset : bool, optional
-            If true, reset the device. Default: False
+            If True, reset the device.
 
         Examples
         --------

@@ -104,40 +104,36 @@ class PSA_E4440A(VisaDevice):
         Configure sweep settings for the spectrum analyzer.
 
         Sets frequency, bandwidth, averaging, and display parameters.
-        Frequency units are in Hz.
-        'MIN'/'MAX' arguments can be used instead of actual numbers,
-        and use the highest/lowest setting the PSA is capable of.
+        Frequency units are in Hz. 'MIN'/'MAX' can be used instead of
+        actual numbers to select the lowest/highest setting the PSA is
+        capable of.
 
         Parameters
         ----------
         fCent : float
-            The center frequency of the sweep in Hz.
+            Center frequency of the sweep in Hz.
         fSpan : float
-            The frequency span of the sweep in Hz.
+            Frequency span of the sweep in Hz.
         fPoints : int
-            The number of points per sweep.
+            Number of points per sweep.
         refLev : float
-            The reference level for the display in dBm.
+            Reference level for the display in dBm.
         resBW : float
-            The resolution bandwidth in Hz.
+            Resolution bandwidth in Hz.
         vidBW : float
-            The video bandwidth in Hz.
+            Video bandwidth in Hz.
         average : int, optional
-            The number of averages which make up the final values.
+            Number of averages which make up the final values.
             Default is None (no averaging).
         avgType : {'rms', 'log', 'scalar'}, optional
-            The average type of the measurement.
-            'rms': Power (RMS) averaging,
-            'log': Log-Power (video) averaging,
-            'scalar': Voltage averaging.
+            'rms' power (RMS) averaging, 'log' log-power (video)
+            averaging, 'scalar' voltage averaging.
             Default is 'rms'.
         scale : {'log', 'lin'}, optional
-            The display format of the measurement.
-            'lin': linear scale,
-            'log': logarithmic scale.
+            Display format: 'lin' linear, 'log' logarithmic.
             Default is 'log'.
         getData : bool, optional
-            If true, trigger a sweep and return the results directly.
+            If True, trigger a sweep and return the results directly.
             Default is False.
 
         Returns

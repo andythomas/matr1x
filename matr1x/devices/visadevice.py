@@ -61,46 +61,31 @@ class VisaDevice:
     """
     The VISA device class of matr1x.
 
-    Note: Do NOT implement new devices based on this class. Use pymeasure Instrument instead.
-    Pull requests with new devices will not be merged in the future.
+    Note: Do NOT implement new devices based on this class. Use
+    pymeasure Instrument instead. Pull requests with new devices will
+    not be merged in the future.
 
-    Device connection is established upon initialization of this class.
-    The connection is closed by the `close` method after which the device can be
-    reinitialized even within the same Python process.
-
-    Devices derived from this class should be placed in a folder named after the
-    vendor of the device and the class name should contain the vendor and model
-    name. Note that we follow the SnakeCase naming convention for class names.
+    The connection is established upon initialization and closed by
+    the `close` method, after which the device can be reinitialized
+    even within the same Python process.
 
     Parameters
     ----------
     interface : str
-        The used interface as VISA address.
-        e.g. 'TCPIP::192.98.143.1::5025::SOCKET'
+        The used interface as VISA address, e.g.
+        'TCPIP::192.98.143.1::5025::SOCKET'.
     cmdpers : int, optional
-        The maxiumum amount of commands to be send per second.
-        If None (default), no limit is imposed.
+        Maximum amount of commands to be sent per second. If None
+        (default), no limit is imposed.
     **kwargs : dict, optional
-        Keyword arguments, e.g. a='b'. Used keywords are:
-
         * pts : bool
-            'Print to screen'. If True, read and written strings are printerd to
-            the console. Usefull for debuging.
+            Print read and written strings to the console (debugging).
         * visadebug : bool
-            If True, enables the output of debugging information
-            from the pyVISA library.
-        * All other kwargs are passed to the VISA resource connection and can
-            serve to configure the interface. Most common are:
-
-            * write_termination : str
-            * read_termination : str
-            * timeout : float
-            * query_delay : float
-            * baud_rate : int
-            * data_bits : int
-            * stop_bits : int
-            * parity : int
-            * flow_control : int
+            Enable the output of debugging information from pyVISA.
+        * All other kwargs are passed to the VISA resource
+          connection, e.g. write_termination, read_termination,
+          timeout, query_delay, baud_rate, data_bits, stop_bits,
+          parity, flow_control.
 
     Attributes
     ----------
@@ -108,8 +93,6 @@ class VisaDevice:
         The used interface.
     connection : pyVISA resource
         The pyVISA resource used for communication with the device.
-        Usually only important if new features are to be implemented.
-        Please refer to the pyVISA documentation for more information.
     """
 
     config_params: ClassVar[dict[str, str]] = {}

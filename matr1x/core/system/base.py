@@ -144,68 +144,41 @@ class Parameter:
     """
     Define a measurement parameter.
 
-    This class describes one parameter in matrix. It can define a
-    single or multiple columns of the measurement.
+    Describes one parameter of a measurement, which can span a single
+    or multiple columns of the data file.
 
     Parameters
     ----------
     name : str or list of str
-        Name of the column(s) as string or list of strings. If this is
-        a list, make sure unit, default and chunks have same length.
+        Name of the column(s). If a list, unit, default and chunks
+        must be lists of the same length.
     unit : str or list of str
-        Unit of the column(s) as string or list of strings.
+        Unit of the column(s).
     default : float or list of floats, optional
-        Default value for parameter. If not None this value is always
-        used unless another value is specified in the measurement.
-        If None (default), no default value is set/used.
+        Value always used unless the measurement specifies another
+        one. If None (default), no default value is set.
     dtypes : str or list of str, optional
-        Dtype specified for saving into hdf5 files, not used for ascii
-        files. Default value is "f8" (8 byte float).
+        Dtype used when saving to hdf5 files, not used for ascii
+        files. Default is "f8" (8 byte float).
     chunks : int or list of int, optional
-        Length of the readback value. If a list is returned for a
-        single parameter, set to the length of that list.
-        If None (default), a chunk of 1 is assumed (readback of
-        parameter is single float).
+        Length of the readback value; a chunk of 1 (a single float)
+        is assumed if None.
     setter : callable, str, or list, optional
-        Function which should be called to set the values.
-        Must be one of:
-
-        * A callable function with the call signature
-          `func(value, *args, **kwargs)`. For optional arguments and
-          kwargs see setter_args/setter_kwargs.
-        * A string with a system method/property name. If it
-          corresponds to a method its call signature and arguments must
-          be equal to the callable function above.
-        * A list of the following scheme
-          [device_name : str, method_name : str, args : tuple, kwargs : dict].
-          The args and kwargs entries are deprecated and should be
-          replaced by the setter_args, setter_kwargs parameters.
+        Called to set the values. Can be a callable with the
+        signature `func(value, *args, **kwargs)`, a system
+        method/property name, or a list
+        [device_name, method_name, args, kwargs] (the args and kwargs
+        entries are deprecated, use setter_args/setter_kwargs).
+        Optional arguments are supplied via setter_args/setter_kwargs.
     getter : callable, str, or list, optional
-        Function which should be called to fetch the values.
-        Must be one of:
-
-        * A callable function with the call signature
-          `func(*args, **kwargs)`. The arguments and kwargs are
-          optional and can be supplied via getter_args/getter_kwargs.
-        * A string with a system method/property name. If it
-          corresponds to a method its call signature and arguments must
-          be equal to the callable function above.
-        * A list of the following scheme
-          [device_name : str, method_name : str, args : tuple, kwargs : dict].
-          The args and kwargs entries are deprecated and should be
-          replaced by the getter_args, getter_kwargs parameters.
+        Called to fetch the values; same options as setter, with
+        optional arguments supplied via getter_args/getter_kwargs.
     trigger : callable, str, or list, optional
-        Takes a trigger function. The options are equal to the getter
-        options. For the optional arguments and kwargs use
-        trigger_args/trigger_kwargs.
+        Trigger function; same options as getter, with optional
+        arguments supplied via trigger_args/trigger_kwargs.
     label : str, optional
-        Parameters label if different from name. This might be in
-        particular needed if an automatically generated label from a
-        name-list is not describing the content very well.
-
-    Attributes
-    ----------
-    All parameters are set as attributes of same name.
+        Label if different from name, e.g. when an automatically
+        generated label from a name list is not descriptive.
 
     Raises
     ------
@@ -395,41 +368,37 @@ class System:
     """
     Define a measurement setup/system.
 
-    It is mostly defined by the individual `Parameter`s (stored in
-    `parameters`) that are used in the system as well as the list of
-    devices stored in `devs`. Additionally, it provides functions to
-    set, trigger and read the individual parameters using the
-    specifications provided there. Finally, it defines the set, query
-    and reset function, which are used to open and initialize the
-    devices, query the device configuration/status and return the system
-    to a defined state, respectively.
+    A system is defined by its `Parameter`s (stored in `parameters`)
+    and its devices (stored in `devs`). It provides functions to set,
+    trigger and read the individual parameters, as well as set, query
+    and reset functions to open and initialize the devices, query
+    their configuration and return the system to a defined state.
 
     Attributes
     ----------
     parameters : list
-        Contains the individual parameters that make up the system.
+        The parameters that make up the system.
     columns : list
-        Contains the column names extracted from the individual parameters.
+        Column names extracted from the parameters.
     units : list
-        Contains the units extracted from the individual parameters.
+        Units extracted from the parameters.
     dtypes : list
-        Contains the dtypes extracted from the individual parameters.
+        Dtypes extracted from the parameters.
     default_values : list
-        Contains the default_values extracted from the individual parameters.
+        Default values extracted from the parameters.
     chunks : list
-        Contains the chunks extracted from the individual parameters.
+        Chunk lengths extracted from the parameters.
     devs : dict
-        Contains the individual devices that belong to the system.
+        The devices that belong to the system.
     dcdata : dict
-        Contains telemetry according to the Dublin Core specification
-        that can be used to generate specific header information. see
-        `VALID_META_KEYS`
+        Telemetry according to the Dublin Core specification that can
+        be used to generate header information, see `VALID_META_KEYS`.
     system_config_params : dict
-        Contains the definition for custom device queries to read the
-        configuration. Keys match the device names in .devs.
+        Custom device queries to read the configuration; keys match
+        the device names in `devs`.
     name : str or None
-        Optional instance name used by control GUIs and as the subsystem
-        accessor for ordinary systems.
+        Optional instance name used by control GUIs and as the
+        subsystem accessor for ordinary systems.
     """
 
     stateful: ClassVar[bool] = False

@@ -118,38 +118,39 @@ class Keithley2611A(VisaDevice):
         Parameters
         ----------
         sourceMode : str, optional
-            The parameter to source, either "VOLT" or "CURR"
+            Parameter to source, "VOLT" or "CURR".
         senseMode : str, optional
-            The parameter to measure, either "VOLT" or "CURR"
+            Parameter to measure, "VOLT" or "CURR".
         fourWire : bool, optional
-            Whether to use four-wire (True) or two-wire (False) sensing
+            Four-wire (True) or two-wire (False) sensing.
         senseAutoRange : bool, optional
-            Whether to automatically set the measurement range
+            Automatically set the measurement range.
         senseRange : float, optional
-            Manual range for measurements, device selects next inclusive range
+            Manual measurement range; the device selects the next
+            inclusive range.
         sourceAutoRange : bool, optional
-            Whether to automatically set the sourcing range
+            Automatically set the sourcing range.
         sourceRange : float, optional
-            Manual range for sourcing, device selects next inclusive range
+            Manual sourcing range; the device selects the next
+            inclusive range.
         senseLimit : float, optional
-            Voltage or current limit for the sense circuit
-        output : bool, default False
-            Whether to enable the output after configuration
-        delayAuto : bool, default False
-            Whether to automatically set the stabilization delay
+            Voltage or current limit for the sense circuit.
+        output : bool, optional
+            Enable the output after configuration. Default is False.
+        delayAuto : bool, optional
+            Automatically set the stabilization delay. Default is
+            False.
         delay : float or bool, optional
-            Manual delay in seconds for output stabilization, or False to disable
-        reset : bool, default False
-            Whether to reset the device before configuration
-
-        Returns
-        -------
-        None
+            Manual delay in seconds for output stabilization, or
+            False to disable.
+        reset : bool, optional
+            Reset the device before configuration. Default is False.
 
         Notes
         -----
-        The output will be turned off during configuration.
-        If sourceMode and senseMode are not provided, no configuration is done.
+        The output will be turned off during configuration. If
+        sourceMode and senseMode are not provided, no configuration
+        is done.
 
         Examples
         --------

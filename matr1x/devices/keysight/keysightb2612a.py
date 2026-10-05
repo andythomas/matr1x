@@ -80,33 +80,37 @@ class KeysightB2961(VisaDevice):
         reset=False,
     ):
         """
-        Configure the Keysight B2961A to source current/voltage and sense voltage/current.
+        Configure the Keysight B2961A to source current/voltage and
+        sense voltage/current.
 
         Parameters
         ----------
         sourceMode : str, optional
-            "VOLT" or "CURR" -- predefined physical parameter.
+            "VOLT" or "CURR", physical parameter to source.
         senseMode : str, optional
-            "VOLT" or "CURR" -- measured parameter.
+            "VOLT" or "CURR", parameter to measure.
         fourWire : bool, optional
-            Four wire measurement. Use current configuration if None.
+            Four wire measurement; None uses the current
+            configuration.
         sourceAutoRange : bool, optional
             Autodetect the source range.
         sourceRange : float, optional
-            Largest expected source current, device will pick the next inclusive range.
+            Largest expected source current; the device picks the
+            next inclusive range.
         senseLimit : float, optional
             Source compliance level.
         output : bool, optional
             Turn the output on if True.
         delayAuto : bool, optional
-            Automatically choose the delay for stabilizing the output.
+            Automatically choose the delay for stabilizing the
+            output.
         delay : float, optional
-            Delay in seconds for stabilizing the output before doing an internal measurement.
-            WON'T AFFECT/DELAY OTHER DEVICES! Default: 0.1(s).
+            Delay in seconds for stabilizing the output before doing
+            an internal measurement. Does not affect other devices.
         nplc : float, optional
             Number of power line cycles to average (4e-4 to 100).
         reset : bool, optional
-            If true, reset the device. Default is False.
+            If True, reset the device. Default is False.
 
         Examples
         --------

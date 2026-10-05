@@ -36,12 +36,9 @@ class MercurySingleAxisIPS(VisaDevice):
     """
     Driver for Mercury-IPS.
 
-    dataDict contains the commands (keys) and also the response from the IPS
-    (values).
-
-    Mode of operation:
-        1. Querry dicts you want to read - results are written to dictionarys
-        2. Results can now be read with the given functions
+    Query the dictionaries for the values you want to read; the
+    results are written to the dictionaries and can then be read with
+    the given functions.
 
     Dicts for functions:
         confDictX/Y/Z for magnetic field status (to Setpoint etc.)
@@ -49,8 +46,8 @@ class MercurySingleAxisIPS(VisaDevice):
         confDictLevel for Helium Fast/Slow
         dataDictLevel for Helium/Nitrogen Levels
 
-    Usually all relevant parameters for operation
-    can be found in the workingDict.
+    Usually all relevant parameters for operation can be found in the
+    workingDict.
     """
 
     _ID_IPS_TEMPLATE: ClassVar[QueryDict] = {"*IDN?": ""}

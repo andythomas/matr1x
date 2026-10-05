@@ -179,35 +179,30 @@ class Keithley6221(VisaDevice):
         Parameters
         ----------
         points : array_like, optional
-            List of points that the current source should set.
-            Values must be between -1 and 1. Maximum length is 65535.
+            Points that the current source should set, between -1 and
+            1, maximum length 65535.
         amplitude : float, optional
-            Amplitude of the wavelet in amps. Range: 2e-12 to 0.105.
+            Amplitude of the wavelet in amps, range 2e-12 to 0.105.
         frequency : float, optional
-            Frequency of the wavelet in Hz. Range: 0 to 1e5.
+            Frequency of the wavelet in Hz, range 0 to 1e5.
         offset : float, optional
-            Offset of the wavelet in amps. Range: -0.105 to 0.105.
+            Offset of the wavelet in amps, range -0.105 to 0.105.
         dutyCycle : float, optional
             Duty cycle for the waveform (if applicable).
         rangingMode : str, optional
-            Measurement range selection mode:
-            'best': automatically select the best range for the wavelet
-            'fixed': use the current range for the wavelet
+            'best' automatically selects the best range for the
+            wavelet, 'fixed' uses the current range.
         durationTime : float, optional
-            Duration of wavelet emission in seconds.
-            Range: 100e-9 to 999999.999, or -1 for infinity.
+            Duration of wavelet emission in seconds, range
+            100e-9 to 999999.999, or -1 for infinity.
         durationCycles : float, optional
-            Number of cycles to emit the wavelet.
-            Range: 0.001 to 99999999900, or -1 for infinity.
+            Number of cycles to emit the wavelet, range
+            0.001 to 99999999900, or -1 for infinity.
         compliance : float, optional
-            Compliance level in volts. Range: 0.1 to 105.
+            Compliance level in volts, range 0.1 to 105.
         reset : bool, optional
-            Whether to reset the device before configuring the wave.
+            Reset the device before configuring the wave.
             Default is True.
-
-        Returns
-        -------
-        None
 
         Raises
         ------

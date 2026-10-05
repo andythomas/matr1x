@@ -117,61 +117,44 @@ class FSW8(VisaDevice):
         Parameters
         ----------
         swePoints : int
-            The number of points per sweep.
+            Number of points per sweep.
         refLev : int
-            Defines the reference level for a spurious emission measurement
-            range.
+            Reference level for a spurious emission measurement range.
         resBW : int
-            Defines the resolution bandwidth and decouples the resolution
-            bandwidth from the span.
-            In the Real-Time application, the resolution bandwidth is always
+            Resolution bandwidth, decoupled from the span. In the
+            Real-Time application the resolution bandwidth is always
             coupled to the span.
         vidBW : int, optional
-            Defines the video bandwidth.
-            If not None, the command decouples the video bandwidth from the
-            resolution bandwidths. Default is None.
+            Video bandwidth. If not None, the video bandwidth is
+            decoupled from the resolution bandwidths.
         intpreamp : int, optional
-            Turns the internal preamplifier on and off. It requires the
-            optional preamplifier hardware.
-            Note that if an optional external preamplifier is activated, the
-            internal preamplifier is automatically disabled, and vice versa.
-            For R&S FSW 8 or 13 models, the preamplification is defined by
-            INPut<ip>:GAIN[:VALue]. Default is None.
+            Turns the internal preamplifier on and off; requires the
+            optional preamplifier hardware. An activated external
+            preamplifier disables the internal one, and vice versa.
+            For R&S FSW 8/13 models the preamplification is defined by
+            INPut<ip>:GAIN[:VALue].
         average : int, optional
-            The number of averages which make up the final values.
-            Default is None.
-        avgType : str, optional
-            The average type of the measurement.
-            Currently implemented are:
-            - 'power': Power levels are converted into Watt prior averaging
-            - 'linear': Power values are averaged before being converted to
-                        logarithmic values
-            - 'logarithmic': Logarithmic power values are averaged.
+            Number of averages which make up the final values.
+        avgType : {'power', 'linear', 'logarithmic'}, optional
+            'power' converts to Watt prior averaging, 'linear'
+            averages before converting to logarithmic values,
+            'logarithmic' averages logarithmic power values.
             Default is 'power'.
-        detector : str, optional
-            The detector type of the measurement.
-            Currently implemented are:
-            - 'rms': Power (RMS) averaging
-            - 'log': Log-Power (video) averaging
-            - 'scalar': Voltage averaging.
+        detector : {'rms', 'log', 'scalar'}, optional
+            'rms' power (RMS) averaging, 'log' log-power (video)
+            averaging, 'scalar' voltage averaging.
             Default is 'rms'.
         attAuto : bool, optional
-            Couples or decouples the attenuation to the reference level.
-            Thus, when the reference level is changed, the R&S FSW determines
-            the signal level for optimal internal data processing and sets
-            the required attenuation accordingly. Default is True.
+            If True, the attenuation is coupled to the reference
+            level and set automatically for optimal internal data
+            processing. Default is True.
         attVal : int, optional
-            Defines the total attenuation for RF input. Default is 0.
-        sweType : str, optional
-            Selects the sweep type.
-            Currently implemented are:
-            - 'fft': FFT mode
-            - 'sweep': Sweep list
-            - 'auto': Automatic selection of the sweep type between sweep
-                     mode and FFT.
+            Total attenuation for RF input. Default is 0.
+        sweType : {'fft', 'sweep', 'auto'}, optional
+            Sweep type; 'auto' selects between sweep mode and FFT.
             Default is 'fft'.
         getData : bool, optional
-            If true, trigger a sweep and return the results directly.
+            If True, trigger a sweep and return the results directly.
             Default is False.
 
         Returns

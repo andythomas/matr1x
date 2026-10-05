@@ -290,23 +290,17 @@ class guiObject(IntEnum):
         Parameters
         ----------
         label : str
-            Label of widget (used as a fallback string on the button if no init
-            value is given).
+            Label of the widget; used as fallback button text if no
+            init value is given.
         wType : int or guiObject or str
-            Can be one of:
-            * str : QLabel: string used as label text.
-            * 0 : QPushButton
-            * 1 : QLineEdit
-            * 2 : QCheckBox
-            * 3 : QProgressBar
-            * 4 : QComboBox
-            * 5 : QPushButton(checkable=True)
-            * 6 : QSpinBox
-            * 7 : QDoubleSpinBox
-            * 8 : QLabel: used as Value indicator
-            * 9 : QFrame: used to generate a horizontal separator line
+            Widget type. Either a guiObject (e.g. guiObject.button)
+            or one of: 0 QPushButton, 1 QLineEdit, 2 QCheckBox,
+            3 QProgressBar, 4 QComboBox, 5 QPushButton
+            (checkable=True), 6 QSpinBox, 7 QDoubleSpinBox,
+            8 QLabel (value indicator), 9 QFrame (horizontal
+            separator line), or a str for a QLabel with that text.
         init : tuple, object, optional
-            Provides the initialization values (button label, valid ranges,
+            Initialization values (button label, valid ranges,
             combobox entries).
 
         Returns
@@ -316,7 +310,8 @@ class guiObject(IntEnum):
 
         Examples
         --------
-        Generate a toggle button which changes its label upon being set:
+        Generate a toggle button which changes its label upon being
+        set:
         >>> getWidget("Property", guiObject.togglebutton, init=("Slow", "Fast"))
 
         Generate a QComboBox with prefilled options:

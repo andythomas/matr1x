@@ -272,70 +272,50 @@ class SCPI_TCP_Server:
     """
     Define Polling Server.
 
-    This class creates a TCP server that implements SCPI-like command handling.
+    TCP server that implements SCPI-like command handling.
 
     Parameters
     ----------
     cmd_list : dict
-        A dictionary defining the SCPI commands and their associated functions.
-        The values of the dictionary should be derived from Command.
+        The SCPI commands and their associated functions; the values
+        should be derived from Command.
     host : str, optional
-        The host address to bind the server to. Default is 'localhost'.
+        The host address to bind the server to. Default is
+        'localhost'.
     port : int, optional
         The port number to listen on. Default is 8898.
 
     Attributes
     ----------
     running : bool
-        Indicates whether the server is currently running.
+        Whether the server is currently running.
     server : ThreadedTCPServer
         The actual TCP server instance.
 
     Notes
     -----
-    Syntax for the command list:
-        {scpi string:[type of value(s), set function to call, list/tuple of
-        additional parameters for set function, get function to call,
-        list/tuple of additional parameters for get function], ...}
+    Command list syntax:
+    {scpi string: [value types, set function, set parameters,
+    get function, get parameters], ...}
 
-    - scpi string is string type, e.g. ":field:set", use only lower case
-      literals and make sure the commands are unique if only the first
-      four characters within each pair of :: is used.
-    - type of value can be:
-      * [type val1, type val2, ...], can also be tuple of types
-      * float
-      * int
-      * str
-      * bool
-      * None - if no set function is to be defined
-    - set function e.g. ex.setField (do not add brackets!)
-    - additional parameters, e.g. (2) if set function is ex.setField(value,
-      axis) will call the function with value and axis=2
-    - get function, again do not add brackets
-    - additional parameters for get function, see above
+    - scpi string: lower case, e.g. ":field:set". Commands must be
+      unique if only the first four characters within each pair of
+      '::' are used.
+    - value types: list or tuple of types, or one of float, int, str,
+      bool. None if no set function is to be defined.
+    - set/get function: e.g. ex.setField (do not add brackets).
+    - parameters: e.g. (2) if ex.setField(value, axis) is to be
+      called with axis=2.
 
-    get function is called when ? is appended to scpi string upon calling
-    the function, otherwise set function is called and value is split
-    format is either:
+    A trailing '?' on the scpi string calls the get function,
+    otherwise the set function is called and the value is split.
+    Format: 'scpiStr value' (set) or 'scpiStr?' (get).
 
-    - set:
-        scpiStr value
-    - get:
-        scpiStr?
-    - value can be:
-      * list
-          e.g. value="1, 2, 3", also mixed lists,
-          e.g. "1, 2.3432, abc", will be passed as list to set
-          function.
-          Take care to check correct type for list entries
-      * int
-          e.g. value="1"
-      * bool
-          e.g. value="0"
-      * float
-          e.g. value="-1.343e-23"
-      * str
-          e.g. value="curvename"
+    Value formats:
+    - list: e.g. "1, 2, 3", also mixed lists, e.g. "1, 2.3432, abc";
+      passed as list to the set function, check the entry types
+      yourself.
+    - int: "1", bool: "0", float: "-1.343e-23", str: "curvename"
     """
 
     def __init__(self, cmd_list: dict, host: str = "localhost", port: int = DEFAULT_PORT):
