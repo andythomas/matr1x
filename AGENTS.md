@@ -80,6 +80,10 @@ Most parts are written in Python and the editor uses some JavaScript.
   implementation details (internal dict layouts, call sequences) -- those
   belong in comments or the user guide. Do not copy the length or style of
   a neighboring docstring; size the new one to what the item actually needs.
+- Start docstrings with a verb or the item's role, not a self-reference:
+  write "Manage the input request workflow", not "This method manages the
+  input request workflow". Avoid "This class/method/function/module ...",
+  "A class for ...", and "Contains the ..." openers.
 - We keep function complexity in check with `complexipy` (max complexity
   15, see `pyproject.toml`). Run `uv run complexipy` (it covers both
   `matr1x/` and `tests/`) and keep every new function at or below the
