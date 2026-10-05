@@ -1259,7 +1259,7 @@ Please investigate the error and eventually restart the graphical user interface
 
 class EnableAction(QAction):
     """
-    A QAction subclass that automatically updates its icon based on checked state.
+    QAction subclass that updates its icon with the checked state.
 
     This action is designed for enable/disable functionality and
     automatically updates its icon color when the checked state
@@ -1311,7 +1311,7 @@ class EnableAction(QAction):
 
 class FullInfoAction(QAction):
     """
-    A QAction subclass that automatically updates its icon based on checked state.
+    QAction subclass that updates its icon with the checked state.
 
     This action is designed for full info/less info functionality
     and automatically updates its icon (+ or -) when the checked

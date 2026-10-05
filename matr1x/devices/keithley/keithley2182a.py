@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module providing the Keithley2182A nanovoltmeter interface."""
+"""Driver for the Keithley 2182A nanovoltmeter."""
 
 import logging
 from typing import ClassVar

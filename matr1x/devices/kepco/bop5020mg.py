@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Kepco BOP power supplies."""
+"""Driver for the Kepco BOP power supply."""
 
 import numpy as np
 

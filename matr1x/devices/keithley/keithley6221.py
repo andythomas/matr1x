@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling the Keithley 6221 Current Source."""
+"""Driver for the Keithley 6221 current source."""
 
 import time
 from typing import ClassVar

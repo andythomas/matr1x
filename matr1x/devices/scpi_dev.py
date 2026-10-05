@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for dynamically creating SCPI device interfaces using pymeasure.
+Dynamically create SCPI device interfaces using pymeasure.
 
 Provides functionality to generate instrument classes for
 SCPI (Standard Commands for Programmable Instruments) compatible

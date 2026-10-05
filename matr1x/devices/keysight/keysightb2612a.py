@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Keysight B2961 power supply devices."""
+"""Driver for the Keysight B2961 power supply."""
 
 from typing import ClassVar
 

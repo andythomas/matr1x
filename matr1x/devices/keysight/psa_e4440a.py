@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with the Agilent PSA E4440A spectrum analyzer."""
+"""Driver for the Agilent PSA E4440A spectrum analyzer."""
 
 from struct import unpack
 from typing import ClassVar

@@ -722,7 +722,7 @@ class MetaData(TypedDict):
 @final
 class ContentDockWidget(QDockWidget):
     """
-    A dock widget with a checkable action to toggle its content.
+    Dock widget with a checkable action to toggle its content.
 
     The dock provides an action with icon and shortcut for the
     view menu and may be restricted to certain dock areas.

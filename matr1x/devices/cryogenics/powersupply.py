@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for controlling Cryogenic power supplies over VISA interface.
+Driver for Cryogenic power supplies over the VISA interface.
 
 Provides classes to interact with Cryogenic power supplies,
 including standard and bipolar models.

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with Oxford Instruments ITC503 temperature controller."""
+"""Driver for the Oxford Instruments ITC503 temperature controller."""
 
 from typing import ClassVar
 

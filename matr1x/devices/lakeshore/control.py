@@ -107,7 +107,7 @@ class SelectLakeshoreInput(QDialog):
 
 class TableModel(QAbstractTableModel):
     """
-    A table model for displaying PID parameters.
+    Table model for displaying PID parameters.
 
     This model is designed to work with a 2D numpy array containing
     PID parameters and related data.

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with Oxford Instruments devices via Isobus protocol."""
+"""Driver for Oxford Instruments devices via the Isobus protocol."""
 
 import logging
 import time

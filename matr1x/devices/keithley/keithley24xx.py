@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Keithley 2400 and 2450 source measurement units."""
+"""Driver for the Keithley 2400 and 2450 source measurement units."""
 
 from typing import ClassVar
 

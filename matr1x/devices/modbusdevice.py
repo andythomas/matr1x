@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 class ModbusDevice(minimalmodbus.Instrument):
     """
-    A class for communicating with Modbus devices using the minimalmodbus library.
+    Driver for Modbus devices using the minimalmodbus library.
 
     Extends minimalmodbus.Instrument to provide thread-safe register
     read/write operations with error handling.

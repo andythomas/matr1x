@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module implementing a dummy device used for automatic testing of the code base."""
+"""Dummy device for automatic testing of the code base."""
 
 import copy
 from typing import ClassVar

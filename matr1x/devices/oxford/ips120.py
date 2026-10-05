@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Oxford Instruments IPS120 power supplies and related devices."""
+"""Driver for Oxford Instruments IPS120 power supplies and related devices."""
 
 import math
 import time

@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for controlling Magnet Physik FH55 Hall probe.
+Driver for the Magnet-Physik FH55 Hall probe.
 
 Provides a driver class for interfacing with the FH55 Hall
 probe from Magnet Physik via VISA communication protocols. It enables

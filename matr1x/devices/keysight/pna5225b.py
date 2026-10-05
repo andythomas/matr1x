@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Keysight VNA 5225b device."""
+"""Driver for the Keysight VNA 5225b."""
 
 from struct import unpack
 from typing import ClassVar

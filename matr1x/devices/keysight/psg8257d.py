@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling the Keysight PSG 8257D-521 microwave signal generator."""
+"""Driver for the Keysight PSG 8257D-521 microwave signal generator."""
 
 from typing import ClassVar
 

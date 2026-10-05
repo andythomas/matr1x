@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module provides a class for interfacing with Thorlabs BSC103 motor controllers."""
+"""Driver for the Thorlabs BSC103 motor controller."""
 
 import logging
 

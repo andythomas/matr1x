@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Keithley devices."""
+"""Keithley device drivers."""
 
 from .keithley24xx import Keithley2400, Keithley2450
 from .keithley2000 import Keithley2000

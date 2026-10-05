@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Contains a class for creating a (mostly) SCPI compatible measurement device.
+Server exposing a (mostly) SCPI compatible measurement device.
 
 The device listens on an ethernet interface and can be fully defined
 from a dictionary with Command entries.

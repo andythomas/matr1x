@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with Nanotec stepper motor controllers."""
+"""Driver for Nanotec stepper motor controllers."""
 
 import re
 import time

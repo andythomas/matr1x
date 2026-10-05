@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling the Rohde & Schwarz FSW8 spectrum analyzer."""
+"""Driver for the Rohde & Schwarz FSW8 spectrum analyzer."""
 
 from struct import unpack
 from typing import ClassVar, Literal
