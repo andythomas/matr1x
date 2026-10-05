@@ -117,7 +117,7 @@ def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool
     return text.rstrip("0") if trim_trailing_zeros else text
 
 
-def get_package_version(module: ModuleType) -> str:
+def _get_package_version(module: ModuleType) -> str:
     """Return the version of the given module."""
     if hasattr(module, "__version__"):
         return module.__version__
@@ -164,7 +164,7 @@ def get_install_info(
                     break
     except pygit2.GitError:
         pass
-    installed_version = get_package_version(imported_package)
+    installed_version = _get_package_version(imported_package)
     return (installed_version, commit_branch, commit_short_sha, commit_time)
 
 
