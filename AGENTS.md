@@ -79,6 +79,10 @@ the environment, lockfile and build (build backend: `uv_build`).
 
 - Only change the code parts required for the change; do not touch
   other parts of the code.
+- Commit messages must fit on a single line of less than 50
+  characters: use the semantic commit message format
+  (`type(scope): summary`) and do not add a body or footer; put any
+  further context in the pull request description.
 - Always run `ruff` and `ty` and address all newly added issues.
 - `uv run` keeps the environment up to date; on a fresh checkout (or
   when something is missing) run `uv sync --all-extras` once. Add
