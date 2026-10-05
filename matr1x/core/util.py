@@ -253,6 +253,43 @@ def module_from_path(filename: Path) -> ModuleType:
     return module
 
 
+def get_importable_module_name(filename_str: str | Path) -> str | None:
+    """
+    Return the module name for a package, else None.
+
+    It returns the deepest matching entry.
+
+    Parameters
+    ----------
+    filename_str : str or Path
+        Path to a Python file or package directory.
+
+    Returns
+    -------
+    str or None
+        The dotted module name if the path is importable, else None.
+    """
+    path = Path(filename_str).resolve()
+    if path.is_file() and path.suffix == ".py":
+        module_path = path.with_suffix("")
+    elif path.is_dir() and (path / "__init__.py").is_file():
+        module_path = path
+    else:
+        return None
+    matches = []
+    for base in map(Path, sys.path):
+        try:
+            rel = module_path.relative_to(base.resolve())
+            matches.append((len(base.parts), rel))
+        except ValueError:
+            pass
+    if not matches:
+        return None
+    _, relative = max(matches, key=lambda x: x[0])
+    module_name = ".".join(relative.parts)
+    return module_name if importlib.util.find_spec(module_name) else None
+
+
 def get_formatted_line(
     vlist: Iterable[Any], prefix: str = "", appendix: str = "", column_width: int = 10
 ) -> str:
