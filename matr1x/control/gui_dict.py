@@ -1039,10 +1039,9 @@ class GuiDict(dict[str, var]):
         data = {"Example": var(None, columns=["Readout", "Setpoint"]),
                 "V1": var(int, columns=[go.combobox, go.combobox],
                           log=True, init=("i1", "i2")),
-                "V2": var(float, columns=[go.lineedit,
-                go.lineedit], unit="mT"), "Set":
-                var(None, columns=[go.button,
-                go.button],
+                "V2": var(float, columns=[go.lineedit, go.lineedit],
+                          unit="mT"),
+                "Set": var(None, columns=[go.button, go.button],
                            init=["Set", "Copy"]),
                }
     refresh_period : float
