@@ -44,7 +44,7 @@ class SystemReference(BaseModel):
 
     @classmethod
     def from_value(cls, value: "SystemReference | str | Path") -> "SystemReference":
-        """Normalize a reference object, source path, or compact ``source::name`` token."""
+        """Normalize a reference, source path, or ``source::name`` token."""
         if isinstance(value, cls):
             return value
         token = str(value).strip()

@@ -115,7 +115,7 @@ class Command:
 
     def reset_to_None(self) -> None:
         """
-        Reset the Command object's setter and getter functions and arguments to None.
+        Reset the setter and getter functions and arguments to None.
 
         Sets the setter function, getter function, and their
         respective arguments to None or empty lists.

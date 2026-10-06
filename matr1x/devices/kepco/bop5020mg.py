@@ -93,7 +93,7 @@ class BOP5020mg(VisaDevice):
 
     def setCurrentWait(self, current, tolerance=0.4):
         """
-        Set the output current in A so that the actual current is within tolerance.
+        Set the output current in A so the actual one is within tolerance.
 
         Adjusts the current incrementally until the desired
         value is reached.

@@ -148,7 +148,7 @@ def test_basic_script_run(
 def test_start_action_disabled_for_invalid_config(
     matrix_script_window: matrix_script.MainWindow, monkeypatch
 ):
-    """Invalid device config disables Start and exposes the reason in the tooltip."""
+    """Invalid device config disables Start and shows the reason in a tooltip."""
     main_window = matrix_script_window
     monkeypatch.setattr(
         main_window.ui.widgets.config_editor,
@@ -364,7 +364,7 @@ def test_status_preview_handles_carriage_return(
     qtbot, qapp, tmp_path, capsys, matrix_script_window: matrix_script.MainWindow, input_dir: Path
 ):
     """
-    Ensure carriage returns from a running script overwrite the current line.
+    Carriage returns from a running script overwrite the current line.
 
     Run a temporary script that prints a string containing a carriage
     return and verify the rendered output in the status preview.

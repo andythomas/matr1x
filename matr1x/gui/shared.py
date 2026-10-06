@@ -133,7 +133,7 @@ class NotifierMessage:
 @final
 class Notifier(QGroupBox):
     """
-    An animated container titled "Notification" that shows a message with an icon.
+    Animated container titled "Notification" showing a message and icon.
 
     Parameters
     ----------

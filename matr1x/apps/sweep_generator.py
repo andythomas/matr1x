@@ -1475,7 +1475,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def append_sweep_col(self, column: int) -> None:
         """
-        Add defined sweep parameters to self.columns.parameter and populate sweep table.
+        Add sweep parameters to columns.parameter and populate sweep table.
 
         Parameters
         ----------
@@ -1558,7 +1558,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def remove_sweep_parameter(self, col: int, row: int) -> None:
         """
-        Remove a set of linspace parameters from columns.parameter at the correct position.
+        Remove linspace parameters from columns.parameter at their position.
 
         Parameters
         ----------

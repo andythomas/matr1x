@@ -23,7 +23,7 @@ from matr1x.devices.visadevice import VisaDevice
 
 
 class PSG8257D(VisaDevice):
-    """The device class for the Keysight PSG 8257D-521, a microwave signal generator."""
+    """Keysight PSG 8257D-521 microwave signal generator."""
 
     config_params: ClassVar[dict[str, str]] = {
         "npoints": ":SOUR:SWE:POIN?",

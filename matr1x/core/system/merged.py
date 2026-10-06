@@ -428,7 +428,7 @@ class MergedSystem(System):
             info[category].update(base_info.get(category, {}))
 
     def _add_subsystem_information(self, info: dict[str, Any], subsystem: System) -> None:
-        """Add selection, attributes, configuration, and warnings for one subsystem."""
+        """Add selection, attributes, config, and warnings for one subsystem."""
         info["classes"].append(subsystem.accessor_name)
         info["selections"].append(self._selection_information(subsystem).model_dump())
         subsystem._add_attributes_to_dict(info, prefix=subsystem.accessor_name)
@@ -456,7 +456,7 @@ class MergedSystem(System):
 
     def set(self, *args, **kwargs):
         """
-        Set function that properly initializes the subsystems and updates the list of devices.
+        Initialize the subsystems and update the list of devices.
 
         Parameters
         ----------
@@ -507,7 +507,7 @@ class MergedSystem(System):
 
     def reset(self, *args, **kwargs):
         """
-        Reset function that properly deinitializes the subsystems and updates the list of devices.
+        Deinitialize the subsystems and update the list of devices.
 
         Parameters
         ----------

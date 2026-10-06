@@ -70,7 +70,7 @@ def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
 
 
 def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch, input_dir: Path):
-    """Invalid device config disables Queue and exposes the reason in the tooltip."""
+    """Invalid device config disables Queue and shows the reason in a tooltip."""
     main_window = matrix_gui.MainWindow()
     main_window.show()
     qtbot.waitExposed(main_window)
@@ -95,7 +95,7 @@ def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch, inpu
 
 
 def test_queue_config_uses_resolved_stateful_sections():
-    """Queue editors must not treat serialized state references as config paths."""
+    """Queue editors must not treat state references as config paths."""
     source = "matr1x.systems.system_stateful_dummy"
     section = f"{source}.primary"
     system_info = SystemInfo(

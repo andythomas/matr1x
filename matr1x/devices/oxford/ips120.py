@@ -26,7 +26,7 @@ from .isobus import IsobusDevice
 
 
 class IPS120_switchheater(IsobusDevice):
-    """Driver for IPS120 with switch heater control for persistent mode operations."""
+    """IPS120 driver with switch heater control for persistent mode."""
 
     config_params: ClassVar[dict[str, str]] = {
         "Rate": "getMagneticFieldRate",

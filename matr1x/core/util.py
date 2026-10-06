@@ -66,7 +66,7 @@ _USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
 
 def resolve_config_path(config: Any, path: str) -> Any:
     """
-    Resolve a configuration path string (dot notation) to a value from the config object.
+    Resolve a dot-notation path to a value from the config object.
 
     If any part of the path is missing, an empty dictionary is returned.
 
@@ -493,7 +493,7 @@ def generate_col_index(index: int) -> str:
 
 def construct_query_string(query_dict: dict, depth: int = 2) -> str:
     """
-    Prepare query string from output of system.query to include in file header.
+    Prepare the query string for the file header from system.query.
 
     Format is specified as:
     ## dev1

@@ -46,7 +46,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     """
-    Handles the TCP connection and parses the commands specified in the server's cmd_list.
+    Handle the TCP connection and parse commands from the server's cmd_list.
 
     Extends StreamRequestHandler to handle TCP connections
     and parse commands specified in the server's command list.

@@ -441,7 +441,7 @@ class MetaViewerWidget(QDockWidget):
 
     @staticmethod
     def prefetch_visa_resource_names(*, force: bool = False) -> None:
-        """Start VISA resource discovery in the background if it is not already running."""
+        """Start background VISA resource discovery if not already running."""
         if not force and MetaViewerWidget._visa_resource_cache is not None:
             return
         if MetaViewerWidget._visa_resource_query_running:
@@ -464,7 +464,7 @@ class MetaViewerWidget(QDockWidget):
 
     @staticmethod
     def schema_contains_visa_resource(schema: Any) -> bool:
-        """Return True when a nested schema tree contains a VISA resource editor hint."""
+        """Return True if a nested schema tree has a VISA resource editor hint."""
         if isinstance(schema, dict):
             if schema.get("ui_type") == "visa_resource":
                 return True
@@ -823,7 +823,7 @@ class MetaViewerWidget(QDockWidget):
 
     class TreeModel(QAbstractItemModel):
         """
-        Custom tree model for displaying hierarchical data from dicts or Pydantic models.
+        Tree model displaying hierarchical data from dicts or Pydantic models.
 
         Parameters
         ----------
@@ -1598,7 +1598,7 @@ class ConfigEditWidget(MetaViewerWidget):
             self.model.set_validation_error(index, message.strip())
 
     def get_system_config_validation_errors(self) -> list[str]:
-        """Return system config validation errors that could not be mapped to a field."""
+        """Return system config validation errors not mapped to a field."""
         return self._unmapped_system_config_validation_errors.copy()
 
     def validate_config(self) -> Result[None, str]:
@@ -1661,7 +1661,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
     @classmethod
     def _validate_string_constraints(cls, value: Any, schema: dict[str, Any]) -> str | None:
-        """Validate string length, regex patterns, and specialized UI types like visa_resource."""
+        """Validate string length, regex, and special UI types like visa_resource."""
         if "minLength" in schema and len(value) < schema["minLength"]:
             return f"Input should have at least {schema['minLength']} characters"
         if "maxLength" in schema and len(value) > schema["maxLength"]:

@@ -549,7 +549,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.widgets.meas_list.changed.connect(self.measurement_list_changed)
 
     def update_queue_action_state(self, *_args) -> None:
-        """Enable Queue only when an input file and a valid configuration are present."""
+        """Enable Queue only with an input file and a valid configuration."""
         input_file = self.ui.widgets.input_file.text()
         if not input_file or not Path(input_file).exists():
             self.ui.actions.queue.setEnabled(False)

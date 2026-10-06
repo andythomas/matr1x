@@ -79,7 +79,7 @@ class SimplePlotWidget(QGroupBox):
 
     class PlotObject:
         """
-        Object that contains the plot, data corresponding identifiers and widgets.
+        Contains the plot, the corresponding data identifiers, and widgets.
 
         Relies on external layouts to insert the widgets/plots.
 
@@ -245,7 +245,7 @@ class SimplePlotWidget(QGroupBox):
 
             def tickStrings(self, values, scale, spacing):
                 """
-                Return the labels corresponding to the tick values depending on the spacing.
+                Return tick labels corresponding to the values and spacing.
 
                 Parameters
                 ----------
@@ -1183,7 +1183,7 @@ class SimplePlotWidget(QGroupBox):
                     plot.plt.setPen(None)
 
     def _on_range_changed(self, view_box, ranges: tuple[tuple[float, float], tuple[float, float]]):
-        """Handle range change event to synchronize X-axis across plots with same X-column.
+        """Synchronize the X-axis across plots sharing the same X-column.
 
         Parameters
         ----------
@@ -1386,7 +1386,7 @@ class SimplePlotWidget(QGroupBox):
 
 class CustomViewBox(pyqtgraph.ViewBox):
     """
-    Reimplements the pyqthgraph ViewBox and improves its usability with the mouse.
+    Reimplement pyqtgraph ViewBox with improved mouse usability.
 
     Behavior is as follows:
 

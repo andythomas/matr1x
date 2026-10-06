@@ -41,7 +41,7 @@ _DEFAULT_PARENT_INDEX = QModelIndex()
 
 class SelectLakeshoreInput(QDialog):
     """
-    Open a dialog for selecting a sensor calibration curve for the Lakeshore temperature controller.
+    Open a dialog to select a sensor calibration curve on the Lakeshore.
 
     This dialog allows the user to choose from a list of available
     calibration curves for the Lakeshore temperature controller. It
@@ -94,7 +94,7 @@ class SelectLakeshoreInput(QDialog):
 
     def set_curve(self):
         """
-        Set the selected calibration curve for the Lakeshore temperature controller.
+        Set the selected calibration curve on the Lakeshore controller.
 
         Reads the selected curve from the QListWidget, sets
         it on the Lakeshore device if possible, and closes the dialog.
@@ -127,7 +127,7 @@ class TableModel(QAbstractTableModel):
         self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole
     ) -> Any:
         """
-        Return the data stored under the given role for the item referred to by the index.
+        Return the data stored under the given role for the indexed item.
 
         Parameters
         ----------

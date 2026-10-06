@@ -42,7 +42,7 @@ class HDI(VisaDevice):
 
     def __init__(self, interface, **kwargs):
         """
-        Initialize the HDI device interface with appropriate communication parameters.
+        Initialize the HDI interface with communication parameters.
 
         Parameters
         ----------

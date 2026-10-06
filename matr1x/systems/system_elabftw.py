@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Defines a system for automatically defining an elabFTW entry for a successful measurement.
+System that defines an elabFTW entry for a successful measurement.
 
 Provides functionality to create and manage entries in the
 elabFTW electronic lab notebook system.
@@ -67,7 +67,7 @@ class ElabConfig(SystemConfigModel):
     @field_validator("write_groups", mode="before")
     @classmethod
     def coerce_write_groups(cls, value: Any) -> Any:
-        """Normalize scalar and comma-separated group values from configuration UIs."""
+        """Normalize scalar and comma-separated group values from config UIs."""
         if value is None:
             return []
         if isinstance(value, str):
@@ -266,7 +266,7 @@ class Elab(System):
             self._handle_connection_error(error)
 
     def _link_or_create_sample_resources(self) -> None:
-        """Add resource links for sample names found in metadata, creating if requested."""
+        """Add resource links for sample names in metadata, creating if requested."""
         for key in ["identifier", "relation"]:
             samplename = self.merged_system.dcdata[key]
             if not samplename:
@@ -344,7 +344,7 @@ class Elab(System):
         self.api_client = None
 
     def _resolve_team_groups(self) -> list[int]:
-        """Fetch team groups from eLabFTW and resolve configured write_groups to IDs."""
+        """Fetch eLabFTW team groups and resolve configured write_groups to IDs."""
         if not self.config.write_groups or not self.api_client:
             return []
         if not self._team_id:
@@ -368,7 +368,7 @@ class Elab(System):
         return list(dict.fromkeys(resolved_ids))
 
     def _validate_elab_configuration(self) -> None:
-        """Validate connected configuration and resolve team groups before setup proceeds."""
+        """Validate connected config and resolve team groups before setup."""
         self._resolved_write_group_ids = self._resolve_team_groups()
 
     def _fetch_entity_permissions(

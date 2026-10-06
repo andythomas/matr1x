@@ -449,7 +449,7 @@ def _process_column_unit_lines(
 
 
 def _process_special_lines(matrix_file, header: HeaderDict) -> None:
-    """Process special lines (comments and status) that appear after main content."""
+    """Process special lines (comments, status) after the main content."""
     # Read further special lines in the file
     special_lines = [(i, line) for i, line in enumerate(matrix_file) if line.startswith("#")]
 
@@ -478,7 +478,7 @@ def _process_special_lines(matrix_file, header: HeaderDict) -> None:
 
 def _process_text_file_content(filename: Path, extension: str, header: HeaderDict) -> int:
     """
-    Process the content of a text file to extract header information and special lines.
+    Extract header information and special lines from a text file.
 
     Parameters
     ----------

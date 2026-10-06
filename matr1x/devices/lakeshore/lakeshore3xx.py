@@ -438,7 +438,7 @@ class Lakeshore3xx(VisaDevice):
 
     def getActiveCurveName(self, channel: str | None = None) -> str | None:
         """
-        Get the name of the currently active calibration curve for the specified channel.
+        Get the active calibration curve name for the given channel.
 
         Parameters
         ----------

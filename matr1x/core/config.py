@@ -141,7 +141,7 @@ def _migrate_config(config_data):
 
 def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
     """
-    Load configuration from user config, local config, and an optional config.
+    Load configuration from user, local, and optional configs.
 
     The configuration files are loaded in the following order, with
     later files overriding settings from earlier ones:

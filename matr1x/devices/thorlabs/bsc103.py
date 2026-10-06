@@ -320,7 +320,7 @@ class BSC103(VisaDevice):
 
     class message:
         """
-        The data structure that is used for communication using the APT protocol.
+        Data structure for communication using the APT protocol.
 
         Messages (packets) consist of a 6 byte header (2b
         message ID, 2b payload, 1b destination address, 1b
@@ -842,7 +842,7 @@ class BSC103(VisaDevice):
 
     def initDrives(self, axis=None, channel=0x01):
         """
-        Initialize communication, set the drive settings and enable multiple drives at once.
+        Initialize communication, set drive settings, enable multiple drives.
 
         Parameters
         ----------
@@ -979,7 +979,7 @@ class BSC103(VisaDevice):
 
     def moveRelMult(self, distArr, channel=0x01):
         """
-        Move multiple drive certain distances relative to their current position.
+        Move multiple drives relative to their current position.
 
         Parameters
         ----------

@@ -159,7 +159,7 @@ class SystemConfigModel(BaseModel):
 
 
 class ConfigBaseModel(BaseModel):
-    """Base class for configuration models providing recursive attribute access for extra fields."""
+    """Config model base providing recursive access to extra fields."""
 
     def __getattr__(self, name: str) -> Any:
         """Allow attribute-style access to extra fields."""
