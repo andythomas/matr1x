@@ -55,7 +55,7 @@ def _load_matr1x_icon(name: str, color: QColor | None) -> QIcon:
     package_path = get_package_path("matr1x")
     if package_path is None:
         return QIcon()
-    icon_dir = package_path / "scripts" / "icons"
+    icon_dir = package_path / "apps" / "icons"
     pixmap = QPixmap(str(icon_dir / name))
     if color is not None:
         image = pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
