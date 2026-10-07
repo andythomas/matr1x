@@ -44,7 +44,7 @@ from types import TracebackType
 from typing import Any
 
 from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -320,8 +320,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self.log_window.hide()
         logger.info("Control window '%s' starting", name)
         self.setWindowTitle(name)
-        icondir = Path(__file__).parent.parent / "scripts" / "icons"
-        self.setWindowIcon(QIcon(str(icondir / "matr1x-control.png")))
+        self.setWindowIcon(get_matrix_icon("matr1x-control.png"))
         self.settings = SaferQSettings(package, name)
         # initialize parameters
         self.running = False
