@@ -87,6 +87,7 @@ from matr1x.core.util import (
     StreamToLogger,
     generate_script,
     get_script_prefix_offset,
+    shorten_error,
 )
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.editor import CodeEditor
@@ -1144,7 +1145,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif isinstance(data, Message):
             self._process_message(data)
         elif isinstance(data, ErrorMessage):
-            self.show_message(NotifierMessage(data.error, level=logging.ERROR))
+            self.show_message(
+                NotifierMessage(
+                    shorten_error(data.error, hint=" (see log window for details)"),
+                    level=logging.ERROR,
+                )
+            )
             self.measurement_failed = True
         elif isinstance(data, LogEntry):
             data.log_record(logger)

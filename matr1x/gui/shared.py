@@ -151,6 +151,8 @@ class Notifier(QGroupBox):
         self._content.setContentsMargins(0, 0, 0, 0)
         self._icon = QLabel()
         self._text = QLabel()
+        self._text.setWordWrap(True)
+        self._text.setMinimumWidth(0)
         self._close_button = QPushButton("✕")
         self._close_button.setFixedSize(20, 20)
         self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
