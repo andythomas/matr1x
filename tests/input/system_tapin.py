@@ -165,6 +165,11 @@ class TapinSystem(System):
             emit("reset", args=list(args), kwargs=dict(kwargs))
         super().reset(*args, **kwargs)
 
+    def close(self) -> None:
+        """Close the tap connection and the device connections."""
+        super().close()
+        _close_tap()
+
     def set_p1(self, value):
         """Set the value of parameter p1.
 

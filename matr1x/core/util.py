@@ -721,3 +721,29 @@ def log_multiline(logger: logging.Logger, message: str, level=logging.INFO):
     """Log a multi-line message to the given logger."""
     for line in message.splitlines():
         logger.log(level, line)
+
+
+def shorten_error(error: str, hint: str | None = None) -> str:
+    """
+    Shorten a multi-line error to its last non-empty line.
+
+    For a traceback this is the exception type and message. The full
+    error should remain available in the log and/or terminal output.
+
+    Parameters
+    ----------
+    error : str
+        The full error text, e.g. a traceback.
+    hint : str, optional
+        A suffix appended to the shortened text, e.g. a reference to
+        where the full error can be found.
+
+    Returns
+    -------
+    str
+        The shortened error text.
+    """
+    lines = [line for line in error.splitlines() if line.strip()]
+    if len(lines) <= 1:
+        return lines[0] if lines else error
+    return f"{lines[-1]}{hint}" if hint else lines[-1]

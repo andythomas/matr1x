@@ -20,7 +20,8 @@ providing command line and GUI tools for measurements and data analysis.
     widgets). May use Qt.
   - `matr1x/devices`: Instrument drivers, one subpackage per vendor.
     Must not import each other (except the shared base modules) and must
-    not use Qt.
+    not use Qt (exception: `matr1x.devices.lakeshore.control`, see the
+    import-linter contracts).
   - `matr1x/core`: The backend without GUI or entry points: config,
     system base classes, models, eval, execthread, SCPI server, VISA
     helpers. Must not import the `matr1x` root package or Qt.
@@ -52,7 +53,7 @@ providing command line and GUI tools for measurements and data analysis.
 
 PySide6 for the GUI, urwid for the TUI of `matrix`, the Monaco editor
 via `monaco-assets` for matrix-script, and a Python 3.10+ backend
-(pydantic, h5py, numpy, pandas, pymeasure, pyvisa, ...). `uv` manages
+(pydantic, h5py, numpy, polars, pymeasure, pyvisa, ...). `uv` manages
 the environment, lockfile and build (build backend: `uv_build`).
 
 ## Coding Standards
@@ -77,6 +78,9 @@ the environment, lockfile and build (build backend: `uv_build`).
 
 ## Guidelines
 
+- Before starting a task, check `skills/` for an agent skill matching
+  the task (e.g. `writeControl` for new control GUIs, `migration` for
+  package migrations) and follow its `SKILL.md`.
 - Only change the code parts required for the change; do not touch
   other parts of the code.
 - Commit messages must fit on a single line of less than 50
@@ -93,9 +97,12 @@ the environment, lockfile and build (build backend: `uv_build`).
   editor tests, and both are harmless elsewhere):
 
   ```sh
-  QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox script -q /dev/null sh -c 'uv run pytest tests'
+  QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox uv run pytest tests
   ```
 
 - GUI tests run offscreen (`QT_QPA_PLATFORM=offscreen` is set by pytest).
 - The package version and `CHANGELOG.md` are managed by semantic-release;
   do not edit them manually.
+- When searching with `rg`, use `rg -n` (line numbers); never `rg -rn`,
+  where `-r` aliases `--replace` and rewrites every match to `n`,
+  garbling the output (e.g. `skills/security` becomes `n/security`).

@@ -15,36 +15,16 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Test basic GUI functions in sweep generator."""
 
-from collections.abc import Generator
 from pathlib import Path
 
 import numpy
-import pytest
 from PySide6.QtWidgets import QLineEdit
 
 from matr1x.apps import sweep_generator
 
-_SWEEP_GENERATOR_WINDOW: sweep_generator.MainWindow | None = None
 
-
-@pytest.fixture(scope="module")
-def sweep_generator_window(qapp) -> Generator[sweep_generator.MainWindow, None, None]:
-    """Create a shared sweep generator window for this module."""
-    global _SWEEP_GENERATOR_WINDOW
-    if _SWEEP_GENERATOR_WINDOW is None:
-        _SWEEP_GENERATOR_WINDOW = sweep_generator.MainWindow()
-        _SWEEP_GENERATOR_WINDOW.show()
-        _SWEEP_GENERATOR_WINDOW.in_pytest = True
-        qapp.processEvents()
-    yield _SWEEP_GENERATOR_WINDOW
-    _SWEEP_GENERATOR_WINDOW.close()
-    _SWEEP_GENERATOR_WINDOW = None
-
-
-@pytest.fixture(autouse=True)
-def reset_sweep_generator_window(sweep_generator_window: sweep_generator.MainWindow, qapp) -> None:
+def reset_sweep_generator_window(window: sweep_generator.MainWindow, qapp) -> None:
     """Reset state to avoid cross-test interference."""
-    window = sweep_generator_window
     for widget in qapp.allWidgets():
         if isinstance(widget, sweep_generator.SweepPreviewPopup):
             widget.close()
@@ -52,19 +32,31 @@ def reset_sweep_generator_window(sweep_generator_window: sweep_generator.MainWin
     qapp.processEvents()
 
 
-def test_sweep_generator_systems(
-    qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow, repo_root: Path
-):
+def test_sweep_generator_run(qtbot, qapp, repo_root: Path, input_dir: Path, tmp_path: Path):
     """
-    Test if the removal of a system works properly.
+    Test basic GUI functions in the sweep generator.
 
     Asserts
     -------
     The system filenames are correct after system removal
+    main window is visible
+    system dummy is added to the list
+    title shows unsaved and clears again
+    loop is added to sweep table
+    preview window popped up
+    draft and compare sweep
+    save and compare sweep
+    sweep_params, repeat, up_down, and loop_over are correctly loaded
+    repeat, updown, and loopover widgets are correctly set
+    points value can be changed in sweep_table
+    window title becomes dirty after change
     """
-    main_window = sweep_generator_window
+    main_window = sweep_generator.MainWindow()
+    main_window.show()
+    main_window.in_pytest = True
     qtbot.waitExposed(main_window)
     qapp.processEvents()
+    assert main_window.isVisible()
 
     mod = str(repo_root / "matr1x/systems/system_dummy.py")
     mod2 = str(repo_root / "matr1x/systems/system_dummy_meas.py")
@@ -75,33 +67,7 @@ def test_sweep_generator_systems(
     qtbot.waitUntil(lambda: main_window.ui.widgets.system_list.count() == 1, timeout=2000)
     assert main_window.columns.filenames == ["matr1x.systems.system_dummy"]
 
-
-def test_sweep_generator_run(
-    qtbot,
-    qapp,
-    sweep_generator_window: sweep_generator.MainWindow,
-    repo_root: Path,
-    input_dir: Path,
-    tmp_path: Path,
-):
-    """
-    Start a basic sweep generator run.
-
-    Asserts
-    -------
-    main window is visible
-    system dummy is added to the list
-    title shows unsaved
-    title clears unsaved
-    loop is added to sweep table
-    preview window popped up
-    draft and compare sweep
-    save and compare sweep
-    """
-    main_window = sweep_generator_window
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-    assert main_window.isVisible()
+    reset_sweep_generator_window(main_window, qapp)
 
     module = str(repo_root / "matr1x/systems/system_dummy.py")
     main_window.ui.widgets.system_list.add_systems([module])
@@ -178,24 +144,8 @@ def test_sweep_generator_run(
             assert written_file[i] == original_file[i]
     main_window.last_filename.unlink()
 
+    reset_sweep_generator_window(main_window, qapp)
 
-def test_sweep_generator_load(
-    qtbot, qapp, sweep_generator_window: sweep_generator.MainWindow, input_dir: Path
-):
-    """
-    Start a basic sweep generator run.
-
-    Asserts
-    -------
-    main window is visible
-    sweep test file exists
-    sweep_params, repeat, up_down, and loop_over are correctly loaded
-    repeat, updown, and loopover widgets are correctly set
-    """
-    main_window = sweep_generator_window
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-    assert main_window.isVisible()
     test_sweep_file = input_dir / "sweep_for_test.sw8"
     assert test_sweep_file.exists()
 
@@ -211,28 +161,7 @@ def test_sweep_generator_load(
     assert main_window.grid_widgets[0].loopover.currentText() == "None"
     assert main_window.grid_widgets[1].loopover.currentText() == "None"
 
-
-def test_sweep_generator_sweep_table(
-    qtbot,
-    qapp,
-    sweep_generator_window: sweep_generator.MainWindow,
-    repo_root: Path,
-):
-    """
-    Test changing points entry in sweep_table.
-
-    Asserts
-    -------
-    main window is visible
-    sweep parameters are set up correctly
-    points value can be changed in sweep_table
-    window title becomes dirty after change
-    sweep_params data is updated correctly
-    """
-    main_window = sweep_generator_window
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-    assert main_window.isVisible()
+    reset_sweep_generator_window(main_window, qapp)
 
     module = str(repo_root / "matr1x/systems/system_dummy.py")
     main_window.ui.widgets.system_list.add_systems([module])
