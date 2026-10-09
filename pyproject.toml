@@ -43,6 +43,8 @@ dependencies = [
     "pyvisa-py >= 0.5.3",                           # pyvisa backend
     "zeroconf >= 0.36.8",                           # pyvisa-py resource discovery
     "minimalmodbus",                                # device drivers
+    "mcp >= 2.0.0",                                 # apps.mcp (MCP server)
+    "matplotlib >= 3.6",                             # apps.mcp (plotting)
 ]
 
 [project.optional-dependencies]
@@ -54,6 +56,7 @@ ppms = [
 [project.scripts]
 matrix = "matr1x.apps.cli:main"
 matrix-di = "matr1x.apps.desktop_integration:main"
+matrix-mcp = "matr1x.apps.mcp:main"
 
 [project.gui-scripts]
 matrix-gui = "matr1x.apps.queue:main"
