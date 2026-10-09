@@ -1575,7 +1575,7 @@ requires-dist = [
     { name = "monaco-assets", specifier = "==0.7.1" },
     { name = "multipyvu", marker = "extra == 'ppms'", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=1.21.2" },
-    { name = "polars", specifier = ">=1.0" },
+    { name = "polars", specifier = ">=1.0,!=2.0.0" },
     { name = "psutil", specifier = ">=5.9.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pygit2", specifier = ">=1.16" },
