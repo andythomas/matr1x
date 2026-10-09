@@ -21,6 +21,7 @@ sweep calculations, and various helper functions for data processing and
 system configuration.
 """
 
+import datetime
 import importlib.util
 import logging
 import math
@@ -28,17 +29,19 @@ import os
 import subprocess
 import sys
 import textwrap
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path, PureWindowsPath
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeVar
+
+import pygit2
 
 from matr1x.core.error_handling import Error, Result, Success
 
 # conditional import for type checkers
 if TYPE_CHECKING:
-    import types
-
     from _typeshed import SupportsWrite
 
     _T_contra = TypeVar("_T_contra", contravariant=True)
@@ -108,6 +111,63 @@ def get_package_path(package_name: str) -> Path | None:
     return None
 
 
+def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool = False) -> str:
+    """Format a POSIX timestamp in the local timezone."""
+    text = datetime.datetime.fromtimestamp(value, datetime.timezone.utc).astimezone().strftime(fmt)
+    return text.rstrip("0") if trim_trailing_zeros else text
+
+
+def _get_package_version(module: ModuleType) -> str:
+    """Return the version of the given module."""
+    if hasattr(module, "__version__"):
+        return module.__version__
+    try:
+        return version(module.__name__)
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def get_install_info(
+    imported_package: ModuleType,
+) -> tuple[str, str, str, Literal["not available"] | int]:
+    """
+    Receive git infos about the installed version.
+
+    Parameters
+    ----------
+    imported_package: ModuleType
+        Any module (package) that was already imported.
+
+    Returns
+    -------
+    installed_version: str,
+    commit_branch: str,
+    commit_short_sha: str,
+    commit_time: str or int
+        The version and commit info(s) of the package.
+    """
+    commit_branch = "not available"
+    commit_time = "not available"
+    commit_short_sha = "not available"
+    try:
+        repo = pygit2.Repository(imported_package.__file__)
+        commit_branch = repo.head.shorthand
+        last_commit = repo[repo.head.target]
+        commit_short_sha = str(last_commit.id)[:7]
+        commit_time = last_commit.author.time
+        if commit_branch == "HEAD":
+            # Attempt to find the remote branch
+            for ref_name in repo.references:
+                ref = repo.lookup_reference(ref_name)
+                if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
+                    commit_branch = ref.shorthand
+                    break
+    except pygit2.GitError:
+        pass
+    installed_version = _get_package_version(imported_package)
+    return (installed_version, commit_branch, commit_short_sha, commit_time)
+
+
 def resolve_pkgroot_path(path: str | Path, package_path: Path | None) -> Path:
     """Resolve a path that starts with the ``<pkgroot>`` placeholder."""
     placeholder = "<pkgroot>"
@@ -166,7 +226,7 @@ def create_temp_dir_with_symlinks(
     return temp_dir
 
 
-def module_from_path(filename: Path) -> "types.ModuleType":
+def module_from_path(filename: Path) -> ModuleType:
     """
     Create a module from a file path.
 
@@ -191,6 +251,43 @@ def module_from_path(filename: Path) -> "types.ModuleType":
         raise ImportError(f"Could not import {filename}.")
     loader.exec_module(module)
     return module
+
+
+def get_importable_module_name(filename_str: str | Path) -> str | None:
+    """
+    Return the module name for a package, else None.
+
+    It returns the deepest matching entry.
+
+    Parameters
+    ----------
+    filename_str : str or Path
+        Path to a Python file or package directory.
+
+    Returns
+    -------
+    str or None
+        The dotted module name if the path is importable, else None.
+    """
+    path = Path(filename_str).resolve()
+    if path.is_file() and path.suffix == ".py":
+        module_path = path.with_suffix("")
+    elif path.is_dir() and (path / "__init__.py").is_file():
+        module_path = path
+    else:
+        return None
+    matches = []
+    for base in map(Path, sys.path):
+        try:
+            rel = module_path.relative_to(base.resolve())
+            matches.append((len(base.parts), rel))
+        except ValueError:
+            pass
+    if not matches:
+        return None
+    _, relative = max(matches, key=lambda x: x[0])
+    module_name = ".".join(relative.parts)
+    return module_name if importlib.util.find_spec(module_name) else None
 
 
 def get_formatted_line(
@@ -500,182 +597,6 @@ def get_pt100_temp(res: float) -> float:
     return (-a * r0 + math.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
 
 
-class Command:
-    """
-    Class representing a command provided by a ControlGUI.
-
-    A command contains the data type of the connected variable and
-    functions for setting and getting and their respective arguments.
-    """
-
-    def __init__(
-        self,
-        dtype: Callable[..., Any]
-        | list[Callable[..., Any]]
-        | tuple[Callable[..., Any], ...]
-        | None,
-        setfunc: Callable[..., None] | str | list[str] | tuple[str, ...] | None,
-        getfunc: Callable[..., Any] | str | list[str] | tuple[str, ...] | None,
-        setargs: tuple | list | None = None,
-        getargs: tuple | list | None = None,
-        polling_cmd: str | None = None,
-    ):
-        """
-        Initialize the Command object.
-
-        Parameters
-        ----------
-        dtype : type
-            Data type of the connected variable.
-        setfunc : callable or tuple
-            Setter function to change the connected variable.
-            Can also be a tuple with a device name and device property.
-        getfunc : callable or tuple
-            Getter function to obtain the value of the variable.
-            Can also be a tuple with a device name and device property.
-        setargs : tuple, optional
-            Additional arguments for the setter function.
-        getargs : tuple, optional
-            Additional arguments for the getter function.
-        polling_cmd : str, optional
-            Command to poll to check if the setpoint was reached.
-        """
-        self.dtype: (
-            Callable[..., Any] | list[Callable[..., Any]] | tuple[Callable[..., Any], ...] | None
-        ) = dtype
-        self.setfunc: Callable[..., None] | str | list[str] | tuple[str, ...] | None = setfunc
-        self.getfunc: Callable[..., Any] | str | list[str] | tuple[str, ...] | None = getfunc
-        self.setargs: tuple
-        self.getargs: tuple
-        if setargs is None:
-            self.setargs = ()
-        else:
-            self.setargs = tuple(setargs)
-        if getargs is None:
-            self.getargs = ()
-        else:
-            self.getargs = tuple(getargs)
-        self.polling_cmd: str | None = polling_cmd
-
-    def __repr__(self) -> str:
-        """
-        Return a string representation of the Command object.
-
-        Returns
-        -------
-        str
-            A string representation of the Command object.
-        """
-        return self.__str__()
-
-    def __str__(self) -> str:
-        """
-        Return a string representation of the Command object.
-
-        Returns
-        -------
-        str
-            A string representation of the Command object, including its class name,
-            data type, setter function, getter function, and their respective arguments.
-        """
-        r = f"{self.__class__.__name__}: {self.dtype}, {self.setfunc}"
-        if self.setargs:
-            r += f"({self.setargs})"
-        r += f", {self.getfunc}"
-        if self.getargs:
-            r += f"({self.getargs})"
-        return r
-
-    def reset_to_None(self) -> None:
-        """
-        Reset the Command object's setter and getter functions and arguments to None.
-
-        This method sets the setter function, getter function, and their
-        respective arguments to None or empty lists.
-        """
-        self.setfunc = None
-        self.getfunc = None
-        self.setargs = ()
-        self.getargs = ()
-
-
-class Get(Command):
-    """Class representing a Getter-command of a ControlGUI."""
-
-    def __init__(
-        self,
-        dtype: Callable[..., Any]
-        | list[Callable[..., Any]]
-        | tuple[Callable[..., Any], ...]
-        | None,
-        getfunc: Callable[..., Any] | str | list[str] | tuple[str, ...],
-        getargs: tuple | None = None,
-    ):
-        """
-        Initialize the Get command.
-
-        Parameters
-        ----------
-        dtype : type
-            Data type of the connected variable.
-        getfunc : callable
-            Getter function to obtain the value of the variable.
-        getargs : tuple or None, optional
-            Optional arguments for the getter function.
-        """
-        super().__init__(dtype, setfunc=None, getfunc=getfunc, getargs=getargs)
-
-
-class Set(Command):
-    """Class representing a Setter-command of a ControlGUI."""
-
-    def __init__(
-        self,
-        dtype: Callable[..., Any]
-        | list[Callable[..., Any]]
-        | tuple[Callable[..., Any], ...]
-        | None,
-        setfunc: Callable[..., None] | str | list[str] | tuple[str, ...],
-        setargs: tuple | None = None,
-        polling_cmd: str | None = None,
-    ):
-        """
-        Initialize the Set command.
-
-        Parameters
-        ----------
-        dtype : type
-            Data type of the connected variable.
-        setfunc : callable
-            Setter function to change the connected variable.
-        setargs : tuple or None, optional
-            Optional additional arguments for the setter function.
-        polling_cmd : str or None, optional
-            Optional command to poll to check if the setpoint was reached.
-        """
-        super().__init__(dtype, setfunc, getfunc=None, setargs=setargs, polling_cmd=polling_cmd)
-
-
-def normalize_cmds(cmds):
-    """
-    Validate that all commands are Command instances.
-
-    Parameters
-    ----------
-    cmds : dict
-        Dictionary of commands to normalize.
-
-    Returns
-    -------
-    None
-    """
-    for cmd, val in cmds.items():
-        if not isinstance(val, Command):
-            raise TypeError(
-                f"Command entry {cmd!r} must be a Command instance, got {type(val).__name__}."
-            )
-
-
 def run_python_cmdline(
     cmd: list[str],
     stdin: str | None = None,
@@ -795,3 +716,29 @@ def log_multiline(logger: logging.Logger, message: str, level=logging.INFO):
     """Log a multi-line message to the given logger."""
     for line in message.splitlines():
         logger.log(level, line)
+
+
+def shorten_error(error: str, hint: str | None = None) -> str:
+    """
+    Shorten a multi-line error to its last non-empty line.
+
+    For a traceback this is the exception type and message. The full
+    error should remain available in the log and/or terminal output.
+
+    Parameters
+    ----------
+    error : str
+        The full error text, e.g. a traceback.
+    hint : str, optional
+        A suffix appended to the shortened text, e.g. a reference to
+        where the full error can be found.
+
+    Returns
+    -------
+    str
+        The shortened error text.
+    """
+    lines = [line for line in error.splitlines() if line.strip()]
+    if len(lines) <= 1:
+        return lines[0] if lines else error
+    return f"{lines[-1]}{hint}" if hint else lines[-1]

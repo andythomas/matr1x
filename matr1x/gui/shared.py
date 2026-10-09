@@ -24,6 +24,7 @@ import tempfile
 import threading
 from contextlib import ExitStack
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 from typing import IO, Any, BinaryIO, Literal, TypedDict, final
 
@@ -79,6 +80,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from matr1x.core import deprecation
 from matr1x.core.config import resolved_directory, validation_errors
 from matr1x.core.error_handling import Error, InternalInvariantError, Result
 from matr1x.core.metadata import VALID_META_KEYS
@@ -92,9 +94,10 @@ from matr1x.core.models import (
     SystemInfo,
     SystemReference,
 )
-from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, matrix_cmdline
+from matr1x.core.system import get_system_capability, get_system_info
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, get_importable_module_name, matrix_cmdline
 from matr1x.gui.app import MApplication, SaferQSettings
-from matr1x.gui.helpers import get_matrix_icon, get_system_capability, get_system_info
+from matr1x.gui.helpers import get_matrix_icon
 from matr1x.gui.meta_viewer import ConfigEditWidget, blocked_signals
 from matr1x.gui.mixins import LoggerMixin
 from matr1x.gui.widgets import ReadOnlyTable
@@ -148,6 +151,8 @@ class Notifier(QGroupBox):
         self._content.setContentsMargins(0, 0, 0, 0)
         self._icon = QLabel()
         self._text = QLabel()
+        self._text.setWordWrap(True)
+        self._text.setMinimumWidth(0)
         self._close_button = QPushButton("✕")
         self._close_button.setFixedSize(20, 20)
         self._close_button.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -155,10 +160,15 @@ class Notifier(QGroupBox):
         self._dismiss_timer = QTimer()
         self._dismiss_timer.setSingleShot(True)
         self._dismiss_timer.timeout.connect(self.hide_animated)
+        deprecation.set_deprecation_notifier(self._show_deprecation)
         self._content.addWidget(self._icon)
         self._content.addWidget(self._text, 1)
         self._content.addWidget(self._close_button)
         self.setLayout(self._content)
+
+    def _show_deprecation(self, message: str) -> None:
+        """Show a deprecation message that requires manual dismissal."""
+        self.show_message(NotifierMessage(text=message, level=logging.WARNING))
 
     def show_message(self, message: NotifierMessage):
         """Show a message text and appropriate icon."""
@@ -450,9 +460,7 @@ class SystemListWidget(QListWidget):
             module = None
         resolved = Path(source).resolve()
         candidate = str(
-            module.name
-            if module is not None
-            else self.get_importable_module_name(resolved) or resolved
+            module.name if module is not None else get_importable_module_name(resolved) or resolved
         )
         capability_result = self.test_import(candidate)
         if isinstance(capability_result, Error):
@@ -700,33 +708,6 @@ class SystemListWidget(QListWidget):
         )[0]
         if filenames != []:
             self.add_systems(filenames)
-
-    @staticmethod
-    def get_importable_module_name(filename_str: str | Path) -> str | None:
-        """
-        Return the module name for a package, else None.
-
-        It returns the deepest matching entry.
-        """
-        path = Path(filename_str).resolve()
-        if path.is_file() and path.suffix == ".py":
-            module_path = path.with_suffix("")
-        elif path.is_dir() and (path / "__init__.py").is_file():
-            module_path = path
-        else:
-            return None
-        matches = []
-        for base in map(Path, sys.path):
-            try:
-                rel = module_path.relative_to(base.resolve())
-                matches.append((len(base.parts), rel))
-            except ValueError:
-                pass
-        if not matches:
-            return None
-        _, relative = max(matches, key=lambda x: x[0])
-        module_name = ".".join(relative.parts)
-        return module_name if importlib.util.find_spec(module_name) else None
 
 
 @final
@@ -1063,6 +1044,20 @@ class MMainWindow(QMainWindow):
 
 
 @final
+class MeasurementExitCode(IntEnum):
+    """
+    Exit codes of the measurement subprocess.
+
+    The measurement runs as a subprocess that reports its outcome via
+    the process return code. `SUCCESS` maps to a clean end of the
+    measurement, `ERROR` to a failed measurement.
+    """
+
+    SUCCESS = 0
+    ERROR = 1
+
+
+@final
 class MeasurementThread(QThread, LoggerMixin):
     """
     Execute and control a measurement subprocess via a TCP socket.
@@ -1077,6 +1072,8 @@ class MeasurementThread(QThread, LoggerMixin):
         super().__init__()
         self.proc: subprocess.Popen[bytes] | None = None
         self.conn: socket.socket | None = None
+        self.exit_code = MeasurementExitCode.SUCCESS
+        self.killed = False
 
     def set_parameters(self, parameters: MeasurementItem) -> None:
         """Set measurement parameters."""
@@ -1125,6 +1122,7 @@ class MeasurementThread(QThread, LoggerMixin):
         """Kill the process."""
         if self.proc is None:
             return
+        self.killed = True
         self.proc.kill()
         self.logger.warning("Measurement thread was manually killed.")
 
@@ -1180,9 +1178,9 @@ class MeasurementThread(QThread, LoggerMixin):
             if script_tempfile is None:
                 raise InternalInvariantError("script_tempfile must be provided for script mode")
             cmd = (
-                f"import matr1x\n"
                 f"import matr1x.core.execthread as mu\n"
-                f"matr1x.reload_config({str(temp_config_file)!r})\n"
+                f"from matr1x.core.config import reload_config\n"
+                f"reload_config({str(temp_config_file)!r})\n"
                 f"mu.matrix_script_process({script_tempfile.name!r}, "
                 f"{self.parameters.metadata!r}, "
                 f"{self.parameters.output_file!r}, {port!r}, "
@@ -1212,6 +1210,8 @@ class MeasurementThread(QThread, LoggerMixin):
         incoming connection, then relays null-terminated JSON messages
         to ``process_received_data`` until the process exits.
         """
+        self.exit_code = MeasurementExitCode.SUCCESS
+        self.killed = False
         tmp_config_file = ConfigEditWidget.write_config_dict(self.parameters.config)
         try:
             with ExitStack() as stack:
@@ -1261,6 +1261,12 @@ class MeasurementThread(QThread, LoggerMixin):
                         break
                 self.conn.close()
         finally:
+            if (
+                self.proc is not None
+                and not self.killed
+                and self.proc.returncode not in (None, MeasurementExitCode.SUCCESS)
+            ):
+                self.exit_code = MeasurementExitCode.ERROR
             if tmp_config_file.exists():
                 tmp_config_file.unlink()
 

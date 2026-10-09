@@ -28,8 +28,8 @@ import pytest
 
 import matr1x.core.eval
 import matr1x.core.util
-from matr1x import output_extension
 from matr1x.apps import cli as matrix_cli
+from matr1x.core.config import output_extension
 from matr1x.core.execthread import ExecThread, matrix_script_process
 from matr1x.core.models import ExecutionLines, MeasurementData
 

@@ -402,10 +402,6 @@ class NanotecPD4(VisaDevice):
         """
         Read the current position in steps.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         int
@@ -417,10 +413,6 @@ class NanotecPD4(VisaDevice):
     def getPosDeg(self):
         """
         Get current position in degrees.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -434,10 +426,6 @@ class NanotecPD4(VisaDevice):
     def getPosMode(self):
         """
         Get active positioning mode.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -456,10 +444,6 @@ class NanotecPD4(VisaDevice):
         """
         Read the current minimum step frequency.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         int
@@ -471,10 +455,6 @@ class NanotecPD4(VisaDevice):
         """
         Get the time of the last reference run in local time.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         str
@@ -485,10 +465,6 @@ class NanotecPD4(VisaDevice):
     def getMovingStatus(self):
         """
         Read if the motor is still moving.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -505,10 +481,6 @@ class NanotecPD4(VisaDevice):
         """
         Read if the motor has a position error.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         bool
@@ -524,10 +496,6 @@ class NanotecPD4(VisaDevice):
     def getRotDir(self):
         """
         Get the rotation direction.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -572,10 +540,6 @@ class NanotecPD4(VisaDevice):
     def resetMoves(self):
         """
         Reset the position of the motor to 0.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------

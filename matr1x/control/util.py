@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from matr1x.control.controlwindow import ControlWindow
 
 
-from .. import config
+from ..core import config as core_config
 from ..core.error_handling import install_error_handler
 from ..gui.app import MApplication
 from ..gui.error_dialog import install_qt_error_dialog
@@ -178,7 +178,7 @@ def sendNotificationEmail(
             msg.attach(attachment)
 
     # read email config
-    conf = config.matr1x.email
+    conf = core_config.config.matr1x.email
     context = ssl.create_default_context()
 
     try:

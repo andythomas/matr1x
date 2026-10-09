@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-"""The Qt application object, theme detection and the about box."""
+"""The Qt application object and the about box."""
 
 from __future__ import annotations
 
@@ -49,14 +49,11 @@ from PySide6.QtGui import (
     QAction,
     QFileOpenEvent,
     QIcon,
-    QPalette,
 )
-from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QTextEdit, QWidget
+from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QWidget
 
 from matr1x.core.error_handling import InternalInvariantError
-from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
-
-from .helpers import _format_local_timestamp, get_install_info
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, _format_local_timestamp, get_install_info
 
 logger = logging.getLogger(__name__)
 
@@ -233,65 +230,17 @@ class AboutBox(QMessageBox):
         return {"description": env_description, "location": location}
 
 
-class ThemeDetector(QWidget):
-    """
-    Hidden widget that detects theme changes.
-
-    This is required because a QWidget receives different signals than
-    the QApplication.
-    """
-
-    isDarkSignal = Signal(bool)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.hide()
-        self._is_dark = QTextEdit().palette().color(QPalette.ColorRole.Text).value() > 128
-
-    def isDark(self) -> bool:
-        """
-        Return the desktop theme (Light or Dark).
-
-        Returns
-        -------
-        bool
-            Desktop dark (True) or Light (False).
-        """
-        return self._is_dark
-
-    def changeEvent(self, event) -> None:
-        """Detect theme change event."""
-        if event.type() == QEvent.Type.PaletteChange:
-            self._is_dark = QTextEdit().palette().color(QPalette.ColorRole.Text).value() > 128
-            self.isDarkSignal.emit(self._is_dark)
-        super().changeEvent(event)
-
-
 class MApplication(QApplication):
     """Fix GUI related issues for all applications."""
 
-    isDarkSignal = Signal(bool)
     openfile = Signal(str)
-
-    @property
-    def isDark(self) -> bool:
-        """
-        Return whether the current theme is dark.
-
-        Returns
-        -------
-        bool
-            True if dark theme is active, False otherwise.
-        """
-        return self._theme_detector.isDark()
 
     def __init__(self, args: Sequence[str]) -> None:
         """
-        Improve theme change handling, linux and mac behavior.
+        Improve linux and mac behavior.
 
-        Use a helper widget for better theme handling. Automatically
-        select the xcb client on a Linux machine.  Allow double-click
-        file opening on a Mac.
+        Automatically select the xcb client on a Linux machine.  Allow
+        double-click file opening on a Mac.
 
         args : list of str
             Arguments for QApplication
@@ -306,8 +255,6 @@ class MApplication(QApplication):
             self.setOrganizationName("matr1x")
         if os.name == "nt":
             self.setStyle("fusion")  # Enable modern mode on Windows which allows for dark mode
-        self._theme_detector = ThemeDetector()
-        self._theme_detector.isDarkSignal.connect(self.isDarkSignal.emit)
         self._pending_files: list[str] = []
         self._handler_connected = False
         self._signal_timer = QTimer()

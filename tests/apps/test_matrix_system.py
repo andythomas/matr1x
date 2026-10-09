@@ -34,7 +34,7 @@ import matr1x.core.util
 from matr1x.apps import cli as matrix_cli
 from matr1x.core.error_handling import Success
 from matr1x.core.execthread import matrix_script_process
-from matr1x.gui.helpers import get_system_info
+from matr1x.core.system import get_system_info
 
 
 class TapCollector:

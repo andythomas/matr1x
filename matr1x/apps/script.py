@@ -61,6 +61,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+import matr1x.core.config as core_config
 from matr1x.apps.post_install import (
     check_desktop_integration,
     post_installation,
@@ -86,6 +87,7 @@ from matr1x.core.util import (
     StreamToLogger,
     generate_script,
     get_script_prefix_offset,
+    shorten_error,
 )
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.editor import CodeEditor
@@ -96,12 +98,13 @@ from matr1x.gui.helpers import (
     detect_shortcut,
     find_parent_of_type,
     get_matrix_icon,
+    is_dark,
     open_matrix_toml,
     save_messagebox,
 )
 from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import ConfigEditWidget
-from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin, ThemeChangeMixin
 from matr1x.gui.shared import (
     ContentDockWidget,
     MeasurementItem,
@@ -119,7 +122,7 @@ from matr1x.gui.shared import (
 )
 
 logger = logging.getLogger(__name__)
-script_config = matr1x.config.matr1x.apps.matrix_script
+script_config = core_config.config.matr1x.apps.matrix_script
 
 
 GUI_VERSION = "created_v2"
@@ -533,7 +536,7 @@ class YesNoAbortDialog(TimeoutDialogBase):
         return self._response
 
 
-class TerminalOutput(QPlainTextEdit):
+class TerminalOutput(ThemeChangeMixin, QPlainTextEdit):
     """
     Custom class for terminal-like text output.
 
@@ -546,10 +549,9 @@ class TerminalOutput(QPlainTextEdit):
         mono_font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
         mono_font.setPointSizeF(self.font().pointSize())
         self.setFont(mono_font)
-        self.updateColors()
-        MApplication.instance().isDarkSignal.connect(self.updateColors)
+        self.update_colors()
 
-    def updateColors(self) -> None:
+    def update_colors(self) -> None:
         """Update terminal colors based on system theme."""
         palette = self.palette()
         text_edit = QPlainTextEdit()
@@ -799,7 +801,7 @@ class UIBuilder:
                 "Matrix Script",
                 get_matrix_icon("matr1x-matrix-script.png"),
                 matr1x,
-                matr1x.datetimefmt,
+                core_config.datetimefmt,
             ),
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
@@ -1047,7 +1049,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         self.create_connections()
         self.ui.widgets.script_edit.setFocus()  # this does not do anything?!
         self.update_window_title()
-        check_config(matr1x.config, self.ui.widgets.notifier)
+        check_config(core_config.config, self.ui.widgets.notifier)
         sys.stdout = StreamToLogger(logger, logging.INFO)
         sys.stderr = StreamToLogger(logger, logging.ERROR)
         if filename is not None:
@@ -1143,7 +1145,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif isinstance(data, Message):
             self._process_message(data)
         elif isinstance(data, ErrorMessage):
-            self.show_message(NotifierMessage(data.error, level=logging.ERROR))
+            self.show_message(
+                NotifierMessage(
+                    shorten_error(data.error, hint=" (see log window for details)"),
+                    level=logging.ERROR,
+                )
+            )
             self.measurement_failed = True
         elif isinstance(data, LogEntry):
             data.log_record(logger)
@@ -1412,7 +1419,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
     def update_system_commands(self) -> None:
         """Update the help info about the current system(s)."""
         system_info = self.ui.widgets.system_list.system_info
-        bg_color = "#565656" if MApplication.instance().isDark else "#f0f0f0"
+        bg_color = "#565656" if is_dark() else "#f0f0f0"
         th = '<th style="text-align: left;">{}</th>'.format
         table_open = (
             '<table border="1" cellpadding="5" cellspacing="0" '
@@ -1677,7 +1684,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         system_info = self.ui.widgets.system_list.system_info
         retained_config = self.ui.widgets.config_editor.get_config_dict()
         configurable = system_info.configurable_sections
-        matr1x.reload_config()
+        core_config.reload_config()
         if update_config:
             self.ui.widgets.config_editor.set_systemfile(configurable)
             self.ui.widgets.config_editor.set_full_system_list(self.ui.widgets.system_list.systems)
@@ -1703,7 +1710,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         filename = QFileDialog.getSaveFileName(
             self,
             "Specify filename to save",
-            str(matr1x.usersfolder if not self.scriptname else Path(self.scriptname).parent),
+            str(core_config.usersfolder if not self.scriptname else Path(self.scriptname).parent),
             f"matrix files (*{self.extension})",
         )
         filename = Path(filename[0])
@@ -1771,7 +1778,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
             "# system def : " + ",".join(str(s) for s in system_list.systems),
             "# system names : " + ",".join(p.name for p in flat_parameters),
             "# system units : " + ",".join(p.unit for p in flat_parameters),
-            "# file v8, time stamp : " + time.strftime(matr1x.datetimefmt, time.localtime()),
+            "# file v8, time stamp : " + time.strftime(core_config.datetimefmt, time.localtime()),
         ]
         script = self.ui.widgets.script_edit.toPlainText().rstrip()
         body_lines = [
@@ -1897,7 +1904,7 @@ class MainWindow(LogWindowMixin, MMainWindow):
         filename = QFileDialog.getOpenFileName(
             self,
             "Select filename to open",
-            str(matr1x.usersfolder if not self.scriptname else Path(self.scriptname).parent),
+            str(core_config.usersfolder if not self.scriptname else Path(self.scriptname).parent),
             f"matrix files (*{self.extension})",
         )
         filename = Path(filename[0])

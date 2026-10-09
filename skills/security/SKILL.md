@@ -1,5 +1,5 @@
 ---
-name: security
+name: matr1x-security
 description: >
   Address the security alerts.
 license: GNU General Public License v3 or later (GPLv3+)

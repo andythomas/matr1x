@@ -40,6 +40,7 @@ Please note that the notiications overwrite each other and inform the correspond
 | numpy input to `delta`/`delta3p`        |    8.6.0    | >=8.8.0 |
 | numpy return from `loadmatrix`          |    8.6.0    | >=8.8.0 |
 | `[matr1x.scripts]` config section       |    8.6.0    | >=8.8.0 |
+| legacy import paths (re-export shims)   |    8.6.0    | >=8.8.0 |
 
 
 ## Removed in the current `development` version

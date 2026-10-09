@@ -28,4 +28,39 @@ controlguis = ["control-dummy"]
 8. Run the disktop integration in the pkg-root folder via `matrix-di` 
 9. Launch `matrix-script` in the pkg-root folder. This will take a minute or two, because the editor-assets will be downloaded.
 
-In case there are any errors in the last two steps, please inspect the newest files in `~/logs/` for the underlying cause.
+In case there are any errors in the last two steps, please inspect the newest files in `~/logs/` for the underlying cause, attempt to fix the issue, and repeat the failed step.
+
+## Workspace
+
+If the user has a folder with their own system files, control GUIs, and
+device drivers (or wants to create one), set it up as a matr1x workspace:
+
+1. Register the folder in `~/.matr1x.toml` under a new section named after
+   the folder, using the absolute path of the folder:
+
+   ```toml
+   [mylab]
+   systems_directory = "/home/user/labs/mylab"
+   ```
+
+   If the section already exists, update it instead of adding a duplicate.
+
+2. Create or update an `AGENTS.md` file in the folder, adjusting the
+   following content to the actual section name and paths:
+
+   ```markdown
+   # matr1x workspace
+
+   This folder contains my matr1x system files, control GUIs, and device
+   drivers. It is registered in `~/.matr1x.toml` under the section
+   `[mylab]`.
+
+   ## Environment
+
+   - matr1x installation (pkg-root): `/home/user/matr1x`
+   - Run Python from this folder with the installation's environment:
+     `uv run --project /home/user/matr1x python <script>`
+   - Package layout and coding conventions: `/home/user/matr1x/AGENTS.md`
+   - Task-specific procedures: the `matr1x-*` skills in
+     `/home/user/matr1x/skills/` (or installed globally).
+   ```

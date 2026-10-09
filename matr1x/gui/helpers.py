@@ -14,21 +14,14 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
-"""General GUI helpers: icons, system info, config checks and Qt utilities."""
+"""General GUI helpers: icons and Qt utilities."""
 
-import datetime
-import logging
 import os
 import subprocess
 import sys
-from collections.abc import Callable, Sequence
-from importlib.metadata import PackageNotFoundError, version
+from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
-from typing import Literal
 
-import pygit2
-from pydantic import ValidationError
 from PySide6.QtCore import (
     QPoint,
     Qt,
@@ -41,6 +34,7 @@ from PySide6.QtGui import (
     QImage,
     QKeySequence,
     QPainter,
+    QPalette,
     QPixmap,
     QPolygon,
 )
@@ -49,75 +43,11 @@ from PySide6.QtWidgets import (
     QLayout,
     QMessageBox,
     QStyle,
+    QTextEdit,
     QWidget,
 )
 
-import matr1x.core.config as core_config
-from matr1x.core.error_handling import Error, Result, Success
-from matr1x.core.models import (
-    SystemCapability,
-    SystemInfo,
-    SystemReference,
-)
 from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, get_package_path
-
-logger = logging.getLogger(__name__)
-
-
-def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool = False) -> str:
-    text = datetime.datetime.fromtimestamp(value, datetime.timezone.utc).astimezone().strftime(fmt)
-    return text.rstrip("0") if trim_trailing_zeros else text
-
-
-def get_package_version(module: ModuleType) -> str:
-    """Return the version of the given module."""
-    if hasattr(module, "__version__"):
-        return module.__version__
-    try:
-        return version(module.__name__)
-    except PackageNotFoundError:
-        return "unknown"
-
-
-def get_install_info(
-    imported_package: ModuleType,
-) -> tuple[str, str, str, Literal["not available"] | int]:
-    """
-    Receive git infos about the installed version.
-
-    Parameters
-    ----------
-    imported_package: ModuleType
-        Any module (package) that was already imported.
-
-    Returns
-    -------
-    installed_version: str,
-    commit_branch: str,
-    commit_short_sha: str,
-    commit_time: str or int
-        The version and commit info(s) of the package.
-    """
-    commit_branch = "not available"
-    commit_time = "not available"
-    commit_short_sha = "not available"
-    try:
-        repo = pygit2.Repository(imported_package.__file__)
-        commit_branch = repo.head.shorthand
-        last_commit = repo[repo.head.target]
-        commit_short_sha = str(last_commit.id)[:7]
-        commit_time = last_commit.author.time
-        if commit_branch == "HEAD":
-            # Attempt to find the remote branch
-            for ref_name in repo.references:
-                ref = repo.lookup_reference(ref_name)
-                if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
-                    commit_branch = ref.shorthand
-                    break
-    except pygit2.GitError:
-        pass
-    installed_version = get_package_version(imported_package)
-    return (installed_version, commit_branch, commit_short_sha, commit_time)
 
 
 def _load_matr1x_icon(name: str, color: QColor | None) -> QIcon:
@@ -125,7 +55,7 @@ def _load_matr1x_icon(name: str, color: QColor | None) -> QIcon:
     package_path = get_package_path("matr1x")
     if package_path is None:
         return QIcon()
-    icon_dir = package_path / "scripts" / "icons"
+    icon_dir = package_path / "apps" / "icons"
     pixmap = QPixmap(str(icon_dir / name))
     if color is not None:
         image = pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32)
@@ -324,101 +254,16 @@ def save_messagebox(instance, save_cb: Callable[[], bool]) -> bool:
     return not (ret == QMessageBox.StandardButton.Save and not save_cb())
 
 
-def get_system_info(
-    systems: Sequence[str | Path | SystemReference],
-) -> Result[SystemInfo, str]:
-    """Get system information using a subprocess."""
-    try:
-        tokens = [SystemReference.from_value(system).to_token() for system in systems]
-    except ValidationError as error:
-        return Error(str(error))
-    script = (
-        "import json\n"
-        "import sys\n"
-        "from matr1x import validation_errors\n"
-        "from matr1x.core.error_handling import Error\n"
-        "from matr1x.core.system import MergedSystem\n"
-        "validation_error_count = len(validation_errors)\n"
-        f"result = MergedSystem.from_references({tokens!r})\n"
-        "if isinstance(result, Error):\n"
-        "    print(result.error, file=sys.stderr)\n"
-        "    raise SystemExit(1)\n"
-        "info = result.value.grab_information()\n"
-        "info['config_validation_errors'] = validation_errors[validation_error_count:]\n"
-        "print(json.dumps(info))\n"
-    )
-    try:
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                script,
-            ],
-            capture_output=True,
-            timeout=30,
-            creationflags=SUBPROCESS_CREATION_FLAGS,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as e:
-        return Error(f"Could not run system info subprocess: {e}")
+def is_dark() -> bool:
+    """
+    Return whether the desktop theme is dark.
 
-    if result.returncode != 0:
-        stderr_output = result.stderr.decode()
-        return Error(stderr_output)
-    output_str = result.stdout.decode()
-    error_output = result.stderr.decode().strip()
-    if error_output != "":
-        marker = core_config.deprecation_marker
-        if marker in error_output:
-            logger.error(error_output)
-        else:
-            logger.warning(error_output)
-    # Find the last line that looks like JSON to avoid warnings/garbage
-    json_str = ""
-    for line in reversed(output_str.splitlines()):
-        if line.strip().startswith("{") and line.strip().endswith("}"):
-            json_str = line.strip()
-            break
-
-    if not json_str:
-        return Error(f"Warning: No JSON found in subprocess output:\n{output_str}")
-
-    try:
-        validated_data = SystemInfo.model_validate_json(json_str)
-        return Success(validated_data)
-    except ValidationError as e:
-        return Error(f"Warning: Could not parse JSON from subprocess output:\n{e}")
-
-
-def get_system_capability(source: str) -> Result[SystemCapability, str]:
-    """Inspect one system definition without constructing it."""
-    script = (
-        "import sys\n"
-        "from matr1x.core.error_handling import Error\n"
-        "from matr1x.core.system import System\n"
-        f"result = System.inspect_file({source!r})\n"
-        "if isinstance(result, Error):\n"
-        "    print(result.error, file=sys.stderr)\n"
-        "    raise SystemExit(1)\n"
-        "print(result.value.model_dump_json())\n"
-    )
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            capture_output=True,
-            timeout=30,
-            creationflags=SUBPROCESS_CREATION_FLAGS,
-            check=False,
-        )
-    except OSError as error:
-        return Error(f"Could not inspect system in subprocess: {error}")
-    if result.returncode != 0:
-        return Error(result.stderr.decode())
-    try:
-        output = result.stdout.decode().splitlines()[-1]
-        return Success(SystemCapability.model_validate_json(output))
-    except (IndexError, ValidationError) as error:
-        return Error(f"Could not parse system capability: {error}")
+    Returns
+    -------
+    bool
+        True if a dark theme is active, False otherwise.
+    """
+    return QTextEdit().palette().color(QPalette.ColorRole.Text).value() > 128
 
 
 def create_matrix_settings_action() -> QAction:

@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 )
 
 import matr1x
+import matr1x.core.config as core_config
 from matr1x.apps.post_install import (
     check_desktop_integration,
     post_installation,
@@ -62,6 +63,7 @@ from matr1x.core.models import (
     SystemInfo,
     Telemetry,
 )
+from matr1x.core.system import get_system_info
 from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
@@ -70,7 +72,6 @@ from matr1x.gui.helpers import (
     create_matrix_settings_action,
     detect_shortcut,
     get_matrix_icon,
-    get_system_info,
     open_matrix_toml,
 )
 from matr1x.gui.logging import LoggingWindow
@@ -78,6 +79,7 @@ from matr1x.gui.meta_viewer import ConfigEditWidget
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
 from matr1x.gui.shared import (
     ContentDockWidget,
+    MeasurementExitCode,
     MeasurementItem,
     MeasurementTable,
     MeasurementThread,
@@ -365,7 +367,10 @@ class UIBuilder:
             central_widget=central_widget,
             current_measurement=current_measurement,
             about_box=AboutBox(
-                "Matrix GUI", get_matrix_icon("matr1x-matrix-gui.png"), matr1x, matr1x.datetimefmt
+                "Matrix GUI",
+                get_matrix_icon("matr1x-matrix-gui.png"),
+                matr1x,
+                core_config.datetimefmt,
             ),
             measurement_thread=MeasurementThread(),
             measurement_ui=MeasurementUI(),
@@ -495,7 +500,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor,
         )
         self.setCentralWidget(self.ui.widgets.central_widget)
-        check_config(matr1x.config, self.ui.widgets.notifier)
+        check_config(core_config.config, self.ui.widgets.notifier)
         self._sg_proc: subprocess.Popen[bytes] | None = None
         self._input_server_name = f"matr1x-matrix-gui-{os.getpid()}"
         self._input_server = QLocalServer(self)
@@ -508,6 +513,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         else:
             self._input_server.newConnection.connect(self._on_input_connection)
         self.running = False
+        self.measurement_failed = False
         self.sys_meta_data: dict[str, Any] = {}
         self._create_connections()
         self.setAcceptDrops(True)
@@ -587,14 +593,12 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.table.apply(data)
         elif isinstance(data, ErrorMessage):
             logger.error(data.error)
+            self.measurement_failed = True
 
     def measurement_list_changed(self) -> None:
         """Update the data order when the measurement list is changed."""
         if not self.running:
-            if self.ui.widgets.meas_list.count() > 0:
-                self.ui.actions.start.setEnabled(True)
-            else:
-                self.ui.actions.start.setEnabled(False)
+            self.ui.actions.start.setEnabled(self.ui.widgets.meas_list.count() > 0)
 
     def closeEvent(self, a0: QCloseEvent) -> None:
         """Close app properly."""
@@ -625,7 +629,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def show_input_dialog(self) -> None:
         """Open a QFileDialog with filter for input files."""
-        folder = self.ui.widgets.input_file.text() or matr1x.usersfolder
+        folder = self.ui.widgets.input_file.text() or core_config.usersfolder
         # remove old pattern with next major update
         filename = QFileDialog.getOpenFileName(
             self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
@@ -745,7 +749,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             return
 
         self.sys_meta_data = system_info.dcdata
-        matr1x.reload_config()
+        core_config.reload_config()
         self._update_config_editor(systemfile, system_info)
         self.update_queue_action_state()
 
@@ -799,6 +803,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.meas_list.parameters(0).tooltip
         )
         self.ui.widgets.meas_list.takeItem(0)
+        self.measurement_failed = False
         self.ui.widgets.measurement_thread.start()
         self.ui.actions.pause.setEnabled(True)
         self.ui.actions.abort.setEnabled(True)
@@ -811,10 +816,10 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
         Called when the current measurement is finished, checks whether
         there are further measurements in the queue and runs them in
-        case.
+        case. If the measurement ended with an error, an error is shown
+        and the queue is stopped.
         """
         self.ui.widgets.progressbar.setValue(0)
-        self.ui.widgets.progress.setText("Measurement idle.")
         self.ui.widgets.table.reset()
         self.ui.widgets.current_measurement.setText("")
         self.ui.actions.pause.setEnabled(False)
@@ -822,6 +827,35 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.abort.setEnabled(False)
         self.ui.actions.finish.setEnabled(False)
         self.ui.actions.kill.setEnabled(False)
+        if self.ui.widgets.measurement_thread.killed:
+            self.ui.widgets.progress.setText("Measurement killed.")
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    "The measurement was killed. The queue was stopped. The devices may"
+                    " be in an unknown state; reset them before continuing.",
+                    level=logging.WARNING,
+                )
+            )
+            self.running = False
+            self.ui.actions.start.setEnabled(self.ui.widgets.meas_list.count() > 0)
+            return
+        exit_code = self.ui.widgets.measurement_thread.exit_code
+        if self.measurement_failed or exit_code == MeasurementExitCode.ERROR:
+            self.ui.widgets.progress.setText("Measurement failed.")
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    "The measurement ended with an error. The queue was stopped."
+                    " See the log for details.",
+                    level=logging.ERROR,
+                )
+            )
+            self.running = False
+            if self.ui.widgets.meas_list.count() > 0:
+                self.ui.actions.start.setEnabled(True)
+            else:
+                self.ui.actions.start.setEnabled(False)
+            return
+        self.ui.widgets.progress.setText("Measurement idle.")
         if self.ui.widgets.meas_list.count() > 0 and self.running is True:
             self.run_next_measurement()
         else:

@@ -57,8 +57,8 @@ from matr1x.core.util import (
     get_script_prefix_offset,
     run_python_cmdline,
 )
-from matr1x.gui.app import MApplication
-from matr1x.gui.mixins import AutoSlot, FileDropMixin, LoggerMixin
+from matr1x.gui.helpers import is_dark
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LoggerMixin, ThemeChangeMixin
 
 from .lsp_client import LSPClient
 from .lsp_protocol import JsonRpcNotification, LSPServer
@@ -526,7 +526,7 @@ class _AssetDownloadSignals(QObject):
     finished = Signal()
 
 
-class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
+class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
     """Code editor connected to Monaco."""
 
     contentModified = Signal(bool)
@@ -680,7 +680,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.backend.contentChanged.connect(self.on_content_changed)
         self.backend.cursorPositionChanged.connect(self.on_cursor_position_changed)
         self._highlight_timer.timeout.connect(self._apply_pending_highlight)
-        MApplication.instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
         self.lsp_tc.notification.connect(self.on_notification)
 
     def _run_javascript(self, command: str):
@@ -1031,6 +1030,10 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.row = line
         self.column = column
 
+    def update_colors(self) -> None:
+        """Re-apply the current Monaco theme after a system theme change."""
+        self.setTheme(self._current_theme)
+
     def setTheme(self, theme_selection: str) -> None:
         """
         Set the Monaco editor theme.
@@ -1043,7 +1046,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         monaco_theme = next(iter(CodeEditor.THEMES["Standard"].values()))
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
-                dark = MApplication.instance().isDark
+                dark = is_dark()
                 self._current_theme = theme_selection
                 monaco_theme = list(theme_pair.values())[1 if dark else 0]
             for name, theme in theme_pair.items():
