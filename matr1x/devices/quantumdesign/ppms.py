@@ -126,8 +126,8 @@ class PPMS:
         """
         Check and limit the field rate according to the currently set field.
 
-        If the current field rate is higher than the allowed maximum, it is
-        set to the maximum allowed value.
+        If the current field rate is higher than the allowed
+        maximum, it is set to the maximum allowed value.
 
         Parameters
         ----------
@@ -137,7 +137,8 @@ class PPMS:
         Returns
         -------
         float
-            The adjusted magnetic field rate in Tesla/min, limited by MAX_FIELD_RATE.
+            The adjusted magnetic field rate in Tesla/min,
+            limited by MAX_FIELD_RATE.
         """
         rate = abs(rate)
 
@@ -149,7 +150,7 @@ class PPMS:
         """
         Check if the magnetic field is within allowable limits.
 
-        This function verifies whether the given field value is within the
+        Verifies whether the given field value is within the
         maximum allowable magnetic field strength defined by MAX_FIELD.
 
         Parameters
@@ -160,7 +161,8 @@ class PPMS:
         Returns
         -------
         bool
-            True if the field is within the permissible range, False otherwise.
+            True if the field is within the permissible
+            range, False otherwise.
         """
         return not abs(field) > self.MAX_FIELD
 
@@ -169,19 +171,22 @@ class PPMS:
         """
         Set the magnetic field strength and optionally set it persistently.
 
-        This function sets the magnetic field strength to the given setpoint
-        and, if requested, sets it persistently. The field rate is checked
-        against the maximum allowable value and the magnetic field strength
-        is converted from Tesla to Oersted internally.
+        Sets the magnetic field strength to the given setpoint
+        and, if requested, sets it persistently. The field rate
+        is checked against the maximum allowable value and the
+        magnetic field strength is converted from Tesla to
+        Oersted internally.
 
         Parameters
         ----------
         setpoint : float
             The magnetic field strength to be set in Tesla.
         rate : float
-            The rate at which the magnetic field should change, in Tesla/min.
+            The rate at which the magnetic field should
+            change, in Tesla/min.
         persistent : bool, optional
-            If True, the magnetic field is set persistently. Defaults to False.
+            If True, the magnetic field is set persistently.
+            Defaults to False.
         """
         if not self.check_field(setpoint):
             return
@@ -206,10 +211,11 @@ class PPMS:
         """
         Set the magnetic field strength and wait until it is reached.
 
-        This function calls :meth:`set_field` and then waits until the magnetic
-        field strength has reached the setpoint. The waiting time is limited to
-        30 seconds and the function returns after this time has elapsed or if
-        the magnetic field strength has reached the setpoint, whichever occurs
+        Calls `set_field` and then waits until the magnetic
+        field strength has reached the setpoint. The waiting
+        time is limited to 30 seconds and the function returns
+        after this time has elapsed or if the magnetic field
+        strength has reached the setpoint, whichever occurs
         first.
 
         Parameters
@@ -217,7 +223,8 @@ class PPMS:
         setpoint : float
             The magnetic field strength to be set in Tesla.
         persistent : bool, optional
-            If True, the magnetic field is set persistently. Defaults to False.
+            If True, the magnetic field is set persistently.
+            Defaults to False.
         """
         self.set_field(setpoint, persistent)
         client = self._get_client()
@@ -270,7 +277,7 @@ class PPMS:
         """
         Retrieve the current magnetic field strength in Tesla.
 
-        This function obtains the magnetic field strength from the MVclient,
+        Obtains the magnetic field strength from the MVclient,
         converts it from Oersted to Tesla, and returns the value.
 
         Returns
@@ -318,10 +325,12 @@ class PPMS:
         """
         Set the temperature setpoint.
 
-        This function checks if the given setpoint is within the maximum
-        allowable temperature range and, if so, sets the temperature setpoint
-        using the MVclient. If the rate parameter is given, it is used to set the
-        temperature ramp rate. Otherwise, the currently set ramp rate is used.
+        Checks if the given setpoint is within the maximum
+        allowable temperature range and, if so, sets the
+        temperature setpoint using the MVclient. If the rate
+        parameter is given, it is used to set the temperature
+        ramp rate. Otherwise, the currently set ramp rate is
+        used.
 
         Parameters
         ----------
@@ -377,7 +386,7 @@ class PPMS:
         """
         Retrieve the current chamber status as a string.
 
-        This function queries the MVclient for the current chamber status and
+        Queries the MVclient for the current chamber status and
         returns the result as a string.
 
         Returns

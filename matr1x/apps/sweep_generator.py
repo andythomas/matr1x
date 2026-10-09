@@ -402,18 +402,20 @@ class ColumnData(BaseModel):
         """
         Determine the hierarchical depth of an item in an array.
 
-        This function checks how deeply nested an item is within a given
+        Checks how deeply nested an item is within a given
         array structure. It recursively follows references until it
         reaches the deepest level or detects a circular reference.
 
         Parameters
         ----------
         index : int
-            Index of the item in array for which the hierarchy is to be determined.
+            Index of the item in array for which the
+            hierarchy is to be determined.
         array : list
             The array defining the hierarchy.
         depth : int, optional
-            Recursion depth, does not need to be set when calling the function.
+            Recursion depth, does not need to be set when
+            calling the function.
 
         Returns
         -------
@@ -514,7 +516,8 @@ class QLabelWithColor(ThemeChangeMixin, QLabel):
         Parameters
         ----------
         color_bright : str
-            The six digit hex code for the bright mode color (e.g. #DCF5D4).
+            The six digit hex code for the bright mode color
+            (e.g. #DCF5D4).
         color_dark : str
             The six digit hex code for the dark mode color.
         """
@@ -1383,7 +1386,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         Parameters
         ----------
         append : bool, optional
-            Append the file (True) or create/ overwrite the file (False).
+            Append the file (True) or create/ overwrite the
+            file (False).
 
         Returns
         -------
@@ -1434,9 +1438,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         Parameters
         ----------
         append : bool, optional
-            Append the file (True) or create/ overwrite the file (False).
+            Append the file (True) or create/ overwrite the
+            file (False).
         dialog : bool, optional
-            Do (True) or do not (False) show a dialog to chose a filename.
+            Do (True) or do not (False) show a dialog to
+            chose a filename.
 
         Returns
         -------
@@ -1469,7 +1475,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def append_sweep_col(self, column: int) -> None:
         """
-        Add defined sweep parameters to self.columns.parameter and populate sweep table.
+        Add sweep parameters to columns.parameter and populate sweep table.
 
         Parameters
         ----------
@@ -1552,7 +1558,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def remove_sweep_parameter(self, col: int, row: int) -> None:
         """
-        Remove a set of linspace parameters from columns.parameter at the correct position.
+        Remove linspace parameters from columns.parameter at their position.
 
         Parameters
         ----------

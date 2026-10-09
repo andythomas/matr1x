@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for dynamically creating SCPI device interfaces using pymeasure.
+Dynamically create SCPI device interfaces using pymeasure.
 
-This module provides functionality to generate instrument classes for
+Provides functionality to generate instrument classes for
 SCPI (Standard Commands for Programmable Instruments) compatible
 devices.
 """
@@ -167,7 +167,8 @@ def _constructor(self, adapter, name="clientdevice", **kwargs):
     name : str, optional
         Name of the device. Default is 'clientdevice'
     **kwargs : dict
-        Additional keyword arguments passed to the Instrument constructor
+        Additional keyword arguments passed to the Instrument
+        constructor
     """
     kwargs.update(read_termination="\n", write_termination="\n", includeSCPI=False)
     Instrument.__init__(self, adapter, name, **kwargs)
@@ -330,15 +331,16 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
     """
     Dynamically generate a pymeasure device for SCPI commands.
 
-    Creates a new device class that can interface with instruments using
-    the SCPI command set. The generated class handles command formatting,
-    data type conversion, and polling operations.
+    Creates a new device class that can interface with instruments
+    using the SCPI command set. The generated class handles command
+    formatting, data type conversion, and polling operations.
 
     Parameters
     ----------
     cmds : dict
-        Multiple dictionaries with commands. Those will be merged internally and
-        therefore must only contain unique keys.
+        Multiple dictionaries with commands. Those will be
+        merged internally and therefore must only contain unique
+        keys.
     system : bool, optional
         Flag to decide if config_params shall be defined on the device.
         Default is False.

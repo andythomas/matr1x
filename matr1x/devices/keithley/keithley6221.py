@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling the Keithley 6221 Current Source."""
+"""Driver for the Keithley 6221 current source."""
 
 import time
 from typing import ClassVar
@@ -28,7 +28,7 @@ class Keithley6221(VisaDevice):
     """
     Keithley 6221 AC and DC Current Source interface.
 
-    This class provides methods to control the Keithley 6221 current
+    Provides methods to control the Keithley 6221 current
     source for generating waveforms, arbitrary waveforms, constant
     currents, and performing delta and pulse delta measurements.
     """
@@ -44,9 +44,10 @@ class Keithley6221(VisaDevice):
         interface : str
             VISA resource name for the instrument
         **kwargs : dict
-            Additional parameters to pass to the VISA driver.
-            Defaults for write_termination, read_termination, and timeout
-            are provided if not specified.
+            Additional parameters to pass to the VISA
+            driver. Defaults for write_termination,
+            read_termination, and timeout are provided if
+            not specified.
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\r\n"
@@ -179,40 +180,36 @@ class Keithley6221(VisaDevice):
         Parameters
         ----------
         points : array_like, optional
-            List of points that the current source should set.
-            Values must be between -1 and 1. Maximum length is 65535.
+            Points that the current source should set, between -1 and
+            1, maximum length 65535.
         amplitude : float, optional
-            Amplitude of the wavelet in amps. Range: 2e-12 to 0.105.
+            Amplitude of the wavelet in amps, range 2e-12 to 0.105.
         frequency : float, optional
-            Frequency of the wavelet in Hz. Range: 0 to 1e5.
+            Frequency of the wavelet in Hz, range 0 to 1e5.
         offset : float, optional
-            Offset of the wavelet in amps. Range: -0.105 to 0.105.
+            Offset of the wavelet in amps, range -0.105 to 0.105.
         dutyCycle : float, optional
             Duty cycle for the waveform (if applicable).
         rangingMode : str, optional
-            Measurement range selection mode:
-            'best': automatically select the best range for the wavelet
-            'fixed': use the current range for the wavelet
+            'best' automatically selects the best range for the
+            wavelet, 'fixed' uses the current range.
         durationTime : float, optional
-            Duration of wavelet emission in seconds.
-            Range: 100e-9 to 999999.999, or -1 for infinity.
+            Duration of wavelet emission in seconds, range
+            100e-9 to 999999.999, or -1 for infinity.
         durationCycles : float, optional
-            Number of cycles to emit the wavelet.
-            Range: 0.001 to 99999999900, or -1 for infinity.
+            Number of cycles to emit the wavelet, range
+            0.001 to 99999999900, or -1 for infinity.
         compliance : float, optional
-            Compliance level in volts. Range: 0.1 to 105.
+            Compliance level in volts, range 0.1 to 105.
         reset : bool, optional
-            Whether to reset the device before configuring the wave.
+            Reset the device before configuring the wave.
             Default is True.
-
-        Returns
-        -------
-        None
 
         Raises
         ------
         ValueError
-            If the points list has fewer than 2 elements or more than 65535 elements.
+            If the points list has fewer than 2 elements or
+            more than 65535 elements.
         """
         # reset
         if reset is True:
@@ -286,11 +283,13 @@ class Keithley6221(VisaDevice):
         amplitude : float, optional
             Current amplitude in amps. Range: -0.105 to 0.105.
         autoRanging : bool, optional
-            Whether to enable auto ranging. If True, the measurement range
-            may change while performing measurements.
+            Whether to enable auto ranging. If True, the
+            measurement range may change while performing
+            measurements.
         sourceRange : float, optional
-            The measurement range to use in amps. Range: -0.105 to 0.105.
-            This determines the output current range that will be sourced.
+            The measurement range to use in amps. Range:
+            -0.105 to 0.105. This determines the output
+            current range that will be sourced.
         compliance : float, optional
             The compliance level in volts. Range: 0.1 to 105.
         reset : bool, optional
@@ -347,7 +346,8 @@ class Keithley6221(VisaDevice):
         ihigh : float
             Peak pulse current in amps. Range: -0.105 to 0.105.
         ilow : float
-            Low current (i.e., outside of pulse) in amps. Range: -0.105 to 0.105.
+            Low current (i.e., outside of pulse) in amps.
+            Range: -0.105 to 0.105.
         width : float
             Pulse width in seconds. Range: 50us to 12ms.
         sdel : float
@@ -365,7 +365,8 @@ class Keithley6221(VisaDevice):
         lme : int, optional
             Number of low measurements (0 to 2). Default is 1.
         reset : bool, optional
-            Whether to reset the device before configuring. Default is False.
+            Whether to reset the device before configuring.
+            Default is False.
 
         Returns
         -------
@@ -413,7 +414,8 @@ class Keithley6221(VisaDevice):
         comp_abort : bool, optional
             Whether to abort on compliance trigger. Default is True.
         reset : bool, optional
-            Whether to reset the device before configuring. Default is False.
+            Whether to reset the device before configuring.
+            Default is False.
 
         Returns
         -------

@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Defines a system for automatically defining an elabFTW entry for a successful measurement.
+System that defines an elabFTW entry for a successful measurement.
 
-This module provides functionality to create and manage entries in the
+Provides functionality to create and manage entries in the
 elabFTW electronic lab notebook system.
 """
 
@@ -67,7 +67,7 @@ class ElabConfig(SystemConfigModel):
     @field_validator("write_groups", mode="before")
     @classmethod
     def coerce_write_groups(cls, value: Any) -> Any:
-        """Normalize scalar and comma-separated group values from configuration UIs."""
+        """Normalize scalar and comma-separated group values from config UIs."""
         if value is None:
             return []
         if isinstance(value, str):
@@ -125,7 +125,8 @@ def _is_template_content(template: str) -> bool:
     Returns
     -------
     bool
-        True if the string appears to be template content, False otherwise.
+        True if the string appears to be template content, False
+        otherwise.
     """
     # Check for excessive length (filesystem limits)
     if len(template) > 255:
@@ -199,7 +200,7 @@ class Elab(System):
     """
     System for interfacing with elabFTW electronic lab notebook.
 
-    This class provides functionality to create experiment entries,
+    Provides functionality to create experiment entries,
     attach files, add tags and link resources in an elabFTW instance.
     """
 
@@ -265,7 +266,7 @@ class Elab(System):
             self._handle_connection_error(error)
 
     def _link_or_create_sample_resources(self) -> None:
-        """Add resource links for sample names found in metadata, creating if requested."""
+        """Add resource links for sample names in metadata, creating if requested."""
         for key in ["identifier", "relation"]:
             samplename = self.merged_system.dcdata[key]
             if not samplename:
@@ -343,7 +344,7 @@ class Elab(System):
         self.api_client = None
 
     def _resolve_team_groups(self) -> list[int]:
-        """Fetch team groups from eLabFTW and resolve configured write_groups to IDs."""
+        """Fetch eLabFTW team groups and resolve configured write_groups to IDs."""
         if not self.config.write_groups or not self.api_client:
             return []
         if not self._team_id:
@@ -367,7 +368,7 @@ class Elab(System):
         return list(dict.fromkeys(resolved_ids))
 
     def _validate_elab_configuration(self) -> None:
-        """Validate connected configuration and resolve team groups before setup proceeds."""
+        """Validate connected config and resolve team groups before setup."""
         self._resolved_write_group_ids = self._resolve_team_groups()
 
     def _fetch_entity_permissions(
@@ -480,9 +481,10 @@ class Elab(System):
 
         Notes
         -----
-        This method searches for a resource with the given name and, if found,
-        queues it to be linked to the experiment entry that will be created.
-        If multiple resources are found with the same name, no linking occurs.
+        Searches for a resource with the given name and, if
+        found, queues it to be linked to the experiment entry
+        that will be created. If multiple resources are found
+        with the same name, no linking occurs.
         """
         resource_id = self._search_resource(resource)
         if resource_id:
@@ -506,8 +508,9 @@ class Elab(System):
         """
         Render a template string or file using Jinja2.
 
-        This method takes a template (either a string or a file path) and renders it
-        using Jinja2, with the current filename and merged system data as context.
+        Takes a template (either a string or a file path) and
+        renders it using Jinja2, with the current filename and
+        merged system data as context.
 
         Parameters
         ----------
@@ -521,9 +524,10 @@ class Elab(System):
 
         Notes
         -----
-        If the template is a file path, the method will read the contents of the file
-        before rendering. The template has access to the `filename` and `dcdata` variables
-        in its context.
+        If the template is a file path, the method will read the
+        contents of the file before rendering. The template has
+        access to the `filename` and `dcdata` variables in its
+        context.
         """
         if _is_template_content(template):
             template_str = template
@@ -705,8 +709,9 @@ class Elab(System):
         """
         Create a new resource in elabFTW.
 
-        This method creates a new resource with the given name and the category
-        specified in the configuration, and assigns configured group permissions.
+        Creates a new resource with the given name and the
+        category specified in the configuration, and assigns
+        configured group permissions.
 
         Parameters
         ----------
@@ -723,7 +728,8 @@ class Elab(System):
         Raises
         ------
         ValueError
-            If a valid resource category could not be found or creation fails.
+            If a valid resource category could not be found
+            or creation fails.
         """
         if not self.api_client:
             return None
@@ -823,12 +829,14 @@ class Elab(System):
         """
         Create a new experiment in elabFTW.
 
-        This function will render the jinja template strings and upload queued attachments.
+        Will render the jinja template strings and upload queued
+        attachments.
 
         Parameters
         ----------
         status
-            Status string which will be attempted to set also in elabFTW.
+            Status string which will be attempted to set
+            also in elabFTW.
         reset_tags
             Controls whether tags are reset after experiment is posted
         """

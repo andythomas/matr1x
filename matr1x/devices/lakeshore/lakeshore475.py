@@ -100,8 +100,8 @@ class Lakeshore475(VisaDevice):
         Parameters
         ----------
         clear : bool, optional
-            If True, clears the zero probe setting. If False, zeros the probe.
-            Default is False.
+            If True, clears the zero probe setting. If
+            False, zeros the probe. Default is False.
         """
         if clear is False:
             self.write("ZPROBE")
@@ -123,10 +123,11 @@ class Lakeshore475(VisaDevice):
         highfield : float
             Field value at which the analog output reaches +100%
         bipolar : int, optional
-            Analog output mode: 1 (unipolar) or 2 (bipolar). Default is 2.
+            Analog output mode: 1 (unipolar) or 2 (bipolar).
+            Default is 2.
         mode : int, optional
-            Output mode: 0 (off), 1 (default), 2 (user defined), 3 (manual),
-            4 (control). Default is 4.
+            Output mode: 0 (off), 1 (default), 2 (user
+            defined), 3 (manual), 4 (control). Default is 4.
         manualOut : float, optional
             Manual output value. Default is 0.
         """
@@ -148,7 +149,8 @@ class Lakeshore475(VisaDevice):
         iValue : float
             Integral gain (0.0001 to 1000)
         rampRate : float
-            Ramp rate in units/minute (unit is given by measurement unit setting)
+            Ramp rate in units/minute (unit is given by
+            measurement unit setting)
         maxVSlope : float
             Maximum rate of voltage output change (0.01 to 1000 V/min)
         on : bool, optional
@@ -172,14 +174,15 @@ class Lakeshore475(VisaDevice):
         autoRange : bool, optional
             If True, enable auto range. Default is True.
         range_val : int, optional
-            Range value between 1 and 5, where 1 is the smallest range and 5
-            the largest (probe dependent). Default is None.
+            Range value between 1 and 5, where 1 is the
+            smallest range and 5 the largest (probe
+            dependent). Default is None.
         dcRes : int, optional
-            DC resolution between 1 and 3, where 1 is 3 digits and 3 is 5 digits.
-            Default is None.
+            DC resolution between 1 and 3, where 1 is 3
+            digits and 3 is 5 digits. Default is None.
         fUnit : int, optional
-            Field unit: 1 (Gauss), 2 (Tesla), 3 (Oersted), 4 (Amp/meter).
-            Default is None.
+            Field unit: 1 (Gauss), 2 (Tesla), 3 (Oersted), 4
+            (Amp/meter). Default is None.
         """
         if reset is True:
             self.write("*RST")

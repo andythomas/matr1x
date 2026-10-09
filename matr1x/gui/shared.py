@@ -133,7 +133,7 @@ class NotifierMessage:
 @final
 class Notifier(QGroupBox):
     """
-    An animated container titled "Notification" that shows a message with an icon.
+    Animated container titled "Notification" showing a message and icon.
 
     Parameters
     ----------
@@ -724,7 +724,7 @@ class MetaData(TypedDict):
 @final
 class ContentDockWidget(QDockWidget):
     """
-    A dock widget with a checkable action to toggle its content.
+    Dock widget with a checkable action to toggle its content.
 
     The dock provides an action with icon and shortcut for the
     view menu and may be restricted to certain dock areas.
@@ -1164,8 +1164,10 @@ class MeasurementThread(QThread, LoggerMixin):
         port : int
             The local TCP port the GUI is listening on.
         script_tempfile : IO[bytes] or None
-            Open temporary file containing the user script.  Must be provided
-            when ``parameters.kind == "script"``; ``None`` for sweep mode.
+            Open temporary file containing the user script.
+            Must be provided when
+            ``parameters.kind == "script"``; ``None`` for
+            sweep mode.
         temp_config_file : Path
             Path to the temporary TOML config file.
 

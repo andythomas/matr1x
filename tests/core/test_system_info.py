@@ -19,7 +19,7 @@ from matr1x.core.models import SystemInfo, SystemSelectionInfo
 
 
 def test_queue_config_uses_resolved_stateful_sections():
-    """Queue editors must not treat serialized state references as config paths."""
+    """Queue editors must not treat state references as config paths."""
     source = "matr1x.systems.system_stateful_dummy"
     section = f"{source}.primary"
     system_info = SystemInfo(

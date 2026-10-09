@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Keithley 2000 multimeter control."""
+"""Driver for the Keithley 2000 multimeter."""
 
 import logging
 import time
@@ -30,14 +30,15 @@ class Keithley2000(VisaDevice):
     """
     Class for controlling Keithley 2000 multimeter.
 
-    This class provides methods to configure and control the Keithley 2000
-    multimeter for various measurements including voltage, 2-wire resistance,
-    and 4-wire resistance.
+    Provides methods to configure and control the Keithley 2000
+    multimeter for various measurements including voltage, 2-wire
+    resistance, and 4-wire resistance.
 
     Attributes
     ----------
     config_params : dict
-        Dictionary mapping configuration parameter names to SCPI commands.
+        Dictionary mapping configuration parameter names to SCPI
+        commands.
     triggered : bool
         Flag indicating if a reading has been triggered.
     """
@@ -58,8 +59,10 @@ class Keithley2000(VisaDevice):
         interface : str
             VISA resource name or interface identifier.
         **kwargs : dict
-            Additional keyword arguments to pass to the VisaDevice constructor.
-            Defaults are set for write_termination, read_termination, and timeout.
+            Additional keyword arguments to pass to the
+            VisaDevice constructor. Defaults are set for
+            write_termination, read_termination, and
+            timeout.
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -114,17 +117,18 @@ class Keithley2000(VisaDevice):
             If True, turn on the digital filter. If False, window and
             filter count are ignored.
         resistance_range : float, optional
-            Range of the resistance detection. Selected by the instrument
-            to include the value of range.
+            Range of the resistance detection. Selected by
+            the instrument to include the value of range.
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional
-            time during measurements.
+            Automatic detection of the measurement range.
+            Takes additional time during measurements.
         trigBus : bool, optional
             Sets trigger source to BUS if True.
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving.
         reset : bool, optional
-            If True, the device is reset prior to configuration. Defaults to False.
+            If True, the device is reset prior to
+            configuration. Defaults to False.
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -192,17 +196,18 @@ class Keithley2000(VisaDevice):
             If True, turn on the digital filter. If False, window and
             filter count are ignored.
         resistance_range : float, optional
-            Range of the resistance detection. Selected by the instrument
-            to include the value.
+            Range of the resistance detection. Selected by
+            the instrument to include the value.
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional
-            time during measurements.
+            Automatic detection of the measurement range.
+            Takes additional time during measurements.
         trigBus : bool, optional
             Sets trigger source to BUS if True.
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving.
         reset : bool, optional
-            If True, the device is reset prior to configuration. Defaults to False.
+            If True, the device is reset prior to
+            configuration. Defaults to False.
         """
         if reset is True:
             cmdList = ["*RST"]
@@ -267,17 +272,21 @@ class Keithley2000(VisaDevice):
         NPLC : int, optional
             Number of power line cycles to integrate over.
         dFil : bool, optional
-            If True, turn on the digital filter. If False, window and filter count are ignored.
+            If True, turn on the digital filter. If False,
+            window and filter count are ignored.
         voltage_range : float, optional
-            Range of the voltage detection. Selected by the instrument to include the value.
+            Range of the voltage detection. Selected by the
+            instrument to include the value.
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional time during measurements.
+            Automatic detection of the measurement range.
+            Takes additional time during measurements.
         trigBus : bool, optional
             Sets trigger source to BUS if True.
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving.
         reset : bool, optional
-            If True, the device is reset prior to configuration. Defaults to False.
+            If True, the device is reset prior to
+            configuration. Defaults to False.
         """
         cmdList = []
         if reset is True:
@@ -328,7 +337,7 @@ class Keithley2000(VisaDevice):
         """
         Trigger a measurement reading on the device.
 
-        This method sends a trigger command to the device and sets the
+        Sends a trigger command to the device and sets the
         triggered flag to True.
         """
         self.write("*TRG")
@@ -345,7 +354,7 @@ class Keithley2000(VisaDevice):
 
         Notes
         -----
-        This method only returns a value if a reading has been triggered
+        Only returns a value if a reading has been triggered
         using the triggerReading method. After retrieving the reading,
         the triggered flag is set to False.
         """

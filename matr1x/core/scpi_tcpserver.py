@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Contains a class for creating a (mostly) SCPI compatible measurement device.
+Server exposing a (mostly) SCPI compatible measurement device.
 
 The device listens on an ethernet interface and can be fully defined
 from a dictionary with Command entries.
@@ -35,7 +35,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     """
     Reimplemented TCP server to provide proper default behavior.
 
-    This class combines ThreadingMixIn and TCPServer to create a
+    Combines ThreadingMixIn and TCPServer to create a
     threaded TCP server with specific default behaviors.
     """
 
@@ -46,9 +46,9 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     """
-    Handles the TCP connection and parses the commands specified in the server's cmd_list.
+    Handle the TCP connection and parse commands from the server's cmd_list.
 
-    This class extends StreamRequestHandler to handle TCP connections
+    Extends StreamRequestHandler to handle TCP connections
     and parse commands specified in the server's command list.
     """
 
@@ -75,7 +75,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         Set up the server on initial startup.
 
-        This method parses the cmd_list to generate the (normalized)
+        Parses the cmd_list to generate the (normalized)
         keys and the command instructions.
         """
         super().setup()
@@ -244,7 +244,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         Handle incoming connections and manage the interface.
 
-        This method runs continuously and parses incoming data to manage
+        Runs continuously and parses incoming data to manage
         the interface.
         """
         while not self.terminate:
@@ -272,70 +272,50 @@ class SCPI_TCP_Server:
     """
     Define Polling Server.
 
-    This class creates a TCP server that implements SCPI-like command handling.
+    TCP server that implements SCPI-like command handling.
 
     Parameters
     ----------
     cmd_list : dict
-        A dictionary defining the SCPI commands and their associated functions.
-        The values of the dictionary should be derived from Command.
+        The SCPI commands and their associated functions; the values
+        should be derived from Command.
     host : str, optional
-        The host address to bind the server to. Default is 'localhost'.
+        The host address to bind the server to. Default is
+        'localhost'.
     port : int, optional
         The port number to listen on. Default is 8898.
 
     Attributes
     ----------
     running : bool
-        Indicates whether the server is currently running.
+        Whether the server is currently running.
     server : ThreadedTCPServer
         The actual TCP server instance.
 
     Notes
     -----
-    Syntax for the command list:
-        {scpi string:[type of value(s), set function to call, list/tuple of
-        additional parameters for set function, get function to call,
-        list/tuple of additional parameters for get function], ...}
+    Command list syntax:
+    {scpi string: [value types, set function, set parameters,
+    get function, get parameters], ...}
 
-    - scpi string is string type, e.g. ":field:set", use only lower case
-      literals and make sure the commands are unique if only the first
-      four characters within each pair of :: is used.
-    - type of value can be:
-      * [type val1, type val2, ...], can also be tuple of types
-      * float
-      * int
-      * str
-      * bool
-      * None - if no set function is to be defined
-    - set function e.g. ex.setField (do not add brackets!)
-    - additional parameters, e.g. (2) if set function is ex.setField(value,
-      axis) will call the function with value and axis=2
-    - get function, again do not add brackets
-    - additional parameters for get function, see above
+    - scpi string: lower case, e.g. ":field:set". Commands must be
+      unique if only the first four characters within each pair of
+      '::' are used.
+    - value types: list or tuple of types, or one of float, int, str,
+      bool. None if no set function is to be defined.
+    - set/get function: e.g. ex.setField (do not add brackets).
+    - parameters: e.g. (2) if ex.setField(value, axis) is to be
+      called with axis=2.
 
-    get function is called when ? is appended to scpi string upon calling
-    the function, otherwise set function is called and value is split
-    format is either:
+    A trailing '?' on the scpi string calls the get function,
+    otherwise the set function is called and the value is split.
+    Format: 'scpiStr value' (set) or 'scpiStr?' (get).
 
-    - set:
-        scpiStr value
-    - get:
-        scpiStr?
-    - value can be:
-      * list
-          e.g. value="1, 2, 3", also mixed lists,
-          e.g. "1, 2.3432, abc", will be passed as list to set
-          function.
-          Take care to check correct type for list entries
-      * int
-          e.g. value="1"
-      * bool
-          e.g. value="0"
-      * float
-          e.g. value="-1.343e-23"
-      * str
-          e.g. value="curvename"
+    Value formats:
+    - list: e.g. "1, 2, 3", also mixed lists, e.g. "1, 2.3432, abc";
+      passed as list to the set function, check the entry types
+      yourself.
+    - int: "1", bool: "0", float: "-1.343e-23", str: "curvename"
     """
 
     def __init__(self, cmd_list: dict, host: str = "localhost", port: int = DEFAULT_PORT):
@@ -350,7 +330,7 @@ class SCPI_TCP_Server:
         """
         Start the server.
 
-        This method starts the server if it's not already running.
+        Starts the server if it's not already running.
         """
         if self.running is False:
             server_thread = threading.Thread(target=self.server.serve_forever)
@@ -363,7 +343,7 @@ class SCPI_TCP_Server:
         """
         Stop the server.
 
-        This method stops the server if it's currently running.
+        Stops the server if it's currently running.
         """
         if self.running is True:
             self.server.shutdown()

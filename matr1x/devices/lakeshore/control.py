@@ -41,11 +41,12 @@ _DEFAULT_PARENT_INDEX = QModelIndex()
 
 class SelectLakeshoreInput(QDialog):
     """
-    Open a dialog for selecting a sensor calibration curve for the Lakeshore temperature controller.
+    Open a dialog to select a sensor calibration curve on the Lakeshore.
 
-    This dialog allows the user to choose from a list of available calibration curves
-    for the Lakeshore temperature controller. It displays the curve numbers and names,
-    and allows the user to set the selected curve for the controller.
+    This dialog allows the user to choose from a list of available
+    calibration curves for the Lakeshore temperature controller. It
+    displays the curve numbers and names, and allows the user to set
+    the selected curve for the controller.
 
     Attributes
     ----------
@@ -93,9 +94,9 @@ class SelectLakeshoreInput(QDialog):
 
     def set_curve(self):
         """
-        Set the selected calibration curve for the Lakeshore temperature controller.
+        Set the selected calibration curve on the Lakeshore controller.
 
-        This method reads the selected curve from the QListWidget, sets
+        Reads the selected curve from the QListWidget, sets
         it on the Lakeshore device if possible, and closes the dialog.
         """
         selectedcurve = int(self.curvesList.currentItem().text().split(":")[0])
@@ -106,7 +107,7 @@ class SelectLakeshoreInput(QDialog):
 
 class TableModel(QAbstractTableModel):
     """
-    A table model for displaying PID parameters.
+    Table model for displaying PID parameters.
 
     This model is designed to work with a 2D numpy array containing
     PID parameters and related data.
@@ -114,7 +115,8 @@ class TableModel(QAbstractTableModel):
     Parameters
     ----------
     data : numpy.ndarray
-        A 2D numpy array containing the data to be displayed in the table.
+        A 2D numpy array containing the data to be displayed in
+        the table.
     """
 
     def __init__(self, data: numpy.ndarray) -> None:
@@ -125,7 +127,7 @@ class TableModel(QAbstractTableModel):
         self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole
     ) -> Any:
         """
-        Return the data stored under the given role for the item referred to by the index.
+        Return the data stored under the given role for the indexed item.
 
         Parameters
         ----------
@@ -137,7 +139,8 @@ class TableModel(QAbstractTableModel):
         Returns
         -------
         Any
-            The requested data as a string if the role is DisplayRole, None otherwise.
+            The requested data as a string if the role is
+            DisplayRole, None otherwise.
         """
         if role == Qt.ItemDataRole.DisplayRole:
             value = self._data[index.row(), index.column()]
@@ -197,7 +200,8 @@ class TableModel(QAbstractTableModel):
         Returns
         -------
         str or None
-            The header data as a string if the conditions are met, QVariant() otherwise.
+            The header data as a string if the conditions
+            are met, QVariant() otherwise.
         """
         if role == Qt.ItemDataRole.DisplayRole and orientation == Qt.Orientation.Horizontal:
             if section == 0:
@@ -217,12 +221,13 @@ class WriteLakeshoreZonePID(QDialog):
     """
     Dialog to select a PID parameter table for use with the ZONE mode.
 
-    The PID parameter file must be a text file which contains columns for:
-    the upper temperature of the zones, P, I, D parameters, and heater range.
-    A total of 10 entries are allowed.
+    The PID parameter file must be a text file which contains
+    columns for: the upper temperature of the zones, P, I, D
+    parameters, and heater range. A total of 10 entries are allowed.
 
-    This dialog provides functionality to load a PID table from a file,
-    display it in a table view, and write the parameters to the Lakeshore device.
+    This dialog provides functionality to load a PID table from a
+    file, display it in a table view, and write the parameters to
+    the Lakeshore device.
     """
 
     def __init__(self, parent, lakeshore_dev=None):
@@ -264,7 +269,7 @@ class WriteLakeshoreZonePID(QDialog):
         """
         Load a PID table from a file and display it in the table view.
 
-        This method opens a file dialog for the user to select a PID
+        Opens a file dialog for the user to select a PID
         table file, loads the data from the file, creates a TableModel
         with the data, and sets it as the model for the table view. If
         the loaded data has the correct shape, it enables the write
@@ -286,7 +291,7 @@ class WriteLakeshoreZonePID(QDialog):
         """
         Write the loaded PID table to the Lakeshore device.
 
-        This method checks if the Lakeshore device has a 'writeZonePID'
+        Checks if the Lakeshore device has a 'writeZonePID'
         method. If it does, it calls this method with the loaded PID
         data as arguments. After writing the data (or if the method
         doesn't exist), it closes the dialog.

@@ -1,118 +1,105 @@
 # Project Overview
 
-Matr1x is a Python package for data acquisition and instrument control.
-It provides command line and GUI tools for measurements and data analysis.
-Most parts are written in Python and the editor uses some JavaScript.
+Matr1x is a Python package for data acquisition and instrument control,
+providing command line and GUI tools for measurements and data analysis.
 
 ## Folder Structure
 
-- `matr1x`: The source code of the package, organized in layers.
-  Lower layers must not import from higher layers (enforced by
-  import-linter contracts in `pyproject.toml`):
+- `matr1x`: Package source, organized in layers. Lower layers must not
+  import from higher layers (enforced by import-linter contracts in
+  `pyproject.toml`). Internal code imports the canonical `matr1x.core.*`
+  / `matr1x.gui.*` paths, never the backwards-compatibility shims in the
+  package root (`matr1x.util`, `matr1x.system`, `matr1x.models`, ...):
   - `matr1x/apps`: The `matrix`, `matrix-gui`, `matrix-script` and
     related entry points (top layer).
   - `matr1x/systems`: System definitions (measurement setups), e.g. the
     dummy systems used by the tests.
   - `matr1x/control`: The control-GUI framework (`ControlWindow`,
     `GuiDict`, widgets) used by device control panels.
-  - `matr1x/gui`: Shared GUI building blocks (app, editor, plot, widgets,
-    shared classes). May use Qt.
+  - `matr1x/gui`: Shared GUI building blocks (app, editor, plot,
+    widgets). May use Qt.
   - `matr1x/devices`: Instrument drivers, one subpackage per vendor.
-    Device packages must not import each other (except the shared base
-    modules) and must not use Qt (exception: `matr1x.devices.lakeshore.control`,
-    see the import-linter contracts).
+    Must not import each other (except the shared base modules) and must
+    not use Qt (exception: `matr1x.devices.lakeshore.control`, see the
+    import-linter contracts).
   - `matr1x/core`: The backend without GUI or entry points: config,
     system base classes, models, eval, execthread, SCPI server, VISA
     helpers. Must not import the `matr1x` root package or Qt.
-  - Package root: `__init__.py` (public config re-exports) plus thin
-    backwards-compatibility shims for the historical module layout
-    (`matr1x.util`, `matr1x.system`, `matr1x.models`, ...). Internal code
-    must import the canonical `matr1x.core.*` / `matr1x.gui.*` paths,
-    not the shims.
-- `tests`: Pytest tests, mirroring the package layers (`tests/core`,
-  `tests/control`, `tests/apps`). `tests/input` holds input files for
-  the entry points, `tests/data` holds data files under analysis. Shared
-  path fixtures live in `tests/conftest.py`; tests write their outputs to
-  pytest's `tmp_path` and must not create files in the repository tree.
+- `tests`: Pytest tests mirroring the package layers. Inputs for the
+  entry points live in `tests/input`, data under analysis in
+  `tests/data`, shared path fixtures in `tests/conftest.py`. Tests write
+  their outputs to pytest's `tmp_path` and must not create files in the
+  repository tree.
 - `user_guide`: The user guide, built into a website via great-docs.
-- `great-docs`: Output folder of the documentation build (generated, do not edit).
-- `media`: Images and other media used by the documentation.
-- `skills`: Agent skills with task-specific instructions (e.g. `migration`
-  for package updates, `writeControl` for new control GUIs).
-- `templates`: Contains the changelog template.
+  `great-docs/` is the generated output (do not edit), `media/` holds
+  the documentation images, `skills/` holds agent skills, `templates/`
+  the changelog template.
 
-## Public API and compatibility layers
+## Public API
 
-- The Supported public API is pinned in `great-docs.yml` (reference section)
-  and verified by `tests/test_public_api.py` against
-  `tests/data/public_api_snapshot.json`. Anything documented there is
-  subject to the deprecation lifecycle described in
+- The supported public API is pinned in `great-docs.yml` (reference
+  section) and verified by `tests/test_public_api.py` against
+  `tests/data/public_api_snapshot.json`. It is subject to the
+  deprecation lifecycle described in
   `user_guide/60_development/05_deprecation.md`.
-- Anything **not** listed in the public API (e.g. config-schema classes,
-  module paths in `matr1x/apps`) may be renamed or removed in any release
-  **without** a compatibility layer. Do not add alias classes, re-export
-  shims, or legacy names for items that are not part of the public API.
-- The only exception is the TOML configuration entries, which are part of the
-  interface users build against; those keep the documented migration and
-  deprecation handling (see `matr1x/core/config_schema.py`).
+- Anything **not** listed in the public API may be renamed or removed in
+  any release **without** a compatibility layer. Do not add alias
+  classes, re-export shims, or legacy names for non-public items.
+- Exception: TOML configuration entries are part of the interface users
+  build against and keep the documented migration and deprecation
+  handling (see `matr1x/core/config_schema.py`).
 
 ## Libraries and Frameworks
 
-- PySide6 for the GUI frontend.
-- Python 3.10+ and many libraries for the backend (pydantic, h5py, numpy, polars, pymeasure, pyvisa, ...).
-- urwid for the terminal user interface of the `matrix` script.
-- The VS-code core (Monaco editor) via `monaco-assets` for matrix-script.
-- `uv` for environment management, locking and building (build backend: `uv_build`).
+PySide6 for the GUI, urwid for the TUI of `matrix`, the Monaco editor
+via `monaco-assets` for matrix-script, and a Python 3.10+ backend
+(pydantic, h5py, numpy, polars, pymeasure, pyvisa, ...). `uv` manages
+the environment, lockfile and build (build backend: `uv_build`).
 
 ## Coding Standards
 
-- We format our code with `ruff format`.
-- We lint our code with `ruff check`.
-- We typecheck our code with `ty check`.
-- We test our code via `pytest`.
-- We code for Python 3.10 and above.
-- We strongly type all newly added code.
-- We use numpy docstring style with a maximum of 72 characters line length.
-- Docstrings are rendered as Markdown by great-docs: do not use
-  RST/Sphinx markup (no double-backtick literals, no `:func:`/`:class:`
-  roles); use plain text or single-backtick code spans instead.
-- We keep function complexity in check with `complexipy` (max complexity
-  15, see `pyproject.toml`). Run `uv run complexipy` (it covers both
-  `matr1x/` and `tests/`) and keep every new function at or below the
-  limit; do not pass ad-hoc paths on the command line, as that rewrites
-  `complexipy-snapshot.json` for the given paths only.
-- We enforce the package layering and import rules with import-linter
+- Format with `ruff format`, lint with `ruff check`, typecheck with
+  `ty check`, test with `pytest`. Code for Python 3.10+ and strongly
+  type all newly added code.
+- Docstrings: numpy style, max 72 characters, rendered as Markdown by
+  great-docs (no RST/Sphinx markup; use plain text or single-backtick
+  code spans). Keep them short: a one-line summary for internal code,
+  full numpy sections (`Parameters`, `Returns`, `Raises`) only for
+  public-API items. Document behavior, not implementation details.
+  Start with a verb or the item's role, never a self-reference: write
+  "Manage the input request workflow", not "This method manages the
+  input request workflow" (also avoid "A class for ..." and
+  "Contains the ...").
+- Keep function complexity at or below 15 with `complexipy`
+  (`uv run complexipy`; do not pass ad-hoc paths, that rewrites
+  `complexipy-snapshot.json` for those paths only).
+- Enforce the package layering and import rules with import-linter
   (`uv run lint-imports`); keep the contracts in `pyproject.toml` green.
 
 ## Guidelines
 
-- Before starting a task, check `skills/` for an agent skill matching the task
-  (e.g. `writeControl` for new control GUIs, `migration` for package
-  migrations) and follow its `SKILL.md`.
-- Please only change the code parts required for the code change and do
-  not touch other parts of the code.
+- Before starting a task, check `skills/` for an agent skill matching
+  the task (e.g. `writeControl` for new control GUIs, `migration` for
+  package migrations) and follow its `SKILL.md`.
+- Only change the code parts required for the change; do not touch
+  other parts of the code.
 - Commit messages must fit on a single line of less than 50
   characters: use the semantic commit message format
   (`type(scope): summary`) and do not add a body or footer; put any
   further context in the pull request description.
 - Always run `ruff` and `ty` and address all newly added issues.
-- `uv run` keeps the environment up to date automatically; no explicit
-  sync is needed for day-to-day work.
-- On a fresh checkout or is something is missing run `uv sync --all-extras` once.
-- To build the user guide as well, sync with
-  `uv sync --all-extras --all-groups` (adds the `docs` group, Python 3.11+).
-- Run the test suite with this single command (it works on local
-  machines, CI, and inside sandboxes):
+- `uv run` keeps the environment up to date; on a fresh checkout (or
+  when something is missing) run `uv sync --all-extras` once. Add
+  `--all-groups` (Python 3.11+) to also build the user guide.
+- Run the test suite with this exact command (it works on local
+  machines, CI, and in sandboxes; the pseudo-terminal is required by
+  the `matrix` CLI tests, the Chromium flag by the QtWebEngine-based
+  editor tests, and both are harmless elsewhere):
 
   ```sh
   QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox uv run pytest tests
   ```
 
-  `QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox` is needed because the
-  QtWebEngine renderer used by the `matrix-script`/`CodeEditor` tests
-  cannot apply its own sandbox in restricted environments. It is
-  harmless outside sandboxes, so always use the command as-is instead
-  of plain `uv run pytest tests`.
 - GUI tests run offscreen (`QT_QPA_PLATFORM=offscreen` is set by pytest).
 - The package version and `CHANGELOG.md` are managed by semantic-release;
   do not edit them manually.

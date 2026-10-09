@@ -441,7 +441,7 @@ class MetaViewerWidget(QDockWidget):
 
     @staticmethod
     def prefetch_visa_resource_names(*, force: bool = False) -> None:
-        """Start VISA resource discovery in the background if it is not already running."""
+        """Start background VISA resource discovery if not already running."""
         if not force and MetaViewerWidget._visa_resource_cache is not None:
             return
         if MetaViewerWidget._visa_resource_query_running:
@@ -464,7 +464,7 @@ class MetaViewerWidget(QDockWidget):
 
     @staticmethod
     def schema_contains_visa_resource(schema: Any) -> bool:
-        """Return True when a nested schema tree contains a VISA resource editor hint."""
+        """Return True if a nested schema tree has a VISA resource editor hint."""
         if isinstance(schema, dict):
             if schema.get("ui_type") == "visa_resource":
                 return True
@@ -480,7 +480,8 @@ class MetaViewerWidget(QDockWidget):
         """
         Resolve a Pydantic JSON schema to a flat dictionary of properties.
 
-        Handles $ref, anyOf, allOf by merging or picking the first non-null type.
+        Handles $ref, anyOf, allOf by merging or picking the
+        first non-null type.
         """
         if not isinstance(schema, dict):
             return {}
@@ -726,7 +727,8 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             dict
-                A Pydantic-compatible JSON schema dictionary representing the type.
+                A Pydantic-compatible JSON schema
+                dictionary representing the type.
             """
             if column == 0:
                 return {"type": "string"}
@@ -821,7 +823,7 @@ class MetaViewerWidget(QDockWidget):
 
     class TreeModel(QAbstractItemModel):
         """
-        Custom tree model for displaying hierarchical data from dicts or Pydantic models.
+        Tree model displaying hierarchical data from dicts or Pydantic models.
 
         Parameters
         ----------
@@ -1005,7 +1007,8 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             str or None
-                The header data for the given section, orientation, and role.
+                The header data for the given section,
+                orientation, and role.
             """
             if role == Qt.ItemDataRole.DisplayRole:
                 if section == 0:
@@ -1126,7 +1129,8 @@ class MetaViewerWidget(QDockWidget):
             Returns
             -------
             int
-                The number of columns for the children of the given parent.
+                The number of columns for the children
+                of the given parent.
             """
             return 2
 
@@ -1371,7 +1375,8 @@ class ConfigEditWidget(MetaViewerWidget):
         Parameters
         ----------
         full_system_list : list
-            List of all system names (both configurable and non-configurable).
+            List of all system names (both configurable and
+            non-configurable).
         """
         self.full_system_list = full_system_list
 
@@ -1593,7 +1598,7 @@ class ConfigEditWidget(MetaViewerWidget):
             self.model.set_validation_error(index, message.strip())
 
     def get_system_config_validation_errors(self) -> list[str]:
-        """Return system config validation errors that could not be mapped to a field."""
+        """Return system config validation errors not mapped to a field."""
         return self._unmapped_system_config_validation_errors.copy()
 
     def validate_config(self) -> Result[None, str]:
@@ -1656,7 +1661,7 @@ class ConfigEditWidget(MetaViewerWidget):
 
     @classmethod
     def _validate_string_constraints(cls, value: Any, schema: dict[str, Any]) -> str | None:
-        """Validate string length, regex patterns, and specialized UI types like visa_resource."""
+        """Validate string length, regex, and special UI types like visa_resource."""
         if "minLength" in schema and len(value) < schema["minLength"]:
             return f"Input should have at least {schema['minLength']} characters"
         if "maxLength" in schema and len(value) > schema["maxLength"]:
@@ -1828,8 +1833,9 @@ class ConfigEditWidget(MetaViewerWidget):
         Returns
         -------
         dict or str or Any
-            A dictionary representing the parsed configuration, or a value
-            if the item has no children.
+            A dictionary representing the parsed
+            configuration, or a value if the item has no
+            children.
         """
         if item.child_count() > 0:
             return self._parse_container_item(item)
@@ -1871,9 +1877,10 @@ class ConfigEditWidget(MetaViewerWidget):
         """
         Write a configuration dictionary to a temporary file.
 
-        The configuration data is normalized and written to a named temporary
-        file. This file persists after the function returns and can be used
-        as an optional configuration file.
+        The configuration data is normalized and written to a
+        named temporary file. This file persists after the
+        function returns and can be used as an optional
+        configuration file.
         """
         with tempfile.NamedTemporaryFile(mode="wb", delete=False, suffix=".toml") as tmpfile:
             temp_file = Path(tmpfile.name)

@@ -16,28 +16,31 @@
 """
 Thread Safety Monkey Patch for PyMeasure Instruments.
 
-This module fixes thread safety issues in the pymeasure library where concurrent
-communication operations can interfere with each other, causing errors like:
-"Wrong reply received when there should be an acknowledge."
+Fixes thread safety issues in the pymeasure library where concurrent
+communication operations can interfere with each other, causing errors
+like: "Wrong reply received when there should be an acknowledge."
 
-The fix patches all pymeasure.Instrument communication methods at the class level,
-making them thread-safe by default. This protects:
-- Direct method calls: write(), read(), ask(), values(), binary_values(), etc.
-- Property access: Properties created by control(), setting(), measurement() are
-  made atomic to prevent race conditions between their internal method calls
+The fix patches all pymeasure.Instrument communication methods at the
+class level, making them thread-safe by default. This protects:
+- Direct method calls: write(), read(), ask(), values(),
+  binary_values(), etc.
+- Property access: Properties created by control(), setting(),
+  measurement() are made atomic to prevent race conditions between their
+  internal method calls
 - Error checking methods: check_get_errors(), check_set_errors()
 
 Implementation details:
 - Uses RLock-based synchronization for reentrant safety
 - Class-level patching ensures all instrument instances are protected
-- Per-instance locks prevent different instruments from blocking each other
+- Per-instance locks prevent different instruments from blocking each
+  other
 - No performance overhead for single-threaded usage
 
-This can be removed when PyMeasure upstream implements proper thread safety
-(pymeasure/pymeasure#506, pymeasure/pymeasure#952)
+This can be removed when PyMeasure upstream implements proper thread
+safety (pymeasure/pymeasure#506, pymeasure/pymeasure#952)
 
-Matr1x applies the patch before loading system modules and generating dynamic
-SCPI devices. Standalone PyMeasure users can call
+Matr1x applies the patch before loading system modules and generating
+dynamic SCPI devices. Standalone PyMeasure users can call
 ``apply_pymeasure_threading_fix()`` before defining instrument classes.
 """
 
@@ -72,9 +75,10 @@ def _create_thread_safe_property_accessor(
     """
     Create a thread-safe wrapper for property getter or setter.
 
-    Property accessors may make multiple communication method calls in sequence
-    (e.g., write() then check_set_errors(), or values() then check_get_errors()).
-    This wrapper ensures the entire property operation is atomic.
+    Property accessors may make multiple communication method calls
+    in sequence (e.g., write() then check_set_errors(), or values()
+    then check_get_errors()). This wrapper ensures the entire
+    property operation is atomic.
 
     Parameters
     ----------
@@ -159,16 +163,18 @@ def _patch_pymeasure_instrument_methods():
     """
     Apply class-level patches to pymeasure.Instrument communication methods.
 
-    This patches communication methods at the class level to ensure all instances
-    use thread-safe communication by default. Each method is wrapped with proper
-    locking to prevent race conditions during concurrent access.
+    This patches communication methods at the class level to ensure
+    all instances use thread-safe communication by default. Each
+    method is wrapped with proper locking to prevent race conditions
+    during concurrent access.
 
-    The key insight is that PyMeasure properties internally call these methods
-    (especially 'values' and 'ask'), so by making these methods thread-safe,
-    we automatically make property access thread-safe as well.
+    The key insight is that PyMeasure properties internally call
+    these methods (especially 'values' and 'ask'), so by making
+    these methods thread-safe, we automatically make property access
+    thread-safe as well.
 
-    Methods patched: write, read, ask, values, binary_values, check_get_errors,
-    check_set_errors, wait_for_srq
+    Methods patched: write, read, ask, values, binary_values,
+    check_get_errors, check_set_errors, wait_for_srq
     """
     for method_name in _COMMUNICATION_METHODS:
         if hasattr(Instrument, method_name):
@@ -199,8 +205,9 @@ def _create_thread_safe_property_creator(original_method, method_name):
     """
     Create a thread-safe wrapper for property creation methods.
 
-    This wraps property creation methods like control(), setting(), and measurement()
-    to ensure the properties they create have thread-safe accessors.
+    This wraps property creation methods like control(), setting(),
+    and measurement() to ensure the properties they create have
+    thread-safe accessors.
     """
 
     @staticmethod
@@ -233,13 +240,14 @@ def _patch_pymeasure_property_creators():
     """
     Patch all PyMeasure property creation methods for thread safety.
 
-    PyMeasure has multiple methods that create properties with potential race conditions:
+    PyMeasure has multiple methods that create properties with
+    potential race conditions:
     - Instrument.control: Creates read/write properties
     - Instrument.setting: Creates write-only properties
     - Instrument.measurement: Creates read-only properties
 
-    All of these can make multiple communication method calls in sequence and
-    need to be atomic to prevent race conditions.
+    All of these can make multiple communication method calls in
+    sequence and need to be atomic to prevent race conditions.
     """
     # List of property creation methods that need patching
     property_methods = ["control", "setting", "measurement"]
@@ -260,7 +268,7 @@ def _patch_pymeasure_instrument_init():
     """
     Apply monkey patch to pymeasure.Instrument.__init__.
 
-    This function modifies the pymeasure Instrument class so that all new
+    Modifies the pymeasure Instrument class so that all new
     instances automatically receive thread safety patches. The original
     __init__ method is preserved and called normally, with thread safety
     applied afterward.

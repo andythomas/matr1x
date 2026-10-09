@@ -96,6 +96,7 @@ line-length = 99       # max per pep8
 
 [tool.ruff.lint]
 extend-select = [
+    'D',        # pydocstyle (docstring formatting)
     'A',        # flake8 builtins (Python builtins being used as variables or parameters.)
     'W505',     # doc line too long
     'E501',     # line too long

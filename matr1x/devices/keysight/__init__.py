@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with devices from Keysight."""
+"""Keysight device drivers."""
 
 from .agilent8114a import Agilent8114A
 from .keysightb2612a import KeysightB2961

@@ -16,7 +16,7 @@
 """
 INTERNAL TEMPLATE FILE - DO NOT RUN OR IMPORT DIRECTLY.
 
-This file is a template used by matr1x.core.util.generate_script() to
+A template used by matr1x.core.util.generate_script() to
 create executable scripts for matrix-script. It contains placeholder
 variables and markers that must be replaced before execution.
 

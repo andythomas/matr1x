@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Tests for verifying import and instantiation of matr1x systems from system configuration files.
+Tests importing and instantiating systems from configuration files.
 
 This module discovers all system configuration files in the
 matr1x/systems directory and runs tests to ensure they can be imported
@@ -100,7 +100,7 @@ class ClassSystem(System):
 
 @pytest.mark.parametrize("export_name", ["system"])
 def test_system_file_supports_legacy_initialized_export(tmp_path, caplog, export_name):
-    """Load initialized legacy exports while emitting a soft-deprecation warning."""
+    """Load initialized legacy exports with a soft-deprecation warning."""
     system_file = tmp_path / "system_legacy.py"
     system_file.write_text(f"from matr1x.core.system import System\n\n{export_name} = System()\n")
 

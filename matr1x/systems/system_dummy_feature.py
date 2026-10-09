@@ -91,7 +91,7 @@ class Feature(System):
         """
         Initialize the system.
 
-        This method initializes the measurement system by setting up
+        Initializes the measurement system by setting up
         default configurations, updating them from user settings, and
         initializing data collection attributes.
         """
@@ -182,7 +182,7 @@ class Feature(System):
         """
         Initialize and configure the measurement.
 
-        This function is called by matrix upon initialization of the
+        Is called by matrix upon initialization of the
         measurement. The devices in the devs dictionary are
         opened/initialized and can be configured if necessary.
         """
@@ -204,7 +204,7 @@ class Feature(System):
         """
         Deinitialize the measurement.
 
-        This function is called by matrix upon deinitialization of the
+        Is called by matrix upon deinitialization of the
         measurement.
         """
         # set some parameter upon deinitializtion

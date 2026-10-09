@@ -199,7 +199,7 @@ def test_empty_script(tmp_path: Path, monkeypatch):
     ],
 )
 def test_matrix_script_reports_only_user_line_numbers(user_script, expected_lines, monkeypatch):
-    """Line reporting keeps the nearest user line highlighted during external work."""
+    """Keep the nearest user line highlighted during external work."""
     script = matr1x.core.util.generate_script(user_script)
     thread = ExecThread(script, {}, "", None, [])
     generated_lines: list[int] = []

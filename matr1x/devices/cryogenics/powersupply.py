@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for controlling Cryogenic power supplies over VISA interface.
+Driver for Cryogenic power supplies over the VISA interface.
 
-This module provides classes to interact with Cryogenic power supplies,
+Provides classes to interact with Cryogenic power supplies,
 including standard and bipolar models.
 """
 
@@ -38,7 +38,7 @@ class CryogenicPS(VisaDevice):
     """
     Control interface for Cryogenic Power Supply.
 
-    This class provides methods to control and monitor a Cryogenic Power Supply
+    Provides methods to control and monitor a Cryogenic Power Supply
     using VISA communication.
 
     Parameters
@@ -392,8 +392,9 @@ class CryogenicBipolarPS(VisaDevice):
     """
     Control interface for Cryogenic Bipolar Power Supply.
 
-    This class provides methods to control and monitor a Cryogenic Bipolar Power
-    Supply using VISA communication. It supports both positive and negative fields.
+    Provides methods to control and monitor a Cryogenic Bipolar
+    Power Supply using VISA communication. It supports both positive
+    and negative fields.
 
     Parameters
     ----------
@@ -456,7 +457,7 @@ class CryogenicBipolarPS(VisaDevice):
         """
         Read from device without blocking IO.
 
-        This method sets a short timeout and reads as much data as available
+        Sets a short timeout and reads as much data as available
         without blocking.
 
         Returns
@@ -692,7 +693,8 @@ class CryogenicBipolarPS(VisaDevice):
         """
         Set the output field using MID value as setpoint.
 
-        Automatically sets the direction (+ or -) based on the sign of the value.
+        Automatically sets the direction (+ or -) based on the
+        sign of the value.
 
         Parameters
         ----------

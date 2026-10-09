@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with the Agilent PSA E4440A spectrum analyzer."""
+"""Driver for the Agilent PSA E4440A spectrum analyzer."""
 
 from struct import unpack
 from typing import ClassVar
@@ -55,8 +55,8 @@ class PSA_E4440A(VisaDevice):
             The IP address and port where the device is located.
             e.g. TCPIP::192.168.5.52::5025::SOCKET
         reset : bool, optional
-            If true, the PSA is reset on object creation using the reset method.
-            Default is True.
+            If true, the PSA is reset on object creation
+            using the reset method. Default is True.
         timeout : int, optional
             The timeout of the ethernet connection in milliseconds.
             Default is 10e3 ms.
@@ -104,40 +104,36 @@ class PSA_E4440A(VisaDevice):
         Configure sweep settings for the spectrum analyzer.
 
         Sets frequency, bandwidth, averaging, and display parameters.
-        Frequency units are in Hz.
-        'MIN'/'MAX' arguments can be used instead of actual numbers,
-        and use the highest/lowest setting the PSA is capable of.
+        Frequency units are in Hz. 'MIN'/'MAX' can be used instead of
+        actual numbers to select the lowest/highest setting the PSA is
+        capable of.
 
         Parameters
         ----------
         fCent : float
-            The center frequency of the sweep in Hz.
+            Center frequency of the sweep in Hz.
         fSpan : float
-            The frequency span of the sweep in Hz.
+            Frequency span of the sweep in Hz.
         fPoints : int
-            The number of points per sweep.
+            Number of points per sweep.
         refLev : float
-            The reference level for the display in dBm.
+            Reference level for the display in dBm.
         resBW : float
-            The resolution bandwidth in Hz.
+            Resolution bandwidth in Hz.
         vidBW : float
-            The video bandwidth in Hz.
+            Video bandwidth in Hz.
         average : int, optional
-            The number of averages which make up the final values.
+            Number of averages which make up the final values.
             Default is None (no averaging).
         avgType : {'rms', 'log', 'scalar'}, optional
-            The average type of the measurement.
-            'rms': Power (RMS) averaging,
-            'log': Log-Power (video) averaging,
-            'scalar': Voltage averaging.
+            'rms' power (RMS) averaging, 'log' log-power (video)
+            averaging, 'scalar' voltage averaging.
             Default is 'rms'.
         scale : {'log', 'lin'}, optional
-            The display format of the measurement.
-            'lin': linear scale,
-            'log': logarithmic scale.
+            Display format: 'lin' linear, 'log' logarithmic.
             Default is 'log'.
         getData : bool, optional
-            If true, trigger a sweep and return the results directly.
+            If True, trigger a sweep and return the results directly.
             Default is False.
 
         Returns
@@ -223,17 +219,18 @@ class PSA_E4440A(VisaDevice):
         """
         Transfer measurement data from the PSA.
 
-        Reads trace data in different formats based on the precision parameter.
+        Reads trace data in different formats based on the
+        precision parameter.
 
         Parameters
         ----------
         precision : {'single', 'double', 'ascii'}, optional
-            The data format precision to use:
-            'single' and 'double' precisions are transferred as binary data,
-            and achieve much faster transfer speeds.
-            'ascii' is only implemented as a fallback method, as it is
-            much easier to debug.
-            Default is 'single'.
+            The data format precision to use: 'single' and
+            'double' precisions are transferred as binary
+            data, and achieve much faster transfer speeds.
+            'ascii' is only implemented as a fallback
+            method, as it is much easier to debug. Default
+            is 'single'.
 
         Returns
         -------
@@ -278,8 +275,8 @@ class PSA_E4440A(VisaDevice):
         """
         Prepare, trigger, and get data from a sweep operation.
 
-        This is a convenience method that combines startSweep(), trigger(),
-        and getData() operations into a single call.
+        This is a convenience method that combines startSweep(),
+        trigger(), and getData() operations into a single call.
 
         Returns
         -------
@@ -295,16 +292,18 @@ class PSA_E4440A(VisaDevice):
         """
         Read the current sweep parameters from the PSA.
 
-        Queries the center frequency, span, and number of points settings
-        and calculates the start/stop frequencies. All frequencies are
-        returned in Hz.
+        Queries the center frequency, span, and number of points
+        settings and calculates the start/stop frequencies. All
+        frequencies are returned in Hz.
 
         Returns
         -------
         tuple
             A tuple containing (fStart, fStop, fPoints) where:
-            - fStart (float): The frequency at which the sweep starts in Hz
-            - fStop (float): The frequency at which the sweep stops in Hz
+            - fStart (float): The frequency at which the
+              sweep starts in Hz
+            - fStop (float): The frequency at which the
+              sweep stops in Hz
             - fPoints (int): The number of points in the sweep
         """
         self.write("FREQ:CENT?")

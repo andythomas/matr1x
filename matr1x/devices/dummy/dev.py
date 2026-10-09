@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module implementing a dummy device used for automatic testing of the code base."""
+"""Dummy device for automatic testing of the code base."""
 
 import copy
 from typing import ClassVar
@@ -53,9 +53,10 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
     """
     Dummy device for testing.
 
-    Upon initialization the device starts a socket server which processes
-    queries received via this network socket. The server is hosted on the
-    loopback interface (localhost) and uses a high TCP/IP port number.
+    Upon initialization the device starts a socket server which
+    processes queries received via this network socket. The server
+    is hosted on the loopback interface (localhost) and uses a high
+    TCP/IP port number.
 
     Parameters
     ----------

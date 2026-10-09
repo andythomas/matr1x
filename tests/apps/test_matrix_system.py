@@ -219,7 +219,7 @@ def test_tapin_script_events(tap_server, input_dir: Path, tmp_path: Path):
 
 def test_tapin_script_exceptions(tap_server, input_dir: Path, tmp_path: Path):
     """
-    Test that TapinSystem methods are called and report correct arguments in case of exceptions.
+    Test that TapinSystem methods report correct arguments on exceptions.
 
     Asserts
     -------
@@ -259,7 +259,7 @@ raise Exception('Test exception')
 
 def test_tapin_script_keyboardinterrupt(tap_server, input_dir: Path, tmp_path: Path):
     """
-    Test that TapinSystem methods are called and report correct arguments in case of Ctrl+C.
+    Test that TapinSystem methods report correct arguments on Ctrl+C.
 
     Asserts
     -------
@@ -340,7 +340,7 @@ def test_tapin_matrix(tap_server, input_dir: Path, tmp_path: Path, monkeypatch):
 
 def test_tapin_matrix_exception(tap_server, input_dir: Path, tmp_path: Path, monkeypatch):
     """
-    Test that TapinSystem methods are called by matrix and exception handling.
+    Test that matrix calls TapinSystem methods and handles exceptions.
 
     Asserts
     -------

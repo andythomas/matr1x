@@ -16,7 +16,7 @@
 """
 OWIS SMS motor controller interface module for stepper motor control.
 
-This module provides the SMS class which interfaces with OWIS motor
+Provides the SMS class which interfaces with OWIS motor
 controllers.
 """
 
@@ -30,47 +30,37 @@ class SMS(VisaDevice):
     r"""
     OWIS SMS motor controller class for stepper motor control.
 
-    This class provides an interface to the SM INT controller with two
-    SMK 02-Z stepper motor drivers. By default, it is configured for a
-    rotary stepper motor with 200 steps per motor revolution and a
-    1400:1 gear ratio, converting steps to degrees for angular
-    positioning.
-
-    The class allows control of up to 4 axes (X, Y, Z, R) and supports
-    both absolute and relative movement commands.
+    Interface to the SM INT controller with two SMK 02-Z stepper
+    motor drivers. By default it is configured for a rotary stepper
+    motor with 200 steps per revolution and a 1400:1 gear ratio,
+    converting steps to degrees. Up to 4 axes (X, Y, Z, R) are
+    supported with absolute and relative movement commands.
 
     Parameters
     ----------
     interface : str
-        VISA address, e.g. ASRL/dev/ttyUSB0::INSTR
+        VISA address, e.g. ASRL/dev/ttyUSB0::INSTR.
     steps_per_revolution : int, optional
-        Number of steps per motor revolution, default is 200
+        Number of steps per motor revolution, default is 200.
     gear_ratio : float, optional
-        The gear ratio of the motor, default is 1400
+        The gear ratio of the motor, default is 1400.
     angle_ratio : float, optional
-        The angle ratio for conversion, default is 540 (1.5 revolutions)
+        The angle ratio for conversion, default is 540
+        (1.5 revolutions).
     limits : dict, optional
-        Dictionary specifying the position limits for each axis.
-        Format: {axis_number: {"lo": lower_limit, "hi": upper_limit}}
+        Position limits per axis, formatted as
+        {axis_number: {"lo": lower_limit, "hi": upper_limit}}.
     **kwargs
         Additional parameters passed to VisaDevice:
-
-        write_termination : str
-            Line termination for write commands, default is "\r"
-        read_termination : str
-            Line termination for read commands, default is "\r"
-        cmdpers : int
-            Commands per second, default is 50
-        timeout : float
-            Timeout in milliseconds, default is 80000
-        baud_rate : int
-            Serial baud rate, default is 2400
+        write_termination (default "\r"), read_termination (default
+        "\r"), cmdpers (default 50), timeout (default 80000),
+        baud_rate (default 2400).
 
     Notes
     -----
-    To use a different unit system (e.g., linear positioning in mm instead of degrees),
-    you can adjust the steps_per_revolution, gear_ratio, and angle_ratio parameters
-    to match your mechanical setup.
+    To use a different unit system (e.g. linear positioning in mm
+    instead of degrees), adjust steps_per_revolution, gear_ratio and
+    angle_ratio to match your mechanical setup.
     """
 
     _axes: ClassVar[dict[int, str]] = {0: "X", 1: "Y", 2: "Z", 3: "R"}
@@ -129,8 +119,9 @@ class SMS(VisaDevice):
         """
         Configure the drive settings for an axis.
 
-        Configures the parameters used by move_abs and move_rel. If drive/axis
-        settings are not configured, device internal defaults are used.
+        Configures the parameters used by move_abs and move_rel.
+        If drive/axis settings are not configured, device
+        internal defaults are used.
 
         Parameters
         ----------
@@ -183,7 +174,8 @@ class SMS(VisaDevice):
         Parameters
         ----------
         pos : float
-            Desired absolute position in units defined by _steps_per_deg.
+            Desired absolute position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
@@ -223,15 +215,16 @@ class SMS(VisaDevice):
         Parameters
         ----------
         pos : float
-            Desired relative position in units defined by _steps_per_deg.
+            Desired relative position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
         Returns
         -------
         None
-            Function returns silently if the movement would exceed limits
-            or if the motor is already moving.
+            Function returns silently if the movement would
+            exceed limits or if the motor is already moving.
         """
         if abs(pos) > abs(self._limits[ax]["hi"] - self._limits[ax]["lo"]):
             # ignore rotations that are guaranteed to exceed the limit
@@ -257,13 +250,15 @@ class SMS(VisaDevice):
         """
         Move to absolute position without blocking.
 
-        Initiates a movement to the specified position and returns immediately,
-        without waiting for the motion to complete.
+        Initiates a movement to the specified position and
+        returns immediately, without waiting for the motion to
+        complete.
 
         Parameters
         ----------
         pos : float
-            Desired absolute position in units defined by _steps_per_deg.
+            Desired absolute position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
@@ -306,15 +301,16 @@ class SMS(VisaDevice):
         Parameters
         ----------
         pos : float
-            Desired relative position in units defined by _steps_per_deg.
+            Desired relative position in units defined by
+            _steps_per_deg.
         ax : int, optional
             Axis to move (0-3), default is 0.
 
         Returns
         -------
         None
-            Function returns silently if the movement would exceed limits
-            or if the motor is already moving.
+            Function returns silently if the movement would
+            exceed limits or if the motor is already moving.
         """
         if abs(pos) > abs(self._limits[ax]["hi"] - self._limits[ax]["lo"]):
             # ignore rotations that are guaranteed to exceed the limit

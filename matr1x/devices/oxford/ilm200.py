@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with Oxford ILM200 level meter instruments."""
+"""Driver for the Oxford ILM200 level meter."""
 
 import logging
 from typing import ClassVar
@@ -41,7 +41,8 @@ class ILM200(IsobusDevice):
         isobus_addr : int, optional
             ISOBUS address of the device.
         **kwargs : dict
-            Additional parameters to pass to the underlying VISA resource.
+            Additional parameters to pass to the underlying
+            VISA resource.
         """
         kwargs["isobus_addr"] = isobus_addr
         if "write_termination" not in kwargs:
@@ -86,7 +87,8 @@ class ILM200(IsobusDevice):
         Parameters
         ----------
         fast : bool
-            If True, set rate to fast mode. If False, set rate to slow mode.
+            If True, set rate to fast mode. If False, set
+            rate to slow mode.
         """
         if fast is True:
             self.query("T1")

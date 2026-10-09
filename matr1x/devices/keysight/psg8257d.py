@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling the Keysight PSG 8257D-521 microwave signal generator."""
+"""Driver for the Keysight PSG 8257D-521 microwave signal generator."""
 
 from typing import ClassVar
 
@@ -23,7 +23,7 @@ from matr1x.devices.visadevice import VisaDevice
 
 
 class PSG8257D(VisaDevice):
-    """The device class for the Keysight PSG 8257D-521, a microwave signal generator."""
+    """Keysight PSG 8257D-521 microwave signal generator."""
 
     config_params: ClassVar[dict[str, str]] = {
         "npoints": ":SOUR:SWE:POIN?",
@@ -51,8 +51,8 @@ class PSG8257D(VisaDevice):
             The IP address and port where the device is located.
             e.g. TCPIP::192.168.5.102::5025::SOCKET
         reset : bool, optional
-            If True, the device is reset on object creation using the reset method.
-            Default is True.
+            If True, the device is reset on object creation
+            using the reset method. Default is True.
         timeout : int, optional
             The timeout of the ethernet connection in milliseconds.
             Default is 10e3 ms.
@@ -105,16 +105,17 @@ class PSG8257D(VisaDevice):
             If True, enable LFO. If False, disable LFO.
             Default is True.
         source : str, optional
-            The source of the low frequency output, which can take the values:
-            internal:'INT', internal2:'INT2', function:'FUNC', function2:'FUNC2'
-            internal & internal2: for the internal source
-            function & function2: for an internal function generator which can
-            be configured.
-            Default is "INT".
+            The source of the low frequency output, which
+            can take the values: internal:'INT',
+            internal2:'INT2', function:'FUNC',
+            function2:'FUNC2' internal & internal2: for the
+            internal source function & function2: for an
+            internal function generator which can be
+            configured. Default is "INT".
         amplitude : float, optional
-            Peak voltage (amplitude) of the low frequency output in volts,
-            which can take values from 0-3.5V.
-            Default is 3.
+            Peak voltage (amplitude) of the low frequency
+            output in volts, which can take values from
+            0-3.5V. Default is 3.
         """
         if LFO is False:
             self.write(":SOUR:LFO:STAT OFF")
@@ -139,28 +140,29 @@ class PSG8257D(VisaDevice):
         Parameters
         ----------
         AmpMod : bool, optional
-            If True, enable amplitude modulation. If False, disable amplitude modulation.
-            Default is True.
+            If True, enable amplitude modulation. If False,
+            disable amplitude modulation. Default is True.
         amMode : str, optional
             Amplitude modulation mode, either "DEEP" or "NORM".
             Default is "DEEP".
         ampSource : str, optional
-            The source of the amplitude modulation signal, which can take the values:
-            internal:'INT', internal 2:'INT2',
-            external:'EXT', external 2:'EXT2'.
-            Default is "INT".
+            The source of the amplitude modulation signal,
+            which can take the values: internal:'INT',
+            internal 2:'INT2', external:'EXT', external
+            2:'EXT2'. Default is "INT".
         intFreq : float, optional
             Frequency of the internal oscillator in Hertz,
             which can take values from 0.5 Hz to 1 MHz.
             Default is 1e3.
         intShape : str, optional
-            Shape of the internal oscillations, which can take the values:
-            sine:'SINE', triangle:'TRI', square:'SQU', ramp:'RAMP',
-            noise:'NOIS', dual-sine:'DUAL', swept-sine:'SWEP'.
-            Default is "SINE".
+            Shape of the internal oscillations, which can
+            take the values: sine:'SINE', triangle:'TRI',
+            square:'SQU', ramp:'RAMP', noise:'NOIS',
+            dual-sine:'DUAL', swept-sine:'SWEP'. Default is
+            "SINE".
         ampDepth : int, optional
-            Amplitude modulation in percent, which can take values from 0 to 100%.
-            Default is 100.
+            Amplitude modulation in percent, which can take
+            values from 0 to 100%. Default is 100.
         """
         if AmpMod is False:
             self.write(":SOUR:AM:STAT OFF")
@@ -180,20 +182,20 @@ class PSG8257D(VisaDevice):
         Parameters
         ----------
         PulseMod : bool, optional
-            If True, enable pulse modulation. If False, disable pulse modulation.
-            Default is True.
+            If True, enable pulse modulation. If False,
+            disable pulse modulation. Default is True.
         pulseSource : str, optional
-            Source of the pulse modulation signal, which can take the values:
-            internal:'INT', external:'EXT', scalar:'SCAL'.
-            Default is "INT".
+            Source of the pulse modulation signal, which can
+            take the values: internal:'INT', external:'EXT',
+            scalar:'SCAL'. Default is "INT".
         pulseInput : str, optional
-            Internally generated modulation input for the pulse modulation,
-            which can take the values: square:'SQU', free-run:'FRUN',
-            triggered:'TRIG', doublet:'DOUB', gated:'GATE'.
-            Default is "SQU".
+            Internally generated modulation input for the
+            pulse modulation, which can take the values:
+            square:'SQU', free-run:'FRUN', triggered:'TRIG',
+            doublet:'DOUB', gated:'GATE'. Default is "SQU".
         frequency : float, optional
-            Pulse rate frequency in Hertz, which can take values from 0.1 Hz to 10 MHz.
-            Default is 1e3.
+            Pulse rate frequency in Hertz, which can take
+            values from 0.1 Hz to 10 MHz. Default is 1e3.
         """
         if PulseMod is False:
             self.write(":SOUR:PULM:STAT OFF")
@@ -249,7 +251,8 @@ class PSG8257D(VisaDevice):
 
         Notes
         -----
-        The function will wait for the sweep to complete before returning.
+        The function will wait for the sweep to complete before
+        returning.
         """
         # get number of points and sweep time for timeout estimation
         n_points = float(self.query(":SOUR:SWE:POIN?"))
@@ -268,8 +271,9 @@ class PSG8257D(VisaDevice):
         """
         Change the sweep settings in the given channel.
 
-        Frequency units are in Hz. 'MIN'/'MAX' arguments can be used instead of actual numbers,
-        and use the highest/lowest setting the device is capable of.
+        Frequency units are in Hz. 'MIN'/'MAX' arguments can be
+        used instead of actual numbers, and use the
+        highest/lowest setting the device is capable of.
 
         Parameters
         ----------
@@ -278,13 +282,15 @@ class PSG8257D(VisaDevice):
         fStop : int or float
             The frequency at which the sweep ends.
         fPoints : int or str
-            The number of points per sweep. Can be an integer or 'MIN'/'MAX'.
+            The number of points per sweep. Can be an
+            integer or 'MIN'/'MAX'.
         stepDwell : int or float
             The dwell time for a step sweep.
 
         Notes
         -----
-        This method configures the device for step sweeping with automatic sweep timing.
+        Configures the device for step sweeping with automatic
+        sweep timing.
         """
         self.write(":SWE:GEN STEP")  # sweep type: ANALog or STEPped.
         # automatically sweep through frequency range

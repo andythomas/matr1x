@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Provide a base class for creating control GUIs for data acquisition systems.
+Base class for creating control GUIs for data acquisition systems.
 
-This module includes functionality for:
+Includes functionality for:
 - Setting up a GUI with collapsible sections
 - Managing multiple GuiDict objects for different parts of the interface
 - Handling device connections and communication
@@ -24,8 +24,8 @@ This module includes functionality for:
 - Creating a local SCPI TCP server for remote control
 - Error handling and GUI state management
 
-The ControlWindow class serves as a foundation for building specific control interfaces
-for various data acquisition setups.
+The ControlWindow class serves as a foundation for building specific
+control interfaces for various data acquisition setups.
 """
 
 import ast
@@ -264,7 +264,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     """
     Base class for control GUIs.
 
-    This class prepares a lot of things behind the scenes for use in typical
+    Prepares a lot of things behind the scenes for use in typical
     control GUIs.
 
     Parameters
@@ -272,20 +272,22 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     name : str
         Identifier string of the control GUI.
     guidicts : GuiDict or GuiDict subclass, or a list or tuple of those
-        GuiDict object(s) which build the basis of the controlGUI. Their
-        Systems must have unique names that are valid, non-keyword Python
-        identifiers.
+        GuiDict object(s) which build the basis of the
+        controlGUI. Their Systems must have unique names that
+        are valid, non-keyword Python identifiers.
     extra_cmds : dict, optional
-        Dictionary of commands offered for the measurement system. Commands from
-        the GuiDict object are merged together with this list.
+        Dictionary of commands offered for the measurement
+        system. Commands from the GuiDict object are merged
+        together with this list.
     parent : QWidget, optional
         Qt parent widget.
     package : str, optional
         Package name used in the generated log files.
     logging : bool or int, optional
-        Flag to enable logging on startup of the control GUI. If a numerical
-        value is given, the integer part of it will be used as interval (in
-        seconds) for the logging function.
+        Flag to enable logging on startup of the control GUI. If
+        a numerical value is given, the integer part of it will
+        be used as interval (in seconds) for the logging
+        function.
     port : int, optional
         TCP port number for the control GUI SCPI server socket.
     """
@@ -424,9 +426,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Normalize GuiDict inputs and attach them to this control window.
 
-        `guidicts` may contain already-created GuiDict instances or GuiDict
-        subclasses, which are instantiated here. Legacy plain dictionaries and
-        non-var data entries are intentionally not converted anymore.
+        `guidicts` may contain already-created GuiDict instances
+        or GuiDict subclasses, which are instantiated here.
+        Legacy plain dictionaries and non-var data entries are
+        intentionally not converted anymore.
         """
         if guidicts is None:
             raw_guidicts = []
@@ -447,15 +450,15 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Restore previously saved GUI settings from persistent storage.
 
-        This method restores various GUI elements to their previous states,
+        Restores various GUI elements to their previous states,
         including:
         - GuiDict state and features
         - Window geometry (size, position)
         - Window state (layout of docks and toolbars)
         - Visibility of the status box
 
-        The settings are loaded from QSettings storage that was initialized
-        during the class construction.
+        The settings are loaded from QSettings storage that was
+        initialized during the class construction.
         """
         # restore settings of GuiDicts
         for g in self.guidicts:
@@ -711,7 +714,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Set up status and logging user interface.
 
-        This method creates and configures the widgets for status display
+        Creates and configures the widgets for status display
         and logging controls.
         """
         # initialize common widgets
@@ -967,7 +970,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         Parameters
         ----------
         timeout : float, optional
-            Maximum wait time in seconds for the logging thread to terminate.
+            Maximum wait time in seconds for the logging
+            thread to terminate.
         """
         self._log_stop_event.set()
         thread = self._log_thread
@@ -985,9 +989,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Initialize GuiDicts and align them with their dock visibility.
 
-        The setup runs on the GUI thread and ensures that only visible guidicts
-        are started. Optionally, a delayed log start is scheduled to give all
-        guidicts time to populate their values.
+        The setup runs on the GUI thread and ensures that only
+        visible guidicts are started. Optionally, a delayed log
+        start is scheduled to give all guidicts time to populate
+        their values.
         """
         max_period = 1
         for guidict in self.guidicts:
@@ -1069,7 +1074,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Start the local TCP server with the driver functions specified in cmds.
 
-        This method initializes and starts a SCPI TCP server using the
+        Initializes and starts a SCPI TCP server using the
         command list defined in the class.
         """
         self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, port=self._port)
@@ -1135,13 +1140,14 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Disable all GUI elements.
 
-        This method is typically called after an error occurs to prevent further
+        Is typically called after an error occurs to prevent further
         interaction with the GUI.
 
         Parameters
         ----------
         flag : bool
-            If True, disables the GUI elements. If False, no action is taken.
+            If True, disables the GUI elements. If False, no
+            action is taken.
         """
         if flag:
             if self.logging:
@@ -1174,7 +1180,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Save current window and dock geometry.
 
-        This method saves the current size, position, and state of the
+        Saves the current size, position, and state of the
         window, as well as the visibility of the status box and toolbar
         visibility state. These settings will be reloaded upon restart
         of the Control GUI.
@@ -1251,10 +1257,11 @@ Please investigate the error and eventually restart the graphical user interface
 
 class EnableAction(QAction):
     """
-    A QAction subclass that automatically updates its icon based on checked state.
+    QAction subclass that updates its icon with the checked state.
 
-    This action is designed for enable/disable functionality and automatically
-    updates its icon color when the checked state changes.
+    This action is designed for enable/disable functionality and
+    automatically updates its icon color when the checked state
+    changes.
 
     Parameters
     ----------
@@ -1302,10 +1309,11 @@ class EnableAction(QAction):
 
 class FullInfoAction(QAction):
     """
-    A QAction subclass that automatically updates its icon based on checked state.
+    QAction subclass that updates its icon with the checked state.
 
-    This action is designed for full info/less info functionality and automatically
-    updates its icon (+ or -) when the checked state changes.
+    This action is designed for full info/less info functionality
+    and automatically updates its icon (+ or -) when the checked
+    state changes.
 
 
     Parameters

@@ -16,7 +16,7 @@
 """
 Utility functions for the matr1x data acquisition software.
 
-This module includes functions for file handling, script generation,
+Includes functions for file handling, script generation,
 sweep calculations, and various helper functions for data processing and
 system configuration.
 """
@@ -66,7 +66,7 @@ _USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
 
 def resolve_config_path(config: Any, path: str) -> Any:
     """
-    Resolve a configuration path string (dot notation) to a value from the config object.
+    Resolve a dot-notation path to a value from the config object.
 
     If any part of the path is missing, an empty dictionary is returned.
 
@@ -80,7 +80,8 @@ def resolve_config_path(config: Any, path: str) -> Any:
     Returns
     -------
     Any
-        The value at the specified path, or an empty dictionary if not found.
+        The value at the specified path, or an empty dictionary
+        if not found.
     """
     current = config
     for sec in path.split("."):
@@ -185,7 +186,7 @@ def create_temp_dir_with_symlinks(
     """
     Create temporary directory with symlinks.
 
-    This function works similarly on all major platforms,
+    Works similarly on all major platforms,
     but uses different ways to achieve this.
 
     Parameters
@@ -336,12 +337,12 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
     -------
     tuple
         A tuple containing two strings:
-        - prefix : str
-            Prefix of a script that can be directly executed and allows use of
-            the custom matrix_script syntax. Ends with try statement, so use
-            script has to be indented by 4 spaces.
-        - suffix : str
-            Corresponding suffix of the script, finishes the try statement.
+        - prefix : str Prefix of a script that can be directly
+          executed and allows use of the custom matrix_script
+          syntax. Ends with try statement, so use script has to
+          be indented by 4 spaces.
+        - suffix : str Corresponding suffix of the script,
+          finishes the try statement.
     """
     template_path = Path(__file__).parent / "_matrix_script_template.py"
 
@@ -387,7 +388,8 @@ def get_user_script_line_range(script: str) -> tuple[int, int]:
     Raises
     ------
     ValueError
-        If the generated-script boundary markers are missing or out of order.
+        If the generated-script boundary markers are missing or
+        out of order.
     """
     lines = script.splitlines()
     start_lines = [
@@ -420,8 +422,9 @@ def get_script_prefix_offset() -> int:
     """
     Get the number of lines in the script prefix.
 
-    This centralizes the calculation of the script offset that is used
-    in multiple places throughout the codebase for line number adjustment.
+    This centralizes the calculation of the script offset that is
+    used in multiple places throughout the codebase for line number
+    adjustment.
 
     Returns
     -------
@@ -439,15 +442,15 @@ def generate_script(user_script: str) -> str:
     Parameters
     ----------
     user_script : str
-        Custom user script that is typically provided by matrix_script, which is
-        supposed to be executed.
+        Custom user script that is typically provided by
+        matrix_script, which is supposed to be executed.
 
     Returns
     -------
     str
-        Script that can be directly executed and allows use of the custom
-        matrix_script syntax. Returned script must be run in the context of the
-        matrix_script_process.
+        Script that can be directly executed and allows use of
+        the custom matrix_script syntax. Returned script must be
+        run in the context of the matrix_script_process.
     """
     # define basic part of script, imports relevant commands
     prefix, suffix = generate_script_prefix_suffix()
@@ -460,8 +463,9 @@ def generate_col_index(index: int) -> str:
     """
     Generate column indices for matrix/sweep generator.
 
-    Generate column indices using the format "a" -> "z" -> "aa" -> "az" -> "ba" -> etc.
-    Currently can handle 701 columns and is easily extendable.
+    Generate column indices using the format "a" -> "z" -> "aa" ->
+    "az" -> "ba" -> etc. Currently can handle 701 columns and is
+    easily extendable.
 
     Parameters
     ----------
@@ -489,7 +493,7 @@ def generate_col_index(index: int) -> str:
 
 def construct_query_string(query_dict: dict, depth: int = 2) -> str:
     """
-    Prepare query string from output of system.query to include in file header.
+    Prepare the query string for the file header from system.query.
 
     Format is specified as:
     ## dev1
@@ -557,7 +561,8 @@ def flatten(iterable: Iterable[Any], types: tuple[type[Any], ...] | None = None)
     iterable : iterable
         The iterable to be flattened.
     types : tuple, optional
-        Types to be considered for flattening, by default (tuple, list, ndarray).
+        Types to be considered for flattening, by default
+        (tuple, list, ndarray).
 
     Yields
     ------

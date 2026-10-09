@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Keysight B2961 power supply devices."""
+"""Driver for the Keysight B2961 power supply."""
 
 from typing import ClassVar
 
@@ -79,34 +79,36 @@ class KeysightB2961(VisaDevice):
         nplc=None,
         reset=False,
     ):
-        """
-        Configure the Keysight B2961A to source current/voltage and sense voltage/current.
+        """Configure to source current/voltage and sense voltage/current.
 
         Parameters
         ----------
         sourceMode : str, optional
-            "VOLT" or "CURR" -- predefined physical parameter.
+            "VOLT" or "CURR", physical parameter to source.
         senseMode : str, optional
-            "VOLT" or "CURR" -- measured parameter.
+            "VOLT" or "CURR", parameter to measure.
         fourWire : bool, optional
-            Four wire measurement. Use current configuration if None.
+            Four wire measurement; None uses the current
+            configuration.
         sourceAutoRange : bool, optional
             Autodetect the source range.
         sourceRange : float, optional
-            Largest expected source current, device will pick the next inclusive range.
+            Largest expected source current; the device picks the
+            next inclusive range.
         senseLimit : float, optional
             Source compliance level.
         output : bool, optional
             Turn the output on if True.
         delayAuto : bool, optional
-            Automatically choose the delay for stabilizing the output.
+            Automatically choose the delay for stabilizing the
+            output.
         delay : float, optional
-            Delay in seconds for stabilizing the output before doing an internal measurement.
-            WON'T AFFECT/DELAY OTHER DEVICES! Default: 0.1(s).
+            Delay in seconds for stabilizing the output before doing
+            an internal measurement. Does not affect other devices.
         nplc : float, optional
             Number of power line cycles to average (4e-4 to 100).
         reset : bool, optional
-            If true, reset the device. Default is False.
+            If True, reset the device. Default is False.
 
         Examples
         --------
@@ -185,7 +187,8 @@ class KeysightB2961(VisaDevice):
         """
         Set the output value of the source.
 
-        This happens immediately without changing the source output status.
+        This happens immediately without changing the source
+        output status.
 
         Parameters
         ----------
@@ -235,14 +238,15 @@ class KeysightB2961(VisaDevice):
         """
         Set up the SMU for triggered acquisition of the measurement system.
 
-        Note: the source still has another independent trigger system which is
-        not changed by this function!
+        Note: the source still has another independent trigger
+        system which is not changed by this function!
 
         Parameters
         ----------
         mode : str, optional
-            Trigger mode: AINT (=Automatic), BUS (for use with triggerReading),
-            TIMER (for time trace recording). Default is "BUS".
+            Trigger mode: AINT (=Automatic), BUS (for use
+            with triggerReading), TIMER (for time trace
+            recording). Default is "BUS".
         count : int or str, optional
             Amount of triggers (typically 1 for BUS), allowed are: None,
             integer, or "inf".
@@ -274,11 +278,13 @@ class KeysightB2961(VisaDevice):
         """
         Configure for generation of a sine wave.
 
-        Use configure first to set up the sourceMode. Use run_wave after this
-        command to actually start the output.
+        Use configure first to set up the sourceMode. Use
+        run_wave after this command to actually start the
+        output.
 
-        Note: this function also sets up the phase marker output (mapped to
-        EXT1) which can be used as a sync signal for a lockin.
+        Note: this function also sets up the phase marker output
+        (mapped to EXT1) which can be used as a sync signal for
+        a lockin.
 
         Parameters
         ----------
@@ -291,8 +297,9 @@ class KeysightB2961(VisaDevice):
         count : str, optional
             Number of sine waves to output. Default is "INF".
         onlysetamp : bool, optional
-            Flag to only set a new amplitude and leave the rest unchanged,
-            which keeps the output on. Default is False.
+            Flag to only set a new amplitude and leave the
+            rest unchanged, which keeps the output on.
+            Default is False.
         """
         cmdlist = [":ABOR"]
 
@@ -340,7 +347,8 @@ class KeysightB2961(VisaDevice):
         Parameters
         ----------
         dt : float, optional
-            Time interval between measurements in seconds. Default is 1e-3.
+            Time interval between measurements in seconds.
+            Default is 1e-3.
         points : int, optional
             Number of points to acquire. Default is 1000.
         """

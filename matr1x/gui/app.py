@@ -174,7 +174,8 @@ class AboutBox(QMessageBox):
         Returns
         -------
         dict[str, str]
-            Dictionary containing interpreter version, implementation, and environment info.
+            Dictionary containing interpreter version,
+            implementation, and environment info.
         """
         # Full version string (includes build info)
         full_version = sys.version.split()[0]

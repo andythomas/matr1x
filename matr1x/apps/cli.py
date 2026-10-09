@@ -97,7 +97,7 @@ def parse_cmd_line() -> argparse.Namespace:
     """
     Create and apply an argument parser for the measurement script.
 
-    This function sets up an argparse.ArgumentParser with various
+    Sets up an argparse.ArgumentParser with various
     command-line options for customizing the output of the measurement.
 
     Returns
