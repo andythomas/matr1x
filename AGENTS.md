@@ -105,15 +105,14 @@ Most parts are written in Python and the editor uses some JavaScript.
   machines, CI, and inside sandboxes):
 
   ```sh
-  QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox script -q /dev/null sh -c 'uv run pytest tests'
+  QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox uv run pytest tests
   ```
 
-  The pseudo-terminal (`script`) is needed because the `matrix` CLI tests
-  require a terminal, and `QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox` is
-  needed because the QtWebEngine renderer used by the
-  `matrix-script`/`CodeEditor` tests cannot apply its own sandbox in
-  restricted environments. Both are harmless outside sandboxes, so always
-  use the command as-is instead of plain `uv run pytest tests`.
+  `QTWEBENGINE_CHROMIUM_FLAGS=--no-sandbox` is needed because the
+  QtWebEngine renderer used by the `matrix-script`/`CodeEditor` tests
+  cannot apply its own sandbox in restricted environments. It is
+  harmless outside sandboxes, so always use the command as-is instead
+  of plain `uv run pytest tests`.
 - GUI tests run offscreen (`QT_QPA_PLATFORM=offscreen` is set by pytest).
 - The package version and `CHANGELOG.md` are managed by semantic-release;
   do not edit them manually.

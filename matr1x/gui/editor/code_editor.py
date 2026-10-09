@@ -553,6 +553,7 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
         self.lsp_initialize()
         self._assets_dir: Path | None = None
         self._asset_signals = _AssetDownloadSignals()
+        self._assets_ready = threading.Event()
         self._asset_window: QDialog | None = None
         self._asset_progress_bar: QProgressBar | None = None
         if not monaco_assets.has_cached_assets():
@@ -564,7 +565,7 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
             target=self._prepare_assets, args=(self._asset_signals,), daemon=True
         )
         thread.start()
-        self.editor_page = CodeEditorPage()
+        self.editor_page = CodeEditorPage(self)
         self.setPage(self.editor_page)
         settings = self.page().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
@@ -621,6 +622,9 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
         except (RuntimeError, OSError) as e:
             self.logger.error("Failed to prepare Monaco assets: %s", e)
         finally:
+            # Set before the Qt signal: a signal emitted with no connected
+            # slot is lost, which could strand the wait loop below.
+            self._assets_ready.set()
             signals.finished.emit()
 
     def _wait_for_assets(self) -> None:
@@ -632,7 +636,8 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
         timer.setSingleShot(True)
         timer.timeout.connect(loop.quit)
         timer.start(self.ASSET_TIMEOUT * 1000)
-        loop.exec()
+        if not self._assets_ready.is_set():
+            loop.exec()
         timer.stop()
         if self._asset_window is not None:
             self._asset_window.close()

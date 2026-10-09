@@ -29,6 +29,8 @@ def test_matrix_preview_run(qtbot, qapp, data_dir: Path):
     main window is visible
     filename is set after load
     the simple plot widget is visible
+    the dock widget follows the action's checked state
+    the action stays in sync when the dock is closed on its own
     """
     main_window = matrix_preview.SweepPreview()
     main_window.show()
@@ -48,22 +50,6 @@ def test_matrix_preview_run(qtbot, qapp, data_dir: Path):
     assert main_window.filename is not None
     assert main_window.filename.name == ma8_file.name
     assert main_window.spw.isVisible()
-
-
-def test_meta_viewer_toggle(qtbot, qapp):
-    """
-    Toggle the metadata view via its menu action.
-
-    Asserts
-    -------
-    the dock widget follows the action's checked state
-    the action stays in sync when the dock is closed on its own
-    """
-    main_window = matrix_preview.SweepPreview()
-    main_window.show()
-    qtbot.addWidget(main_window)
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
 
     meta_action = main_window.ui.actions.meta
     meta_action.setEnabled(True)

@@ -1,4 +1,4 @@
-# This file is part of a software collection for data acquisition (matr1x).
+# This file is part of a software collection for data aquisition (matr1x).
 # Copyright (C) 2006-2026 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
@@ -19,9 +19,7 @@ Matrix test module.
 This module contains tests for the matrix data acquisition software.
 """
 
-import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -30,13 +28,21 @@ import pytest
 
 import matr1x.core.eval
 import matr1x.core.util
+from matr1x.apps import cli as matrix_cli
 from matr1x.core.config import output_extension
-from matr1x.core.execthread import ExecThread
+from matr1x.core.execthread import ExecThread, matrix_script_process
 from matr1x.core.models import ExecutionLines, MeasurementData
-from matr1x.core.util import matrix_cmdline
 
 
-def test_matrix_dummy(input_dir: Path, tmp_path: Path):
+def run_matrix(monkeypatch, *args: str) -> int:
+    """Run the matrix CLI in-process and return its exit code."""
+    monkeypatch.setattr(sys, "argv", ["matrix", *args])
+    with pytest.raises(SystemExit) as exc:
+        matrix_cli.main()
+    return int(exc.value.code or 0)
+
+
+def test_matrix_dummy(input_dir: Path, tmp_path: Path, monkeypatch):
     """
     Test basic matrix functionality with dummy sweep data.
 
@@ -52,10 +58,10 @@ def test_matrix_dummy(input_dir: Path, tmp_path: Path):
     """
     inputfile = input_dir / "sys_dummy_sweep_all.5t"
     outputfile = tmp_path / f"{inputfile.stem}{output_extension}"
-    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile))
-    print(subprocess.list2cmdline(cmd))
-    ret = subprocess.run(cmd, check=False)
-    assert ret.returncode == 0
+    # headless urwid screen, see UrwidMeasurement.prepare
+    monkeypatch.setenv("CI", "true")
+    ret = run_matrix(monkeypatch, "-i", str(inputfile), "-o", str(outputfile))
+    assert ret == 0
     # find created datafile
     files = list(tmp_path.glob(inputfile.stem + "*"))
     assert len(files) == 1
@@ -68,7 +74,7 @@ def test_matrix_dummy(input_dir: Path, tmp_path: Path):
     assert d.shape == (9, 6)  # check shape of dataset
 
 
-def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path):
+def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path, monkeypatch):
     """
     Test matrix functionality with merged dummy data.
 
@@ -84,10 +90,8 @@ def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path):
     """
     inputfile = input_dir / "sys_dummy_merged.8t"
     outputfile = tmp_path / f"test_merged{output_extension}"
-    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile), "--plain")
-    print(subprocess.list2cmdline(cmd))
-    ret = subprocess.run(cmd, check=False)
-    assert ret.returncode == 0
+    ret = run_matrix(monkeypatch, "-i", str(inputfile), "-o", str(outputfile), "--plain")
+    assert ret == 0
     # open latest datafile and check data shape
     files = sorted(
         tmp_path.glob(f"test_merged*{output_extension}"), key=lambda p: p.stat().st_mtime
@@ -99,12 +103,12 @@ def test_matrix_dummy_merged(input_dir: Path, tmp_path: Path):
     assert d.shape == (11, 10)  # check shape of dataset
 
 
-def test_matrix_dummy_hdf5(input_dir: Path, tmp_path: Path):
+def test_matrix_dummy_hdf5(input_dir: Path, tmp_path: Path, monkeypatch):
     """
     Test matrix functionality with HDF5 dummy data.
 
-    Tests running matrix with HDF5 format dummy data input and verifies
-    the output data file format and contents, including various dataset
+    Tests running matrix with HDF5 format dummy data input and verifies the
+    output data file format and contents, including various dataset
     shapes.
 
     Asserts
@@ -116,10 +120,8 @@ def test_matrix_dummy_hdf5(input_dir: Path, tmp_path: Path):
     """
     inputfile = input_dir / "sys_dummy_hdf5_sweep.3t"
     outputfile = tmp_path / f"test_hdf5.h5{output_extension}"
-    cmd = matrix_cmdline("-i", str(inputfile), "-o", str(outputfile), "--plain")
-    print(subprocess.list2cmdline(cmd))
-    ret = subprocess.run(cmd, check=False)
-    assert ret.returncode == 0
+    ret = run_matrix(monkeypatch, "-i", str(inputfile), "-o", str(outputfile), "--plain")
+    assert ret == 0
     # open latest datafile and check data shape
     files = sorted(tmp_path.glob(f"test_hdf5*{output_extension}"), key=lambda p: p.stat().st_mtime)
     assert len(files) >= 1
@@ -133,7 +135,7 @@ def test_matrix_dummy_hdf5(input_dir: Path, tmp_path: Path):
     assert d["timeUTC"].shape == (10,)  # check shape of dataset
 
 
-def test_matrix_script_dummy_merged(input_dir: Path, tmp_path: Path):
+def test_matrix_script_dummy_merged(input_dir: Path, tmp_path: Path, monkeypatch):
     """
     Test matrix script functionality with merged dummy data.
 
@@ -142,39 +144,32 @@ def test_matrix_script_dummy_merged(input_dir: Path, tmp_path: Path):
 
     Asserts
     -------
-    script process returns 0
+    script process completes without error
     at least one output file exists
     output has 10 data columns
     dataset has shape (22, 10)
     """
-    # prepares and runs a test script in the same fashion as done by
+    # generates a test script in the same fashion as done by
     # matrix_script, code is partially duplicated but should not require
     # changes except for bugfixes
     inputfile = input_dir / "test.matrix"
     with inputfile.open() as f:
         user_script = f.read()
-    script = matr1x.core.util.generate_script(user_script)
-    with tempfile.NamedTemporaryFile(mode="w+b") as tf:
-        for line in script:
-            tf.write(line.encode())
-        tf.flush()
-        script = (
-            "import matr1x.core.execthread as mu\n"
-            "mu.matrix_script_process(\n"
-            f"{tf.name!r}, {{}}, '', None, ['system_dummy_feature', 'system_dummy_meas']\n"
-            ")"
-        )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, check=False)
-        assert ret.returncode == 0
-        files = list(tmp_path.glob(f"epische_messdatei*{output_extension}"))
-        assert len(files) >= 1
-        h, d = matr1x.core.eval.loadmatrix(files[-1], to_polars=True)
-        assert len(h["columns"]) == 10
-        assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
-        assert d.shape == (22, 10)
+    script_file = tmp_path / "generated.matrix"
+    script_file.write_text("".join(matr1x.core.util.generate_script(user_script)))
+    monkeypatch.chdir(tmp_path)
+    matrix_script_process(
+        str(script_file), {}, "", None, ["system_dummy_feature", "system_dummy_meas"]
+    )
+    files = list(tmp_path.glob(f"epische_messdatei*{output_extension}"))
+    assert len(files) >= 1
+    h, d = matr1x.core.eval.loadmatrix(files[-1], to_polars=True)
+    assert len(h["columns"]) == 10
+    assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
+    assert d.shape == (22, 10)
 
 
-def test_empty_script(tmp_path: Path):
+def test_empty_script(tmp_path: Path, monkeypatch):
     """
     Test running an empty matrix script.
 
@@ -182,15 +177,12 @@ def test_empty_script(tmp_path: Path):
 
     Asserts
     -------
-    script process returns 0
+    script process completes without error
     """
-    with tempfile.NamedTemporaryFile(mode="w+b") as tf:
-        script = (
-            "import matr1x.core.execthread as mu\n"
-            f"mu.matrix_script_process({tf.name!r}, {{}}, '', None, [])"
-        )
-        ret = subprocess.run([sys.executable, "-c", script], cwd=tmp_path, check=False)
-        assert ret.returncode == 0
+    script_file = tmp_path / "empty.matrix"
+    script_file.write_text("")
+    monkeypatch.chdir(tmp_path)
+    matrix_script_process(str(script_file), {}, "", None, [])
 
 
 @pytest.mark.parametrize(
