@@ -237,7 +237,6 @@ class TimeoutDialogBase(QDialog):
         self.ok_button.clicked.connect(self._button_clicked)
         self.ok_button.clicked.connect(self.accept)
 
-        # Termination buttons (abort / finish)
         self.abort_aborted_button = QPushButton("Abort", self)
         self.abort_aborted_button.setIcon(get_matrix_icon("CUSTOM_Stop", color=QColor("#B71C1C")))
         self.abort_finished_button = QPushButton("Finish", self)
@@ -251,7 +250,6 @@ class TimeoutDialogBase(QDialog):
         # Ensure the dialog stays on top of the main window
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
 
-        # Set up timer if timeout is finite
         if self.timeout != float("inf"):
             self.remaining_time = self.timeout * 1000  # Convert to milliseconds
             self.timer = QTimer(self)
@@ -275,15 +273,11 @@ class TimeoutDialogBase(QDialog):
                 self.accept()
             return
 
-        # Convert milliseconds back to seconds for display
         remaining_seconds = self.remaining_time / 1000
 
-        # Format the time display
         if remaining_seconds < 100:
-            # Show seconds for short timeouts
             self.timer_label.setText(f"Time remaining: {int(remaining_seconds)} seconds")
         else:
-            # Show hours:minutes format for longer timeouts
             hours = int(remaining_seconds / 3600)
             minutes = int((remaining_seconds % 3600) / 60)
             seconds = int(remaining_seconds % 60)
@@ -302,7 +296,6 @@ class TimeoutDialogBase(QDialog):
         """
         main_layout = QVBoxLayout(self)
 
-        # Query group
         query_group = QGroupBox("Query", self)
         query_layout = QVBoxLayout(query_group)
         query_layout.addWidget(self.label)
@@ -310,7 +303,6 @@ class TimeoutDialogBase(QDialog):
             query_layout.addWidget(self.input_widget)
         query_layout.addWidget(self.timer_label)
 
-        # Answer row (ok_button or custom buttons)
         answer_layout = QHBoxLayout()
         if answer_buttons is None:
             answer_layout.addWidget(self.ok_button)
@@ -321,14 +313,12 @@ class TimeoutDialogBase(QDialog):
         main_layout.addWidget(query_group)
         main_layout.addSpacing(12)
 
-        # End Script group
         end_group = QGroupBox("End Script", self)
         end_layout = QHBoxLayout(end_group)
         end_layout.addWidget(self.abort_aborted_button)
         end_layout.addWidget(self.abort_finished_button)
         main_layout.addWidget(end_group)
 
-        # Fixed dialog size - no resizing
         self.adjustSize()
         self.setFixedSize(self.size())
 
@@ -373,13 +363,11 @@ class TextInputDialog(TimeoutDialogBase):
         """
         super().__init__(query, timeout, parent=parent, default_value=default_value)
 
-        # Create the input widget
         self.input = QLineEdit(self)
         self.input.setPlaceholderText("input to send to script")
         self.input.setText(default_value)
         self.input_widget = self.input
 
-        # Set up the layout
         self.setup_layout()
 
     def get_input_text(self):
@@ -434,7 +422,6 @@ class NumericalInputDialog(TimeoutDialogBase):
         """
         super().__init__(query, timeout, parent=parent, default_value=default_value)
 
-        # Create the spinbox
         self.input_spinbox = QDoubleSpinBox(self)
         if min_value is not None:
             self.input_spinbox.setMinimum(min_value)
@@ -451,7 +438,6 @@ class NumericalInputDialog(TimeoutDialogBase):
         )
         self.input_widget = self.input_spinbox
 
-        # Set up the layout
         self.setup_layout()
 
     def get_input_value(self):
@@ -503,7 +489,6 @@ class YesNoAbortDialog(TimeoutDialogBase):
         # Hide the ok_button from TimeoutDialogBase (we use yes/no instead)
         self.ok_button.hide()
 
-        # Create yes/no buttons
         self.yes_button = QPushButton("Yes", self)
         self.no_button = QPushButton("No", self)
 
@@ -514,7 +499,6 @@ class YesNoAbortDialog(TimeoutDialogBase):
         self.no_button.clicked.connect(self._button_clicked)
         self.no_button.clicked.connect(self.accept)
 
-        # Build layout with yes/no buttons in answer row
         self.setup_layout(answer_buttons=[self.yes_button, self.no_button])
 
     def accept(self):
@@ -1214,7 +1198,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
         self.save_log_window_state(self.settings)
 
-        # Only save help dialog size and position if it has been shown at least once
         if hasattr(self, "_help_dialog_shown") and self._help_dialog_shown:
             self.settings.beginGroup("system_command_help")
             self.settings.setValue("size", self.ui.widgets.system_command_help.size())
@@ -1230,7 +1213,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
         """Restore app configuration from the previous use."""
         self.restore_layout_state(self.settings)
 
-        # Check if there is a settings file. This improves the robustness
         # against strange side effect, caused by the default values.
         if self.settings.contains("created"):
             self.settings.beginGroup("script_edit")
@@ -1482,7 +1464,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.system_command_help.sizeHint()
         )
 
-        # Load size and position from settings (only if not already visible)
         if not self.ui.widgets.system_command_help.isVisible():
             self.settings.beginGroup("system_command_help")
             saved_size = self.settings.safer_value(
@@ -1497,7 +1478,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
         self.ui.widgets.system_command_help.show()
         self.ui.widgets.system_command_help.raise_()
-        # Mark that the help dialog has been shown at least once
         self._help_dialog_shown = True
 
     def write_output(self, text: str) -> None:
@@ -1698,7 +1678,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             self.ui.widgets.config_editor.update_data()
             self.ui.widgets.config_editor.apply_config_dict(retained_config)
             self.update_start_action_state()
-        # Update system commands with cached info
         self.update_system_commands()
         if self.ui.widgets.system_command_help.isVisible():
             self.show_system_commands()
@@ -1759,7 +1738,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
             return False
         self.scriptname = filename
         self.update_systems(update_config=False)
-        # set new script in editor and save it to the file
         newscript = self.generate_save_content()
         self.ui.widgets.script_edit.setPlainText(newscript)
         output_file.write(newscript)
@@ -1819,7 +1797,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
         #
         line = input_file.readline()
         if "# system def : " in line:
-            # load system from definition in file
             system_line = line.replace("# system def : ", "").strip()
             systems = [s.strip() for s in system_line.split(",") if s.strip()]
             self.ui.widgets.system_list.add_systems(systems)
@@ -1840,8 +1817,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
         #
         line = input_file.readline()
         code += line
-        # make sure that system column definition agrees with
-        # current system
         if "# system names : " in line:
             system_names = line.strip().replace("# system names : ", "")
             current_columns = [str(col).strip() for col in column_names]
@@ -1867,7 +1842,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
         #
         line = input_file.readline()
         code += line
-        # make sure that system unit definition agrees with
         # current system
         if "# system units : " in line:
             system_units = line.strip().replace("# system units : ", "")
@@ -1900,7 +1874,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
 
     def load_from_file(self) -> None:
         """Open file dialog and call load_from_filename."""
-        # First, check if unsaved changes exist
         if (
             self.ui.widgets.script_edit.isModified()
             and not self.in_pytest

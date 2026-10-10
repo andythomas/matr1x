@@ -190,7 +190,6 @@ class FileLineEdit(QLineEdit):
 
         self.callback = callback
         self.spec = spec
-        # Create the QLineEdit and QPushBottn
         self.dialog_button = QToolButton(self)
         self.dialog_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon))
         self.dialog_button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -220,7 +219,6 @@ class FileLineEdit(QLineEdit):
             dialog.setOption(QFileDialog.Option.ShowDirsOnly)
 
         if dialog.exec() and len(dialog.selectedFiles()) > 0:
-            # pass value to callback
             self.callback(dialog.selectedFiles()[0])
 
 

@@ -322,6 +322,5 @@ class MainConfig(ConfigBaseModel):
         if self.model_extra:
             for key, value in self.model_extra.items():
                 if isinstance(value, dict):
-                    # Validate and replace the raw dict with a validated model
                     self.model_extra[key] = UserlibConfig(**value)
         return self

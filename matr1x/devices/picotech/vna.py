@@ -30,7 +30,6 @@ class PicoVNA(VisaDevice):
     PicoVNA instruments using the VISA communication protocol.
     """
 
-    # danfysik power supply driver
     maxAverage = 1
 
     def __init__(self, interface, reset=False, **kwargs):
@@ -62,7 +61,6 @@ class PicoVNA(VisaDevice):
 
         super().__init__(interface, **kwargs)
 
-    # high level functions
     def reset(self):
         r"""
         Reset the VNA using the SYST:FPRESET command.

@@ -213,17 +213,11 @@ class SimplePlotWidget(QGroupBox):
                 for i in range(len(tickLevels)):
                     spacing, offset = tickLevels[i]
 
-                    # determine starting tick
                     start = (np.ceil((minVal - offset) / spacing) * spacing) + offset
 
-                    # determine number of ticks
                     num = int((maxVal - start) / spacing) + 1
                     values = (np.arange(num) * spacing + start) / self.scale
-                    # remove any ticks that were present in higher levels
-                    # we assume here that if the difference between a tick value and
-                    # a previously seen tick value
-                    # is less than spacing/100, then they are 'equal' and we can
-                    # ignore the new tick.
+                    # ticks closer than spacing/100 to a higher-level tick are dropped
                     close = np.any(
                         np.isclose(
                             allValues,
@@ -261,7 +255,6 @@ class SimplePlotWidget(QGroupBox):
                 list of str
                     The tick labels corresponding to the values.
                 """
-                # Choose the date format based on the scale
                 if spacing < 0.5:  # less than 0.5 seconds
                     fmt = "%S.%f"
                 elif spacing < 5:  # less than 5 seconds
@@ -279,7 +272,6 @@ class SimplePlotWidget(QGroupBox):
                 else:
                     fmt = "%Y-%m-%d"
 
-                # Convert timestamps to formatted date strings
                 if spacing >= 5:
                     return [_format_local_timestamp(value, fmt) for value in values]
                 return [
@@ -341,7 +333,6 @@ class SimplePlotWidget(QGroupBox):
                 list of str
                     List of strings to display at tick marks.
                 """
-                # For categorical data, show all ticks regardless of plot size
                 strings = []
                 for v in range(len(self.mapping)):
                     if v in self.mapping:
@@ -368,7 +359,6 @@ class SimplePlotWidget(QGroupBox):
                 list of tuple
                     List containing (spacing, [tick positions]) pairs.
                 """
-                # Override to return fixed ticks for categorical data
                 ticks = []
                 if not self.mapping:
                     return [(1, [])]
@@ -397,17 +387,14 @@ class SimplePlotWidget(QGroupBox):
             self.plt: pyqtgraph.PlotDataItem | pyqtgraph.ImageView
             self.vb: CustomViewBox
 
-            # Store mappings for categorical data
             self.x_mapping = {}
             self.z_mapping = {}
             self.x_is_categorical = False
             self.z_is_categorical = False
 
-            # Cache for unique values
             self.x_unique_values = None
             self.z_unique_values = None
 
-            # initialize the pyqtgraph display widgets
             self.vb = CustomViewBox()
             if self.plot2d is True:
                 self.plt = pyqtgraph.ImageView(view=self.vb)
@@ -442,7 +429,6 @@ class SimplePlotWidget(QGroupBox):
                 "left": self.pw.getAxis("left"),
             }
 
-            # initialize storage variables
             self.labels = ["", "", ""]
             self.units = ["", "", ""]
             self.math_mode = "no math"
@@ -453,8 +439,6 @@ class SimplePlotWidget(QGroupBox):
             self.fx = None
             self.fy = None
 
-            # initialize slider widget and horizontal spacer line
-            # and add to l_slider
             self.w_hline = QFrame()
             self.w_hline.setFrameShape(QFrame.Shape.HLine)
             self.w_hline.setFixedHeight(2)
@@ -477,7 +461,6 @@ class SimplePlotWidget(QGroupBox):
         def _convert_categorical(self, data, is_x=True):
             """Convert categorical data to numeric values with mapping."""
             if data.dtype == np.dtype("O"):
-                # For categorical data, convert to numeric indices
                 unique_values = np.unique([str(x) for x in data])
                 if is_x:
                     self.x_unique_values = unique_values
@@ -486,13 +469,11 @@ class SimplePlotWidget(QGroupBox):
                     self.z_unique_values = unique_values
                     self.z_is_categorical = True
 
-                # Create mapping
                 mapping = {idx: val for idx, val in enumerate(unique_values)}
                 numeric_data = np.array(
                     [list(mapping.keys())[list(mapping.values()).index(str(x))] for x in data]
                 )
 
-                # Store mapping for axis
                 if is_x:
                     self.categorical_axis["bottom"].mapping = mapping
                 else:
@@ -555,16 +536,13 @@ class SimplePlotWidget(QGroupBox):
                 return y, x
 
             if self.math_mode in self.default_math:
-                # some of our default math is supposed to be used
                 x = self.default_math[self.math_mode][0](x)
                 y = self.default_math[self.math_mode][1](y)
             elif self.math_mode == "custom":
-                # none of the above, so we are in custom mode
                 xc = None
                 yc = None
                 try:
-                    # define function based on the string stored in
-                    # math_texts[1]
+
                     def fx(xf, yf):
                         return eval(
                             self.math_texts[1],
@@ -576,8 +554,7 @@ class SimplePlotWidget(QGroupBox):
                     self._raise_error("error in math function (x): " + str(e))
 
                 try:
-                    # define function based on the string stored in
-                    # math_texts[0]
+
                     def fy(yf, xf):
                         return eval(
                             self.math_texts[0],
@@ -610,30 +587,25 @@ class SimplePlotWidget(QGroupBox):
             ):
                 slider.setVisible(False)
                 if len(dshape) > 2:
-                    # data is 3D, so show sliders
                     self.md = True
                     slider.setVisible(True)
                     slider.set_range(0, dshape[0] - 1)
                 elif (len(dshape) > 1 and dshape[1] > 1) and self.plot2d is False:
-                    # array is 2d and second dimension is longer than 1
                     self.md = True
                     slider.setVisible(True)
                     slider.set_range(0, dshape[1] - 1)
                 elif (len(dshape) > 1 and dshape[1] == 1) and self.plot2d is False:
-                    # array is 2d and second dimension is exactly 1
-                    # do not show sliders in this case (only one element)
+                    # no slider needed: only one element
                     self.md = True
                 else:
                     # reset hidden slider to zero to avoid intereference
                     # with new data
                     slider.set_value(0)
 
-            # hide or show the horizontal spacers
             if self.md is True:
                 self.w_hline.setVisible(True)
             else:
                 self.w_hline.setVisible(False)
-            # sliders are handled, now worry about data
             self._handle_multidim_data()
 
         def _handle_multidim_data(self):
@@ -666,7 +638,6 @@ class SimplePlotWidget(QGroupBox):
                 Current value of the slider that is to be applied.
             """
             if self.plot2d is True:
-                # for 2d plot, select index of current data element
                 self._handle_multidim_data()
                 if not isinstance(self.plt, pyqtgraph.ImageView):
                     raise InternalInvariantError("Plotting 3D data requires an ImageView widget!")
@@ -675,7 +646,6 @@ class SimplePlotWidget(QGroupBox):
                     f"p{self.index} at {self.labels[1]} = {self.x[val]} {self.units[1]}"
                 )
             else:
-                # for curve, handle the data and replot
                 self._handle_multidim_data()
                 self.plot(symbol="o")
 
@@ -709,25 +679,20 @@ class SimplePlotWidget(QGroupBox):
                 "data", "label", "desig", and "unit", or
                 None if not applicable.
             """
-            # Handle categorical data conversions
             self.zdata = self._convert_categorical(z["data"], is_x=False)
             self.xdata = self._convert_categorical(x["data"], is_x=True)
 
-            # Update axis types based on data
             self.z_is_categorical = z["data"].dtype == np.dtype("O")
             self.x_is_categorical = x["data"].dtype == np.dtype("O")
 
-            # Update axis items based on data type
             if self.z_is_categorical:
                 self.pw.setAxisItems({"left": self.categorical_axis["left"]})
             else:
-                # Reset to ordinary axis for numerical data
                 self.pw.setAxisItems({"left": self.ordinary_axis["left"]})
 
             if self.x_is_categorical:
                 self.pw.setAxisItems({"bottom": self.categorical_axis["bottom"]})
             else:
-                # Reset to ordinary axis for numerical data
                 self.pw.setAxisItems({"bottom": self.ordinary_axis["bottom"]})
 
             if y is not None:
@@ -793,7 +758,6 @@ class SimplePlotWidget(QGroupBox):
             """
             if self.plot2d is True:
                 if len(self.zdata.shape) > 2:
-                    # 3d plotting
                     if not isinstance(self.plt, pyqtgraph.ImageView):
                         raise InternalInvariantError(
                             "Plotting 3D data requires an ImageView widget!"
@@ -805,7 +769,6 @@ class SimplePlotWidget(QGroupBox):
                         xvals=self.x,
                         axes={"t": 0, "x": 1, "y": 2},
                     )
-                    # make sure top and right axis are hidden
                     for i, ax in zip(range(2), ["right", "top"]):
                         self.pw.hideAxis(ax)
                     # set labels to array index, same as on the y-axis
@@ -817,7 +780,6 @@ class SimplePlotWidget(QGroupBox):
                         raise InternalInvariantError(
                             "Plotting 3D data requires an ImageView widget!"
                         )
-                    # 2d data follows different dimensioning scheme
                     x0, x1 = self.x[0], self.x[-1]
                     xscale = (x1 - x0) / self.z.shape[0]
                     y0, y1 = self.y[0], self.y[-1]
@@ -833,11 +795,9 @@ class SimplePlotWidget(QGroupBox):
                     for i, ax in zip(range(1, 3), ["bottom", "left"]):
                         self.pw.setLabel(ax, self.labels[i], self.units[i])
                 self.pw.getAxis("left").textWidth = 0
-                # remove aspect lock for free zooming and do not invert y axis
                 self.vb.setAspectLocked(False)
                 self.vb.invertY(False)
             else:
-                # for curves apply math, set labels and data
                 z, x = self._get_math(self.z, self.x)
                 self.pw.getAxis("left").textWidth = 0
 
@@ -847,8 +807,6 @@ class SimplePlotWidget(QGroupBox):
                     elif self.pw.getAxis(ax).isVisible():
                         self.pw.hideAxis(ax)
 
-                # Already set up in parse_data() for categorical axes
-                # Set labels for axes
                 for i, ax in zip(range(2), ["left", "bottom"]):
                     self.pw.setLabel(ax, self.labels[i], self.units[i])
                 if not isinstance(self.plt, pyqtgraph.PlotDataItem):
@@ -856,7 +814,6 @@ class SimplePlotWidget(QGroupBox):
                 try:
                     self.plt.setData(*args, x=x, y=z, **kwargs)
                 except ValueError as e:
-                    # Handle shape mismatch errors
                     self._raise_error(f"Plot error: {e!s}")
 
             # After plotting, if autorange is enabled on any axis, recompute now.
@@ -888,7 +845,6 @@ class SimplePlotWidget(QGroupBox):
         self.l_slider = QVBoxLayout()
         self.l_slider.setSpacing(0)
 
-        # initialize w_calc combo box with the default math items defined
         # in the PlotObject, add "custom" for custom math.
         self.w_calc = QComboBox()
         self.w_calc.setToolTip("math operation")
@@ -908,7 +864,6 @@ class SimplePlotWidget(QGroupBox):
                 "operation and have to remain in a single dimension."
             )
 
-        # hide custom math layouts by default
         for widget in self.w_math + self.w_lmath:
             widget.setVisible(False)
 
@@ -918,14 +873,9 @@ class SimplePlotWidget(QGroupBox):
             l_math.addWidget(self.w_lmath[i])
             l_math.addWidget(self.w_math[i], stretch=1)
 
-        # Add GraphicsLayout and make most prominent widget
         self.gl = pyqtgraph.GraphicsLayoutWidget()
         self.gl.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
-        # have proxy that connects the position of the mouse on the
-        # GraphicsLayout to display the x/y position on the current
-        # plot, additionally introduce proxy to select active plot by
-        # just clicking into the plot
         scene = cast(pyqtgraph.GraphicsScene, self.gl.scene())
         self.proxy = pyqtgraph.SignalProxy(
             scene.sigMouseMoved, rateLimit=30, slot=self._mouse_moved
@@ -934,11 +884,9 @@ class SimplePlotWidget(QGroupBox):
             scene.sigMouseClicked, rateLimit=2, slot=self._mouse_clicked
         )
 
-        # add the first empty plot with
         initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
         self.plots: list[self.PlotObject] = [initial_plot]
 
-        # Connect X-axis linking signal for automatic linking
         if hasattr(initial_plot, "vb") and initial_plot.vb is not None:
             initial_plot.vb.sigRangeChanged.connect(self._on_range_changed)
 
@@ -947,7 +895,6 @@ class SimplePlotWidget(QGroupBox):
         self.w_plots.addItem("add plot")
         self.w_plots.currentIndexChanged.connect(self._update_wplots)
 
-        # line_init controls default value of line visibility on startup
         line_init = False
         self.w_line = QCheckBox("lines")
         self.w_line.setChecked(line_init)
@@ -988,7 +935,6 @@ class SimplePlotWidget(QGroupBox):
         )
         self.plots.append(new_plot)
 
-        # Connect X-axis linking signal for automatic linking
         if hasattr(new_plot, "vb") and new_plot.vb is not None:
             new_plot.vb.sigRangeChanged.connect(self._on_range_changed)
 
@@ -998,20 +944,16 @@ class SimplePlotWidget(QGroupBox):
     def _remove_plot(self):
         """Remove plot that is currently selected in self.w_plots."""
         if len(self.plots) == 1:
-            # only single plot present
             return
         index = self.w_plots.currentIndex()
-        # pop plot container from list, remove widget and delete object
-        # for garbage collection
+        # del for garbage collection
         plot = self.plots.pop(index)
         plot.remove_plot()
         del plot
-        # change index to previous plot and remove the deleted one
         if index != 0:
             self.w_plots.setCurrentIndex(index - 1)
         self.w_plots.removeItem(index)
         if self.w_plots.count() == 2:
-            # nothing else to be deleted, hide button
             self.w_delete.setVisible(False)
 
     def _update_wplots(self, index):
@@ -1025,38 +967,29 @@ class SimplePlotWidget(QGroupBox):
         """
         cnt = self.w_plots.count()
         if index == cnt - 1 and cnt > 1:
-            # selecting last index (add plot) leads to plot being added
             self._add_plot()
             cnt += 1
         if cnt > 2 and self.w_delete.isVisible() is False:
-            # something can be deleted, make button visible
             self.w_delete.setVisible(True)
 
         current_plot = self.plots[index]
 
-        # Check if any axes are categorical
         has_categorical = current_plot.x_is_categorical or current_plot.z_is_categorical
 
-        # Keep math box visible but enable/disable based on plot type and data
         self.w_calc.setVisible(not current_plot.plot2d)
         self.w_calc.setEnabled(not current_plot.plot2d and not has_categorical)
 
-        # If categorical, reset to "no math" but keep box visible
         if has_categorical:
             self.w_calc.setCurrentIndex(0)  # "no math" index
             current_plot.math_mode = "no math"
 
-        # update widgets according to specifications in currently selected plot
         for i in range(2):
             self.w_math[i].setText(current_plot.math_texts[i])
 
-        # load math_mode from PlotObject and set index
         index_math = self.w_calc.findText(current_plot.math_mode)
         if index_math != -1:
-            # for -1, item not found in combo box texts
             self.w_calc.setCurrentIndex(index_math)
 
-        # pass current PlotObject to callback function to be handled externally
         self.cb_index(current_plot)
 
     def _toggle_plot2d(self, flag):
@@ -1078,12 +1011,10 @@ class SimplePlotWidget(QGroupBox):
         math_mode = self.w_calc.currentText()
         current_plot = self.w_plots.currentIndex()
 
-        # Check if current plot has categorical data
         has_categorical = (
             self.plots[current_plot].x_is_categorical or self.plots[current_plot].z_is_categorical
         )
 
-        # Enable/disable math combo box based on categorical data
         self.w_calc.setEnabled(not has_categorical)
 
         if math_mode == "custom" and self.w_math[0].isVisible() is False:
@@ -1092,14 +1023,12 @@ class SimplePlotWidget(QGroupBox):
         elif math_mode != "custom" and self.w_math[0].isVisible() is True:
             for widget in self.w_math + self.w_lmath:
                 widget.setVisible(False)
-        # update the labels of the plot combo box
         for i, plot in enumerate(self.plots):
             if plot.plot2d is True:
                 name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]} and {plot.labels[2]}"
             else:
                 name = f"p{plot.index} - {plot.labels[0]} vs {plot.labels[1]}"
             self.w_plots.setItemText(i, name)
-        # reset error
         self.cb_error("")
 
         self.plots[current_plot].set_math_mode(math_mode, [math.text() for math in self.w_math])
@@ -1121,12 +1050,9 @@ class SimplePlotWidget(QGroupBox):
         boxes = [plot.vb for plot in self.plots]
         vb_mouse = None
         for vb in boxes:
-            # get coordinate transform for top left of viewbox to identify
-            # in which of the viewboxes the mouse currently resides
             pos = vb.mapRectFromView(vb.borderRect.rect()).topLeft()
             if vb.boundingRect().contains(ev[0] + pos):
                 vb_mouse = vb
-                # stop once we have found the correct viewbox
                 continue
         if vb_mouse is not None:
             mousePoint = vb_mouse.mapSceneToView(ev[0])
@@ -1149,12 +1075,9 @@ class SimplePlotWidget(QGroupBox):
         boxes = [plot.vb for plot in self.plots]
         vb_mouse = None
         for vb in boxes:
-            # get coordinate transform for top left of viewbox to identify
-            # in which of the viewboxes the mouse currently resides
             pos = vb.mapRectFromView(vb.borderRect.rect()).topLeft()
             if vb.boundingRect().contains(ev[0].scenePos() + pos):
                 vb_mouse = vb
-                # stop once we have found the correct viewbox
                 continue
         if vb_mouse is not None:
             index = boxes.index(vb_mouse)
@@ -1195,7 +1118,6 @@ class SimplePlotWidget(QGroupBox):
             new X and Y ranges of the `view_box`. Each inner
             tuple is `(min_value, max_value)`.
         """
-        # identify source
         source_plot = next((p for p in self.plots if p.vb is view_box), None)
         if source_plot is None or not source_plot.labels:
             return
@@ -1234,9 +1156,7 @@ class SimplePlotWidget(QGroupBox):
           flag that determines whether the plot is supposed to
           be 2d or not
         """
-        # store index of plot in self.gl
         plotindex = self.plots[index].index
-        # remove plot and replace with new one
         plt = self.plots.pop(index)
         plt.remove_plot()
         del plt
@@ -1251,10 +1171,8 @@ class SimplePlotWidget(QGroupBox):
         )
         self.plots.insert(index, new_plot)
 
-        # Connect X-axis linking signal for automatic linking
         if hasattr(new_plot, "vb") and new_plot.vb is not None:
             new_plot.vb.sigRangeChanged.connect(self._on_range_changed)
-        # reset global plot2d flag
         if any(plot.plot2d for plot in self.plots) is True:
             self._toggle_plot2d(True)
         else:
@@ -1341,7 +1259,6 @@ class SimplePlotWidget(QGroupBox):
         initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
         self.plots = [initial_plot]
 
-        # Connect X-axis linking signal for automatic linking
         if hasattr(initial_plot, "vb") and initial_plot.vb is not None:
             initial_plot.vb.sigRangeChanged.connect(self._on_range_changed)
 

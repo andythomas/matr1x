@@ -34,10 +34,6 @@ from matr1x.core.models import HeaderDict, create_empty_header
 
 __all__ = ["HeaderDict", "delta", "delta3p", "loadmatrix"]
 
-######################
-# File handling
-######################
-
 
 def _is_hdf5(filename: Path) -> bool:
     """
@@ -203,8 +199,6 @@ def _handle_multiline_continuation(
     """
     if line.startswith("#"):
         hash_count = len(line) - len(line.lstrip("#"))
-        # Only continue multiline if hash count is greater than the
-        # level where multiline started
         content = line[hash_count:].strip()
         if hash_count > current_level:
             multiline_value.append(content)
@@ -321,7 +315,6 @@ def _parse_query_string(query: str) -> dict:
         A nested dictionary containing the parsed data. The structure
         follows the hierarchical levels indicated by #, ##, ###, etc.
     """
-    # Main parsing logic
     parsed_data = {}
     path_stack = []
     current_key = None
@@ -335,27 +328,22 @@ def _parse_query_string(query: str) -> dict:
         if not line:
             continue
 
-        # Handle multiline value continuation
         if in_multiline:
             if _handle_multiline_continuation(line, path_stack, multiline_value, multiline_level):
                 continue
 
-            # End of multiline entry, store it
             _store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
             in_multiline = False
             multiline_value = []
             multiline_level = 0
             # Fall through to process the current line
 
-        # Count hash prefixes to determine nesting level
         hash_count = len(line) - len(line.lstrip("#"))
 
         if hash_count > 0:
-            # This is a nested entry
             content = line[hash_count:].strip()
 
             if " :" in content:
-                # This is a key-value pair
                 path_stack = path_stack[: hash_count - 1]
                 current_key, multiline_value, in_multiline = _process_key_value_pair(
                     content, path_stack, parsed_data
@@ -363,28 +351,23 @@ def _parse_query_string(query: str) -> dict:
                 if in_multiline:
                     multiline_level = hash_count
             else:
-                # This is a section header
                 path_stack = path_stack[: hash_count - 1]
                 path_stack.append(content)
                 _get_nested_dict(parsed_data, path_stack)
 
         elif " :" in line:
-            # Top-level key-value pair
             path_stack = []
             current_key, multiline_value, in_multiline = _process_top_level_key_value(
                 line, parsed_data
             )
             if current_key and not in_multiline and multiline_value == []:
-                # This was a section header with empty value
                 path_stack = [current_key]
             elif in_multiline:
                 multiline_level = 0
         elif not line.startswith("#"):
-            # Top-level section without colons
             path_stack = [line.strip()]
             _get_nested_dict(parsed_data, path_stack)
 
-    # Handle any remaining multiline entry at the end
     if in_multiline:
         _store_multiline_value(parsed_data, path_stack, current_key, multiline_value)
 
@@ -399,17 +382,13 @@ def _process_header_lines(
         if key is None:
             raise ValueError("Multiline entry found before any single-line entry in header")
 
-        # Process the line based on entry type
         if key == "system query":
-            # For system query, preserve hash prefixes for proper nesting
             strippedline = line.removesuffix("\n")
         else:
-            # strip header format characters for other entries
             strippedline = line.removesuffix("\n")[2:]
             if strippedline and strippedline[0] == " ":
                 strippedline = strippedline[1:]
 
-        # Concatenate with existing value
         val = strippedline if val is None else f"{val}\n{strippedline}"
         header[key.lower()] = val  # ty: ignore[invalid-key]
     else:
@@ -440,7 +419,6 @@ def _process_column_unit_lines(
         header["units"] = line.strip("\n").split("\t")
     headerlines += 1
 
-    # Check if we should break based on file type
     should_break = False
     if headerlines == 3 or extension == ".ma8" and headerlines == 2:  # for ma6, ma7 files
         should_break = True
@@ -450,10 +428,8 @@ def _process_column_unit_lines(
 
 def _process_special_lines(matrix_file, header: HeaderDict) -> None:
     """Process special lines (comments, status) after the main content."""
-    # Read further special lines in the file
     special_lines = [(i, line) for i, line in enumerate(matrix_file) if line.startswith("#")]
 
-    # combine multiline comments and note after which datapoint the comment was in the file
     lastdpoint = -1
     for i, (linenr, msg) in enumerate(special_lines):
         dpoint = linenr - i
@@ -494,15 +470,12 @@ def _process_text_file_content(filename: Path, extension: str, header: HeaderDic
     int
         Number of header lines
     """
-    # Text file processing
     with filename.open() as matrix_file:
         nheader = 0
-        # state variables for process functions
         headerlines = 0
         key = None
         val = None
         for nheader, line in enumerate(matrix_file):
-            # parse header from lines that start with hashtag
             if line[0] == "#":
                 key, val = _process_header_lines(line, key, val, header)
             else:
@@ -512,7 +485,6 @@ def _process_text_file_content(filename: Path, extension: str, header: HeaderDic
                 if should_break:
                     break
 
-        # Process special lines in the file
         _process_special_lines(matrix_file, header)
 
     return nheader
@@ -536,7 +508,6 @@ def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
     extension = filename.suffix
     header = create_empty_header()
 
-    # Process text file content
     nheader = _process_text_file_content(filename, extension, header)
 
     # separate System query entry into hierarchical dictionary
@@ -547,7 +518,6 @@ def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
             "system query"
         ]
 
-    # Clean up string values in header (except for core fields)
     core_fields = {"columns", "units", "comments", "status", "system query"}
     for key, val in list(header.items()):
         if key not in core_fields and isinstance(val, str):
@@ -697,13 +667,11 @@ def loadmatrix(
             )
         header, data = _load_text_file(filename, structured, to_polars)
     if print_header is True:
-        # generate list of tuples with index and column name
         print(list(enumerate(header["columns"])))  # noqa: T201
     return header, data
 
 
 ######################
-# Evaluation functions
 ######################
 def delta_numpy(data: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """

@@ -47,7 +47,6 @@ class ElabConfig(SystemConfigModel):
     api_key: str | None = Field(None, description="API key for elabFTW (REQUIRED)")
     teamid: int = Field(0, description="Team ID for elabFTW")
 
-    # Non-sensitive configuration
     debug: bool = False
     enable_elab: bool = True
     require_server: bool = False
@@ -132,7 +131,6 @@ def _is_template_content(template: str) -> bool:
     if len(template) > 255:
         return True
 
-    # Check for Jinja2 template syntax and newlines
     template_patterns = ["{%", "{{", "{#", "%}", "}}", "#}", "\n"]
     return any(pattern in template for pattern in template_patterns)
 
@@ -207,11 +205,9 @@ class Elab(System):
     def __init__(self):
         super().__init__()
         self.merged_system: MergedSystem
-        # clean meta data for this system
         for key in self.dcdata:
             self.dcdata[key] = ""
 
-        # Load configuration from files and separate sensitive from non-sensitive config
         self.load_config(
             ElabConfig,
             "matr1x.systems.system_elabftw",
@@ -220,9 +216,7 @@ class Elab(System):
 
         self._team_id = getattr(self.sensitive_config, "teamid", 0)
 
-        # predefine api client
         self.api_client = None
-        # internal variables to queue things for upload
         self._attachments = {}
         self._tags = []
         self._resources = {}
@@ -568,7 +562,6 @@ class Elab(System):
             return None
 
         names = [user["fullname"] for user in response]
-        # Handle potential None values in orgid safely
         orgids = [str(user["orgid"]).lower() if user["orgid"] else None for user in response]
 
         search_string = self.merged_system.dcdata.get("creator")
@@ -577,7 +570,6 @@ class Elab(System):
 
         search_string_lower = search_string.lower()
 
-        # Step 1: try to match orgid
         try:
             idx = orgids.index(search_string_lower)
             self._resolved_user = response[idx]
@@ -585,10 +577,8 @@ class Elab(System):
         except (ValueError, KeyError):
             pass
 
-        # Step 2: try to find exact substring matches
         substring_matches = [name for name in names if search_string_lower in name.lower()]
 
-        # Step 3: Match logic
         most_likely_match = None
         if substring_matches:
             most_likely_match = substring_matches[0]
@@ -619,7 +609,6 @@ class Elab(System):
             return None
         try:
             response = catApi.read_team_experiments_categories(self._team_id)
-            # find id for search category
             return next((item.id for item in response if item.title == category_name), None)
         except ApiException as e:
             self.report(
@@ -818,7 +807,6 @@ class Elab(System):
         pattern = r"#(?:\(([^)]+)\)|(\S+))"
         matches = re.findall(pattern, text)
 
-        # Extract matched hashtags
         hashtags = [match[0] if match[0] else match[1] for match in matches]
         return hashtags
 
@@ -990,7 +978,6 @@ class Elab(System):
         entry if measurement was successful.
         """
         try:
-            # Only publish completed measurements with a data file.
             if kwargs.get("status") != "aborted":
                 self.conditional_add_file()
                 if self.filename:

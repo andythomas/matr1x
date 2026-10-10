@@ -292,7 +292,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         TCP port number for the control GUI SCPI server socket.
     """
 
-    # flag controlling if the SCPI server is shut-down during panic
     stop_server_on_panic: bool = True
 
     sig_error = Signal(type, Exception, str)
@@ -317,14 +316,12 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         super().__init__(parent=parent)
         self.guidicts: list[GuiDict]
         self._harmonize_guidicts(guidicts)
-        # Initialize logging window
         self.log_window = LoggingWindow(parent=self)
         self.log_window.hide()
         logger.info("Control window '%s' starting", name)
         self.setWindowTitle(name)
         self.setWindowIcon(get_matrix_icon("matr1x-control.png"))
         self.settings = SaferQSettings(package, name)
-        # initialize parameters
         self.running = False
         self.logging = False
         filename = (
@@ -344,13 +341,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self.keep_enabled = []
         self._guidict_enable_actions: list[EnableAction] = []
         self._log_interval = 60
-        # initialize error handling
         self.sig_error.connect(self.handleError)
-        # SCPI TCP server placeholders
         self._local_server: scpi_tcpserver.SCPI_TCP_Server | None = None
         self._server_disabled_by_panic = False
         self._port = port
-        # initialize data logging system
         self.S_log = system.System(name=f"{package}.{name}_control_logging_system")
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menus.menu)
@@ -364,10 +358,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._restore_gui_settings()
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
-        # merge the guidicts Systems
         if not hasattr(self, "S"):
             self.S = system.MergedSystem([g.S for g in self.guidicts])
-        # store commands
         self.cmd_list: dict[str, Command] = {
             ":conf": Get(
                 lambda b: pickle.loads(ast.literal_eval(b)).decode(),
@@ -382,7 +374,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         # connect signals so that at least one dock remains visible! (needs to be done after show!)
         for g in self.guidicts:
             g.dock.topLevelChanged.connect(self.needToAdjustSize)
-        # enable logging if requested by arguments
         self._run_log_on_start = False
         if logging:
             self._run_log_on_start = True
@@ -460,13 +451,11 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         The settings are loaded from QSettings storage that was
         initialized during the class construction.
         """
-        # restore settings of GuiDicts
         for g in self.guidicts:
             g.dock.restoreState()
             g.extend_switch.setChecked(g.dock.extended)
             g.enable_switch.setChecked(not g.dock.disabled)
             g.restoreFeatures()
-        # restore geometry settings of main window
         self.resize(self.settings.safer_value("size", self.size(), type=QSize))
         self.move(self.settings.safer_value("pos", self.pos(), type=QPoint))
         self.restoreState(
@@ -476,7 +465,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
 
     def _restore_view_settings(self):
         """Restore view-related settings after menu has been created."""
-        # restore toolbar visibility
         toolbar_visible = self.settings.safer_value("toolbar_visible", False, type=bool)
         self.ui.actions.show_toolbar.setChecked(toolbar_visible)
         self.set_toolbar_visible(toolbar_visible)
@@ -627,7 +615,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self.guidict_view = []
         self._guidict_enable_actions = []
         for i, guidict in enumerate(self.guidicts):
-            # Enable/ Disable
             enable_action = EnableAction(guidict.name, self)
 
             # Connect directly to GuiDict enable_switch
@@ -638,13 +625,11 @@ class ControlWindow(LogWindowMixin, QMainWindow):
                 enable_action.triggered.connect(
                     lambda checked, g=guidict: g.enable_switch.setChecked(checked)
                 )
-                # Connect GuiDict enable_switch changes back to the action
                 guidict.enable_switch.toggled.connect(enable_action.setChecked)
 
             guidict.toolbar.addAction(enable_action)
             self.ui.menus.enable.addAction(enable_action)
             self._guidict_enable_actions.append(enable_action)
-            # View toggles
             view_action = QAction(guidict.name, self)
             self.guidict_view.append(view_action)
             self.guidict_view[i].setCheckable(True)
@@ -654,7 +639,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             )
             self.ui.menus.view.addAction(self.guidict_view[i])
 
-            # Full info toggles
             has_hiding = any(variable.hide for variable in guidict.values())
             full_info_action = FullInfoAction(guidict.name, self)
 
@@ -666,7 +650,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
                 full_info_action.triggered.connect(
                     lambda checked, g=guidict: g.extend_switch.setChecked(checked)
                 )
-                # Connect GuiDict extend_switch changes back to the action
                 guidict.extend_switch.toggled.connect(full_info_action.setChecked)
 
             guidict.toolbar.addAction(full_info_action)
@@ -674,7 +657,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             spacer = QWidget()
             spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             guidict.toolbar.addWidget(spacer)
-            # Custom menu
             for action in guidict.menu_actions:
                 action.setParent(self)
                 self.ui.menus.custom.addAction(action)
@@ -717,7 +699,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         Creates and configures the widgets for status display
         and logging controls.
         """
-        # initialize common widgets
         self.activityIndicator = []
         self._pending_updates = {}  # {idx: color}
         indicator_width = 17
@@ -737,7 +718,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             )
             guidict.refresh_worker.panic.connect(self.panic)
 
-        # Timer to process pending updates
         self._process_timer = QTimer()
         self._process_timer.timeout.connect(self._process_updates)
         self._process_timer.start(100)  # 10 FPS
@@ -802,8 +782,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         for guidict in self.guidicts:
             guidict.showlog = checked
             for v in guidict.values():
-                # check that widget is not only a label, is not hidden
-                # and is actually a value that should be logged
                 if len(v.widgets) > 2 and (v.widgets[0].isHidden() is False and v.log is not None):
                     v.widgets[-1].setVisible(checked)
 
@@ -817,21 +795,16 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             Whether logging should be enabled.
         """
         self.ui.actions.toggle_recorder.setChecked(checkstate)
-        # clear system of all parameters
         self.S_log.clear_parameters()
-        # add timestamp to system
         self.S_log.add_param("timeUTC", "s", getter=time.time)
-        # set up system with selected values
         for i, guidict in enumerate(self.guidicts):
             for key in guidict:
                 variable = guidict[key]
-                # make sure it is a loggable widget
                 if (
                     len(variable.widgets) > 2
                     and variable.log is not None
                     and variable.widgets[-1].checkState() == Qt.CheckState.Checked
                 ):
-                    # make sure check state is True and if so add to
                     # logged parameters
                     self.S_log.add_param(f"dict{i}/{key}", "", getter=lambda v=variable: v.value)
         if len(self.S_log.parameters) == 1:
@@ -843,26 +816,20 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.ui.actions.toggle_recorder.setChecked(False)
             return
         if self.logging is False:
-            # generate new log filename
             self.logfile = self.S_log.generate_datafilename(outputfile=self.logfile)
             self.ui.widgets.recorder_file_label.setText(
                 f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
             )
-            # initialize system
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
-            # update date to reflect logging start time instead of GUI start time
             self.S_log.dcdata["date"] = time.strftime(core_config.datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
-            # write new datafile header
             msg, outputfile = self.S_log.init_datafile("matrix script generated")
             print(f"{msg}: {outputfile}")  # noqa: T201
-            # turn off config and set data
             self.config_data_recorder(False)
             self.ui.actions.config_recorder.setEnabled(False)
             self.ui.actions.config_recorder.setChecked(False)
             self.ui.actions.toggle_recorder.setText("Stop data recorder")
-            # start thread
             self._log_stop_event.clear()
             self._log_stopped_event.clear()
             self._log_thread = threading.Thread(target=self.loggingFunc, daemon=True)
@@ -874,7 +841,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.S_log.reset()
             self._stop_logging_thread()
             self.logging = False
-            # reset GUI
             self.ui.actions.config_recorder.setEnabled(True)
             self.ui.actions.toggle_recorder.setText("Start data recorder")
             logger.info("Data recorder stopped")
@@ -888,18 +854,15 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             f"data recorder files (*{core_config.output_extension})",
         )[0]
 
-        # If no file was selected, keep the current logfile
         if not filename:
             return
 
-        # Check if logging is currently running
         was_logging = self.logging
 
         # If logging is running, stop it first
         if was_logging:
             self.toggle_data_recorder(False)
 
-        # Update the logfile
         self.logfile = Path(filename)
         self.logfile = self.logfile.with_suffix(core_config.output_extension)
         self.ui.widgets.recorder_file_label.setText(
@@ -1021,10 +984,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             guidict.stop(wait=wait)
         self.terminated = True
 
-    # general local server and start stop overhead
     def __enter__(self):
         """Initialize devices, start GuiDict workers, and launch the SCPI server."""
-        # merge all cmds from the GuiDicts and the extra cmds
 
         class extraGuiDict(GuiDict):
             cmds = self.cmd_list
@@ -1123,11 +1084,9 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         if not self._pending_updates:
             return
 
-        # Get all pending updates and clear the dict
         updates = self._pending_updates.copy()
         self._pending_updates.clear()
 
-        # Apply all updates
         for idx, color in updates.items():
             if idx < len(self.activityIndicator):
                 label = self.activityIndicator[idx]
@@ -1162,7 +1121,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.ui.actions.select_recorder.setEnabled(False)
             self.ui.actions.config_recorder.setEnabled(False)
             self.ui.actions.toggle_recorder.setEnabled(False)
-            # disable all GUI elements but look at exception list
             for g in self.guidicts:
                 g.dock.setEnabled(False)
                 for action in g.menu_actions:
@@ -1242,7 +1200,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         # stop SCPI server to reflect that something is wrong instead of
         # returning the same reading over and over
         self.stopServer()
-        # open a popup window to inform about the error
         _ = QMessageBox.critical(
             self,
             f"Error in {pointer}",

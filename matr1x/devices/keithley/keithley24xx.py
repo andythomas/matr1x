@@ -123,7 +123,6 @@ class Keithley2400(Keithley24xx):
         """
         return super().read(nbytes).replace("\x13", "")
 
-    # high level functions
     def configure(
         self,
         sourceMode=None,
@@ -187,10 +186,8 @@ class Keithley2400(Keithley24xx):
         detect the sense range automatically. The range is chosen to
         include 1mA and the output is turned on.
         """
-        # do nothing if source/sensemode is not defined
         if sourceMode is None or senseMode is None:
             return
-        # assert source and sense mode are correct
         assert (sourceMode == "VOLT" and senseMode == "CURR") or (
             sourceMode == "CURR" and senseMode == "VOLT"
         ), 'source ("' + sourceMode + '") and/or sense ("' + senseMode + '") mode are incorrect'
@@ -198,7 +195,6 @@ class Keithley2400(Keithley24xx):
         # if none is given
         # if self.outputState != bool(output):
         self.output(False)
-        # sourceMode will now be current
         self.sourceMode = sourceMode
         self.senseMode = senseMode
 
@@ -206,11 +202,9 @@ class Keithley2400(Keithley24xx):
             cmdlist = ["*RST"]
         else:
             cmdlist = []
-        # we want sourceIsenseV
         cmdlist.append(f":SOUR:FUNC {sourceMode}")
         cmdlist.append(f':SENS:FUNC "{senseMode}"')
 
-        # check vs manual
         if delayAuto is True:
             cmdlist.append(":SOUR:DEL:AUTO ON")
         elif delay is not None:
@@ -320,7 +314,6 @@ class Keithley2450(Keithley24xx):
         self.senseMode = self.query(":SENS:FUNC?")
         self.outputState = bool(int(self.query(":OUTP?")))
 
-    # high level functions
     @synchronized
     def configure(
         self,
@@ -388,10 +381,8 @@ class Keithley2450(Keithley24xx):
         detect the sense range automatically. The range is chosen to
         include 1mA and the output is turned on.
         """
-        # do nothing if source/sensemode is not defined
         if sourceMode is None or senseMode is None:
             return
-        # assert source and sense mode are correct
         assert (sourceMode == "VOLT" and senseMode == "CURR") or (
             sourceMode == "CURR" and senseMode == "VOLT"
         ), 'source ("' + sourceMode + '") and/or sense ("' + senseMode + '") mode are incorrect'
@@ -399,14 +390,12 @@ class Keithley2450(Keithley24xx):
         # add get output here to reset the device to the previous state
         # if none is given
         self.output(False)
-        # sourceMode will now be sourceMode
         self.sourceMode = sourceMode
         self.senseMode = senseMode
         if reset is True:
             cmdlist = ["*RST"]
         else:
             cmdlist = []
-        # we want sourceIsenseV
         cmdlist.append(f":SOUR:FUNC {self.sourceMode}")
         cmdlist.append(f':SENS:FUNC "{self.senseMode}"')
         # reset units to amp/volt to avoid unintentional reading of\

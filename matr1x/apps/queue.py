@@ -765,7 +765,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.update_queue_action_state()
             return
         self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
-        # create parameter set for measurement, make sure to copy the meta data
         if not self.ui.widgets.config_editor.system_info:
             raise InternalInvariantError("System info should not be None at this point.")
         parameters = MeasurementItem(

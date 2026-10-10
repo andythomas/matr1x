@@ -120,12 +120,10 @@ class VisaDevice:
         # currently this is needed only by IsobusDevices
         self.sharedlock = kwargs.pop("sharedlock", threading.RLock())
 
-        # set number of commands which can be sent per second
         if cmdpers is not None:
             try:
                 cmdpers = int(cmdpers)
             except TypeError:
-                # Use a default number of commands per second from the config
                 cmdpers = self._config.cmdpers
             if cmdpers == 0:
                 # prevent division by 0
@@ -149,7 +147,6 @@ class VisaDevice:
         if not self._opened:
             # copy kwargs dictionary to modify in this function
             kwargs = copy.copy(self._kwargs)
-            # Open the connection to the device
             self.manager = pyvisa.ResourceManager(kwargs.pop("backend", ""))
             if isinstance(self.interface, resources.MessageBasedResource):
                 self.connection = self.interface
@@ -254,8 +251,6 @@ class VisaDevice:
     def _write_delay(self):
         """Wait to not exceed the communication speed the device can handle."""
         if self.timedelay is not None:
-            # make sure that enough time has passed so that a new command
-            # can be sent
             while self.timedelay > time.time() - self.timer:
                 # calculate wait time and avoid negative time delays.
                 delta_t = max(self.timedelay - (time.time() - self.timer), 0)

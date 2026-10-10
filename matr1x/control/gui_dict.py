@@ -747,18 +747,15 @@ class var(QObject):
             self._widgets[1].setReadOnly(True)
         elif isinstance(self._widgets[1], (QComboBox, QCheckBox)):
             self._widgets[1].setEnabled(False)
-        # apply a validator
         if isinstance(self._widgets[2], QLineEdit) and self._data.dtype is not None:
             val = validator.get(self._data.dtype, None)
             if val:
                 self._widgets[2].setValidator(val)
-        # add config checkbox
         if self.log is not None:
             checkbox = QCheckBox()
             checkbox.setChecked(self.log)
             checkbox.setVisible(False)
             self._widgets.append(checkbox)
-        # connect variable value with the widgets
         self._connect_signal()
         if self.hide:
             for w in self._widgets:
@@ -1004,7 +1001,6 @@ class var(QObject):
     @AutoSlot
     def _copy_value_slot(self) -> None:
         """Perform the widget update on the GUI thread."""
-        # check that a set-field exists, otherwise pass
         if (
             len(self._widgets) > 2
             and self._widgets[2] is not None
@@ -1100,12 +1096,9 @@ class GuiDict(dict[str, var]):
         self.parent = None
         self.running: bool = False
         self.showlog: bool = False
-        # buffer original commands
         normalize_cmds(self.cmds)
         self._orig_cmds: dict[str, Command] = copy.deepcopy(self.cmds)
-        # empty custom menu
         self.menu_actions = []
-        # initialize all with None
         self._reset()
         self._dispatcher = _GuiDispatcher(self)
         self.name: str = next(iter(self.keys()), self.__class__.__name__)
@@ -1139,7 +1132,6 @@ class GuiDict(dict[str, var]):
         self.container: QWidget = QWidget()
         self.container.setContentsMargins(10, 0, 10, 10)
 
-        # add top controls (hiding/enable) to the content widget
         self.control_layout: QHBoxLayout = QHBoxLayout()
         self.toolbar: QToolBar = QToolBar()
         style = MApplication.style()
@@ -1161,7 +1153,6 @@ class GuiDict(dict[str, var]):
         column.addWidget(self.container)
         column.addStretch()
 
-        # create content
         self.create_content()
 
         return self.dock
@@ -1175,12 +1166,9 @@ class GuiDict(dict[str, var]):
         it will need to attach its output to self.container!
         """
         grid = QGridLayout(self.container)
-        # create items of dictionary inside content
         for row, (key, variable) in enumerate(self.items()):
             variable._generate_widgets(key)
             for col, widget in enumerate(variable.widgets):
-                # add widgets to the grid layout at the correct position
-                # but skip hidden checkbox
                 if col == 0 and row == 0:
                     continue
                 if widget:
@@ -1320,7 +1308,6 @@ class GuiDict(dict[str, var]):
                 logger.exception("Error during System cleanup in GuiDict.stop()")
 
         self.restoreFeatures()
-        # reset variables and commands
         self._reset()
 
     def _reset(self) -> None:
@@ -1339,9 +1326,7 @@ class GuiDict(dict[str, var]):
     def start(self) -> None:
         """Start the refresh loop in a dedicated thread."""
         if not self.running and self.enable_switch.isChecked():
-            # initialize the system
             self.S.set()
-            # convert command function names to executables
             self.set_cmd_funcs(window_obj=self.parent, system=self.S)
             merged = self.S.merged_system
             if isinstance(merged, MergedSystem):
@@ -1361,12 +1346,10 @@ class GuiDict(dict[str, var]):
         respective class methods, variables or device functions from the
         system are used.
         """
-        # replace entries with executable functions
         for name, cmd in self._orig_cmds.items():
             setfunc, setargs = self._create_setfunc(name, cmd, window_obj, system)
             getfunc, getargs = self._create_getfunc(name, cmd, window_obj, system)
 
-            # set new Command properties in existing list
             self.cmds[name].setfunc = setfunc
             self.cmds[name].getfunc = getfunc
             self.cmds[name].setargs = setargs
@@ -1595,7 +1578,6 @@ class _Worker(QObject):
         Signal to report errors.
     """
 
-    # activity signal to indicate an iteration of the refresh timer
     activity = Signal(str)
     panic = Signal(bool, str)
     sig_error = Signal(type, Exception, str)

@@ -989,7 +989,6 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
 
     def _convert_completion_kind(self, lsp_kind):
         """Convert LSP completion kind to Monaco completion kind."""
-        # Map LSP completion kinds to Monaco kinds
         kind_mapping = {
             1: 17,  # Text -> Property
             2: 11,  # Method -> Method

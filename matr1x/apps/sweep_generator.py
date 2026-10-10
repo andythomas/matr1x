@@ -341,7 +341,6 @@ class ColumnData(BaseModel):
                     return Error("Inf or Nan in sweep, check parameters")
                 segment += sweepRange
             if self.up_down[indexS]:
-                # if up down is true, add the reversed sweep to the sweep
                 segment += list(reversed(segment))
             tempSweep += segment
         return Success(tempSweep)
@@ -391,10 +390,7 @@ class ColumnData(BaseModel):
                     # the most fundamental)
                     col = loop_over[indexS]
                     tempSweep = sweeps[indexS].copy()
-                    # copy the initial sweep to be looped
                     for _ in range(len(sweeps[col]) - 1):
-                        # for each element in the looped over column append the
-                        # initial sweep
                         sweeps[indexS] += tempSweep
                     loop_over[indexS] = -1
 
@@ -1298,7 +1294,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.grid_widgets.append(sweep_widgets)
 
         max_column_width = self.grid_widgets[0].loopover.minimumSizeHint().width()
-        # calculate how many columns fit the screen horizontally
         max_width = max_column_width + self.ui.grid.horizontalSpacing()
         left, _, right, _ = self.ui.grid.getContentsMargins()  # ty: ignore[not-iterable]
         screen_width = self.screen().availableGeometry().width() - left - right
@@ -1617,7 +1612,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                             return
                     for key in params:
                         if key in line:
-                            # read the parameters from the corresponding line
                             line = line.strip().replace(key, "")
                             params[key] = literal_eval(line)
         except PermissionError:
@@ -1625,7 +1619,6 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             return
         (parameter, loop_over, up_down, repeat) = params.values()
         self.columns.parameter = parameter
-        # initialize layout with values specified in file
         for col in range(len(self.columns.name)):
             self.grid_widgets[col].loopover.setCurrentIndex(loop_over[col] + 1)
             self.grid_widgets[col].updown.setCheckState(Qt.CheckState(up_down[col]))

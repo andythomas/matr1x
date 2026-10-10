@@ -66,7 +66,6 @@ class Danfysik9100(VisaDevice):
             kwargs["cmdpers"] = 10
         super().__init__(interface, **kwargs)
 
-    # high level functions
     def getCurrent(self):
         """
         Get the actual current at the device output.

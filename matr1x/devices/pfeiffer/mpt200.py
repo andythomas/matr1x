@@ -99,7 +99,6 @@ class MPT200(VisaDevice):
         """
         mant = float(reading[10:14]) * 1e-3
         exp = int(reading[14:16]) - 20
-        # return the correct float
         return mant * 10**exp
 
     def setFilamentState(self, state: int) -> None:
@@ -112,7 +111,6 @@ class MPT200(VisaDevice):
             The desired filament state (0=off, 1=on).
         """
         if int(state) == 0:
-            # sets register 041 to 0/False
             self.query("00110041010")
         elif int(state) == 1:
             # sets register 041 to 1/True
@@ -127,7 +125,6 @@ class MPT200(VisaDevice):
         int
             The current filament state (0=off, 1=on).
         """
-        # sets register 041 to 1/True
         return int(self.query("0010004102=?")[10:11])
 
     def getPressure(self) -> float:

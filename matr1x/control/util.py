@@ -179,7 +179,6 @@ def sendNotificationEmail(
         if attachment is not None:
             msg.attach(attachment)
 
-    # read email config
     conf = core_config.config.matr1x.email
     context = ssl.create_default_context()
 
@@ -262,7 +261,6 @@ def control_main(
         lockdir.mkdir(parents=True, exist_ok=True)
         lockfilename = lockdir / f"{package}_gui_{name}.lock"
         if lockfilename.exists():
-            # check if process still running
             with lockfilename.open(encoding="utf-8") as lockf:
                 otherpid = int(lockf.read())
             try:
@@ -278,7 +276,6 @@ Kill the other process ({otherpid}) before restarting.""",
             except psutil.NoSuchProcess:
                 # this is the normal behavior in this case -> move on.
                 pass
-        # generate lockfile and write in the process ID
         with lockfilename.open("w", encoding="utf-8") as lockf:
             lockf.write(f"{os.getpid()}\n")
 

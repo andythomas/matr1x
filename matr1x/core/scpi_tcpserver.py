@@ -97,9 +97,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         str | bytes | None
             The response value, or None if there is no valid getter.
         """
-        # normalize command to have same format as keys in cmd_list
         normcmd = self._normalize_cmd(cmd)
-        # identify query command in command list
         try:
             idx = self.normkeys.index(normcmd)
         except ValueError:
@@ -114,11 +112,9 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         # Will also work for returning lists of lists if the other
         # side interprets the value correctly (e.g. with
         # ast.literal_eval).
-        # get command specifications
         c = self.cmdvalues[idx]
 
         if c.getfunc is None:
-            # no getter is set
             logger.debug("getter is None for command: %s", cmd)
             return "None"
         if callable(c.getfunc):
@@ -146,19 +142,14 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
             command could not be processed.
         """
         value = ""
-        # split at the first space, to separate command from value
         try:
             cmd, value = cmd.split(" ", 1)
         except ValueError:
-            # no value was given or space was ommitted, split failed,
-            # will not do anything for that command
             if cmd[0] != "*":
                 # if what was sent was a * cmd (requires no value),
                 # then go on with parsing
                 return
-        # normalize command to fit to cmd_list
         normcmd = self._normalize_cmd(cmd)
-        # identify command
         try:
             idx = self.normkeys.index(normcmd)
         except ValueError:
@@ -167,7 +158,6 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 f"sent from {self.client_address}"
             )
             return
-        # get command specifications
         c = self.cmdvalues[idx]
         if c.setfunc is None:
             logger.debug("'None' setter for command: %s", cmd)
@@ -175,7 +165,6 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
             # also see comment few lines above why this is in addition needed.
             return "\x06"
         try:
-            # for listed values, split value into individual
             # values and cast to approprated "subtypes"
             if isinstance(c.dtype, (tuple, list)):
                 values = value.split(",")
@@ -188,15 +177,12 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                     else:
                         castval.append(tp(values[i]))
             elif c.dtype is None:
-                # exclude none for typecasting
                 pass
             else:
-                # typecast single value
                 if c.dtype is bool:
                     castval = bool(int(value))
                 else:
                     castval = c.dtype(value)
-            # Call the set command with value and the
             # additional parameters specified in the
             # cmd_list
             if callable(c.setfunc):
@@ -210,7 +196,6 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 # obeyed, otherwise some ~40ms delay is caused.
                 return "\x06"
         except (IndexError, TypeError, ValueError):
-            # in case of incorrectly sent command do nothing
             pass
 
     def parse(self, data):
@@ -249,12 +234,10 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         while not self.terminate:
             response = None
-            # read until \n and decode to utf-8
             data = str(self.rfile.readline(), "utf-8").strip().lower()
             if data == "":
                 # empty string was passed, connection was closed
                 break
-            # get response corresponding to commands
             responses = self.parse(data)
             if len(responses) != 0:
                 if len(responses) > 1:

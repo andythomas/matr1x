@@ -96,9 +96,7 @@ def _create_thread_safe_property_accessor(
 
     @wraps(original_accessor)
     def thread_safe_accessor(self: Instrument, *args: Any, **kwargs: Any) -> Any:
-        # Ensure instance has a communication lock
         _ensure_comm_lock(self)
-        # Execute the entire property operation atomically
         with self._comm_lock:
             return original_accessor(self, *args, **kwargs)
 
@@ -155,7 +153,6 @@ def _add_atomic_operation_method(instrument: Instrument) -> None:
         finally:
             instrument._comm_lock.release()
 
-    # Add the method to the instance
     instrument.atomic_operation = atomic_operation
 
 
@@ -180,15 +177,13 @@ def _patch_pymeasure_instrument_methods():
         if hasattr(Instrument, method_name):
             original_method = getattr(Instrument, method_name)
             if callable(original_method):
-                # Create a thread-safe wrapper with proper closure handling
+
                 def create_synchronized_method(
                     orig_method: Callable[..., Any], name: str
                 ) -> Callable[..., Any]:
                     @wraps(orig_method)
                     def synchronized_method(self: Instrument, *args: Any, **kwargs: Any) -> Any:
-                        # Ensure instance has a communication lock
                         _ensure_comm_lock(self)
-                        # Use the lock for synchronization
                         with self._comm_lock:
                             return orig_method(self, *args, **kwargs)
 
@@ -196,7 +191,6 @@ def _patch_pymeasure_instrument_methods():
                     synchronized_method.__name__ = f"synchronized_{name}"
                     return synchronized_method
 
-                # Replace the method with the synchronized version
                 wrapped_method = create_synchronized_method(original_method, method_name)
                 setattr(Instrument, method_name, wrapped_method)
 
@@ -213,10 +207,8 @@ def _create_thread_safe_property_creator(original_method, method_name):
     @staticmethod
     def thread_safe_property_creator(*args, **kwargs):
         """Thread-safe wrapper for property creation methods."""
-        # Create the property using the original method
         prop = original_method(*args, **kwargs)
 
-        # Wrap the property getter and setter with thread safety
         thread_safe_getter = None
         thread_safe_setter = None
 
@@ -226,7 +218,6 @@ def _create_thread_safe_property_creator(original_method, method_name):
         if prop.fset is not None:
             thread_safe_setter = _create_thread_safe_property_accessor(prop.fset, "setter")
 
-        # Return a new property with thread-safe accessors
         return property(
             fget=thread_safe_getter, fset=thread_safe_setter, fdel=prop.fdel, doc=prop.__doc__
         )
@@ -249,7 +240,6 @@ def _patch_pymeasure_property_creators():
     All of these can make multiple communication method calls in
     sequence and need to be atomic to prevent race conditions.
     """
-    # List of property creation methods that need patching
     property_methods = ["control", "setting", "measurement"]
 
     for method_name in property_methods:
@@ -258,7 +248,6 @@ def _patch_pymeasure_property_creators():
             if getattr(descriptor, "__name__", "").startswith(_PATCHED_NAME_PREFIX):
                 continue
 
-            # Create and apply the thread-safe wrapper
             original_method = getattr(Instrument, method_name)
             thread_safe_method = _create_thread_safe_property_creator(original_method, method_name)
             setattr(Instrument, method_name, thread_safe_method)
@@ -279,18 +268,14 @@ def _patch_pymeasure_instrument_init():
     if getattr(Instrument.__init__, "__name__", "").startswith(_PATCHED_NAME_PREFIX):
         return
 
-    # Store reference to original __init__ method
     original_init = Instrument.__init__
 
     def thread_safe_init(self: Instrument, *args: Any, **kwargs: Any) -> Any:
         """Thread-safe wrapper for Instrument.__init__."""
-        # Call original initialization
         result = original_init(self, *args, **kwargs)
 
-        # Ensure this instance has a communication lock
         _ensure_comm_lock(self)
 
-        # Add atomic operation context manager method
         _add_atomic_operation_method(self)
 
         return result

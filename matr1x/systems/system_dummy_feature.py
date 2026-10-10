@@ -78,11 +78,11 @@ class FeatureConfig(SystemConfigModel):
 
 
 # ============================
-
-
-# ============================
 # This area contains the required System definition and
 # the optional reimplementation of the set and reset function
+# ============================
+
+
 # ============================
 class Feature(System):
     """Measurement system for dummy feature demonstration."""
@@ -96,7 +96,6 @@ class Feature(System):
         initializing data collection attributes.
         """
         super().__init__()
-        # Load and validate configuration
         self.load_config(FeatureConfig, "matr1x.systems.system_dummy_feature")
 
         self.dcdata["source"] = "Dummy feature system"
@@ -188,13 +187,11 @@ class Feature(System):
         """
         # wrap base system function for safe handling of opening
         super().set(*args, **kwargs)
-        # configure devices upon initialization
         self.devs["dev1"].p2 = 10
         self.devs["dev2"].configure(
             measurement_mode=self.config.measurement_mode,
             output_enabled=self.config.output_enabled,
         )
-        # add a comment when set is finished
         # this might not be required (i.e. added automatically) depending on your device
         self.dcdata["description"] = (
             f"configuring dev2 for '{self.config.measurement_mode}' measurements"
@@ -207,10 +204,8 @@ class Feature(System):
         Is called by matrix upon deinitialization of the
         measurement.
         """
-        # set some parameter upon deinitializtion
         self.devs["dev1"].p2 = 0
         if "status" in kwargs and kwargs["status"] == "errored":
-            # perform special cleanup on error
             self.devs["dev2"].p1 = -1
         # wrap base system function for safe handling of opening
         super().reset(*args, **kwargs)

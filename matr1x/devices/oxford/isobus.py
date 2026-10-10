@@ -180,7 +180,6 @@ class IsobusDevice(VisaDevice):
                 logger.info(
                     "%s.query_float: float conversion error ('%s', %s)", self.name, msg, ret
                 )
-                # retry query
                 return self.query_float(msg, depth + 1)
 
     def get_status_value(

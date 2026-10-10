@@ -38,7 +38,6 @@ class Dummy(System):
         # The device class is instantiated as dummy(*args) when self.set() is
         # called upon start of the measurement.
 
-        # define columns for measurement
         self.add_param(
             "dev p2",  # parameter name, must be unique
             "cnt",  # parameter unit for the data file header
