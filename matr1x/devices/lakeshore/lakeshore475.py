@@ -48,7 +48,6 @@ class Lakeshore475(VisaDevice):
             kwargs["cmdpers"] = 20
         super().__init__(interface, **kwargs)
 
-    # high level functions
     def getField(self):
         """
         Get the current magnetic field reading.

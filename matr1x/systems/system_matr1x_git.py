@@ -24,8 +24,6 @@ from matr1x.core.util import get_package_path
 from matr1x.devices.git import gitDevice
 
 
-# ============================
-# define system class
 class Git(System):
     """System adding git information to the data file header."""
 
@@ -40,6 +38,3 @@ class Git(System):
             # of a git repository is used. Otherwise hard code the path here.
             args=(get_package_path("matr1x"),),
         )
-
-
-# ============================

@@ -263,7 +263,6 @@ class PSG8257D(VisaDevice):
         self.connection.timeout = 1e3 * sweep_time + n_points + 10e3
         self.write("INIT:IMM")
         self.query("*OPC?")
-        # reset timeout to default
         self.connection.timeout = self.timeout
 
     @synchronized
@@ -293,7 +292,6 @@ class PSG8257D(VisaDevice):
         sweep timing.
         """
         self.write(":SWE:GEN STEP")  # sweep type: ANALog or STEPped.
-        # automatically sweep through frequency range
         self.write(":SWE:MODE AUTO")
         self.write(":SWE:TIME:AUTO ON")
         self.write(":FREQ:MODE SWE")  # FIXed|CW|SWEep|LIST

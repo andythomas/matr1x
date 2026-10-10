@@ -67,11 +67,9 @@ class ToggleButton(QPushButton):
             The new checked state of the button.
         """
         super().setChecked(state)
-        # if it is checked
         if isinstance(self._labels, (list, tuple)):
             if state:
                 self.setText(self._labels[1])
-            # if it is unchecked
             else:
                 self.setText(self._labels[0])
 

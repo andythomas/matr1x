@@ -151,7 +151,6 @@ class exampleDict(GuiDict):
     def __init__(self):
         super().__init__()
         self.lock = threading.Lock()
-        # setup methods or change handlers of MethodBundle defined in the class scope.
         self.color_bar.add_change_handler(self.update_progress_color)
 
     def create_GUI(self):
@@ -164,17 +163,12 @@ class exampleDict(GuiDict):
             The GUI content.
         """
         content = super().create_GUI()
-        # optional custom menu
         print_action = QAction("Print in logger")
         print_action.setIcon(get_matrix_icon("CHAR_P"))
         print_action.triggered.connect(self.print_function)
-        # return all actions as a list to the controlwindow
-        # Just one action in is case
         self.menu_actions = [print_action]
-        # connect set/copy buttons
         self["Set"].widgets[1].clicked.connect(self.write)
         self["Set"].widgets[2].clicked.connect(self.copy_values)
-        # connect the toggle buttons to the corresponding functions
         self["toggle"].widgets[2].clicked.connect(self.set_toggle)
         return content
 
@@ -206,7 +200,6 @@ class exampleDict(GuiDict):
             self["V3"].value = self.S.devs["dummy"].p5
 
         if self["V4"].value is False and not self._panic:
-            # emit panic signel
             self.refresh_worker.panic.emit(True, "value V4 is False")
 
     def write(self):
@@ -227,19 +220,14 @@ class exampleDict(GuiDict):
         state : bool
             The state of the toggle button.
         """
-        # if it is checked
         if state:
-            # here should go code to set the feature in the hardware
             with self.lock:
                 self.S.devs["dummy"].p7 = True
-        # if it is unchecked
         else:
-            # here should go code to unset the feature in the hardware
             with self.lock:
                 self.S.devs["dummy"].p7 = False
             raise AttributeError("Test error inside a set function")
 
-    # example functions
     def setV1(self, val):
         """
         Provide example function 1.
@@ -336,7 +324,6 @@ class exampleDict2(GuiDict):
             hide=True,
         ),
     }
-    # set a custom interval for the refresh function which updates the values
     # from the hardware
     refresh_period = 0.1
     # allow deactivating the GuiDict which also closes all device connections
@@ -345,7 +332,6 @@ class exampleDict2(GuiDict):
 
     def __init__(self):
         super().__init__()
-        # FIFO queues to calculate linear trend of varying value
         N = 40  # length of all FIFO queues
         self.dataseries = collections.deque(maxlen=N)
         self.timestamps = collections.deque(maxlen=N)
@@ -371,15 +357,12 @@ class exampleDict2(GuiDict):
         self.timestamps.appendleft(time.time())
         self.dataseries.appendleft(self.v5)
         if count % 5 == 0:
-            # tasks performed every 5 iterations
-            # generate and update tooltip
             slope, std = linear_trend(self.timestamps, self.dataseries)
             if slope is not None and std is not None:
                 self[
                     "V5"
                 ].tooltip = f"last minute \nslope: {slope / 60:.3f}mbar/min\nstd: {std:.3f} mbar"
                 if self.extended_visible:
-                    # Update hidden info only while the extended controls are visible.
                     self["Info"].value = self._info_base + f"\n\nSlope: {slope / 60:.3f} mbar/min"
         self.v5 = round(30 * self._random_generator.random(), 3)
 

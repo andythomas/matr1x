@@ -138,7 +138,6 @@ class MercurySingleAxisIPS(VisaDevice):
         super().__init__(interface, write_termination="\n", read_termination="\n")
         self.maxfield = maxfield
         self.maxrate = maxrate
-        # determine status now
         self.queryAllDicts()
         self.logAllDicts()
 
@@ -249,7 +248,6 @@ class MercurySingleAxisIPS(VisaDevice):
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
                 )
             except (TypeError, IndexError):
-                # If float conversion fails, try bool conversion
                 if dummy == "ON":
                     self.workingDict[key][0][0] = True
                 elif dummy == "OFF":
@@ -259,7 +257,6 @@ class MercurySingleAxisIPS(VisaDevice):
                     try:
                         self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
-                        # what happened?
                         logger.info(
                             "Non bool value at %s is %s and can not be assigned to status",
                             key,
@@ -693,7 +690,6 @@ class MercuryIPS(VisaDevice):
         """
         self._initialize_state()
         super().__init__(interface, write_termination="\n", read_termination="\n", **kwargs)
-        # determine status now
         self.queryAllDicts()
         self.logAllDicts()
 
@@ -805,7 +801,6 @@ class MercuryIPS(VisaDevice):
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
                 )
             except (TypeError, IndexError):
-                # If float conversion fails, try bool conversion
                 if dummy == "ON":
                     self.workingDict[key][0][0] = True
                 elif dummy == "OFF":
@@ -815,7 +810,6 @@ class MercuryIPS(VisaDevice):
                     try:
                         self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
-                        # what happened?
                         logger.info(
                             "Non bool value at %s is %s and can not be assigned to status",
                             key,
@@ -862,24 +856,18 @@ class MercuryIPS(VisaDevice):
             adjusted values
         """
         valid = True
-        # check -2 <= xval <= 2
         if 2 + tolerance < abs(xval):
             valid = False
             xval = math.copysign(2, xval)
-        # check -2 <= yval <= 2
         if 2 + tolerance < abs(yval):
             valid = False
             yval = math.copysign(2, yval)
-        # check -6 <= zval <= 6
         if 6 + tolerance < zval:
             valid = False
             zval = math.copysign(6, yval)
-        # check if "ip" field is greater than 1.5T and limit magnitude to 2T
         if 1.5 + tolerance < math.sqrt(xval**2 + yval**2) and 2.0 + tolerance < math.sqrt(
             xval**2 + yval**2 + zval**2
         ):
-            # check if 3D field is greater than 2T and limit all axis
-            # conserving the direction (really necessary?)
             valid = False
             factor = 2.0 / math.sqrt(xval**2 + yval**2 + zval**2)
             xval = xval * factor
@@ -958,7 +946,6 @@ class MercuryIPS(VisaDevice):
         valid, (xv, yv, zv) = self.checkFields(xval, yval, zval)
         if valid is False:
             logger.info("Magnetic field exceeding limits was set, reduced amplitude")
-        # check that values also do not exceed limits with current fields
         self.setVal(xv, *self.workingDict["xFSet"][1:])
         self.setVal(yv, *self.workingDict["yFSet"][1:])
         self.setVal(zv, *self.workingDict["zFSet"][1:])
@@ -1412,13 +1399,11 @@ class MercuryITC(VisaDevice):
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
                 )
             except (TypeError, IndexError):
-                # If float conversion fails, try bool conversion
                 if dummy == "ON":
                     self.workingDict[key][0][0] = True
                 elif dummy == "OFF":
                     self.workingDict[key][0][0] = False
                 else:
-                    # what happened?
                     logger.info("Non bool value at %s is %s", key, dummy)
 
     def getDictValue(self, key):
@@ -1492,7 +1477,6 @@ class MercuryITC(VisaDevice):
         val : float
             Temperature setpoint in Kelvin (limited to 0-300K range)
         """
-        # Limit TVTI to 300K
         if val < 0:
             val = 0
         elif val > 300:
@@ -1529,7 +1513,6 @@ class MercuryITC(VisaDevice):
         val : float
             Needle valve opening percentage (0-100%)
         """
-        # Limit NV between 0 and 100%
         if val < 0:
             val = 0
         elif val > 100:

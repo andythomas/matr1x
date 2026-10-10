@@ -92,12 +92,10 @@ class Keithley2611A(VisaDevice):
         self.write("print(smua.sense)")
         # can't directly pars the output to bool
         self.fourWire = bool(float(self.read()))
-        # get output status
         self.write("print(smua.source.output)")
         # can't directly pars the value to int
         self.outputState = int(float(self.read()))
 
-    # high level functions
     @synchronized
     def configure(
         self,
@@ -165,17 +163,14 @@ class Keithley2611A(VisaDevice):
         measurement range, set the current sourcing range to include
         1mA, and enable the output.
         """
-        # do nothing if source/sensemode is not defined
         if sourceMode is None or senseMode is None:
             return
-        # assert source and sense mode are correct
         assert (sourceMode == "VOLT" and senseMode == "CURR") or (
             sourceMode == "CURR" and senseMode == "VOLT"
         ), f'source ("{sourceMode}") and/or sense ("{senseMode}") mode are incorrect'
         # add get output here to reset the device to the previous state
         # if none is given
         self.output(False)
-        # sourceMode will now be sourceMode
         self.sourceMode = sourceMode
         self.senseMode = senseMode
 
@@ -183,7 +178,6 @@ class Keithley2611A(VisaDevice):
             cmdlist = ["smua.reset()"]
         else:
             cmdlist = []
-        # we want sourceIsenseV
         cmdlist.append(f"smua.source.func={self.mode_int[self.sourceMode]}")
         # cmdlist.append(f":SENS:FUNC \"{self.senseMode}\"")
         # check if the last line is necessary for the new smu

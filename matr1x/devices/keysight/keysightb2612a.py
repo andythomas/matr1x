@@ -120,22 +120,18 @@ class KeysightB2961(VisaDevice):
         detect the sense range automatically. The range is chosen to
         include 1mA and the output is turned on.
         """
-        # do nothing if sourcemode is not defined
         if sourceMode is None:
             return
-        # assert source and sense mode are correct
         assert (sourceMode == "VOLT") or (sourceMode == "CURR"), (
             'source ("' + sourceMode + '") and/or sense ("' + senseMode + '") mode are incorrect'
         )
         # add get output here to reset the device to the previous state
         self.output(False)
-        # sourceMode will now be sourceMode
         self.sourceMode = sourceMode
         if reset is True:
             cmdlist = ["*RST"]
         else:
             cmdlist = []
-        # we want sourceIsenseV
         cmdlist.append(f":SOUR:FUNC:MODE {self.sourceMode}")
         if senseMode is not None:
             self.senseMode = senseMode
@@ -308,13 +304,11 @@ class KeysightB2961(VisaDevice):
             cmdlist.append(":INIT")
         else:
             cmdlist.append(":OUTP OFF")
-            # set sin mode
             cmdlist.append(f":SOUR:{self.sourceMode}:MODE ARB")
             cmdlist.append(":SOUR:ARB:FUNC SIN")
             cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:AMPL {float(amp)}")
             cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:FREQ {float(freq)}")
             cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:OFFS {float(offset)}")
-            # set number of repetitions
             cmdlist.append(f":SOUR:ARB:COUN {count}")
             # set phase marker (trigger/sync) output
             cmdlist.append(f":SOUR:ARB:{self.sourceMode}:SIN:PMAR:PHAS 0")
@@ -324,7 +318,6 @@ class KeysightB2961(VisaDevice):
             cmdlist.append(":SOUR:DIG:EXT1:POL POS")
             cmdlist.append(":SOUR:DIG:EXT1:TOUT:WIDT 50e-6")
 
-            # generate triggers for source internally
             cmdlist.append(":TRIG:TRAN:COUN 1")
             cmdlist.append(":TRIG:TRAN:SOUR TIMER")
 

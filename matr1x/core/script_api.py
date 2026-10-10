@@ -229,7 +229,6 @@ def _breakpoint(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict
             instance._calling = False
 
         if instance._calling:
-            # do not call decoration recursively
             return wrapped(*args, **kwargs)
 
         instance._calling = True
@@ -245,7 +244,6 @@ def _breakpoint(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict
             wrapped._calling = False
 
         if wrapped._calling:
-            # do not call decoration recursively
             return wrapped(*args, **kwargs)
 
         wrapped._calling = True
@@ -646,7 +644,6 @@ def init_datafile(
         outputfile=filename, inputfile=state.scriptname, append=append
     )
     if not append or not safe_filename.exists():
-        # write header to file
         if comment is not None:
             state.system.dcdata["description"] = comment
         msg, outputfile = state.system.init_datafile(state.scriptname or "matrix script generated")

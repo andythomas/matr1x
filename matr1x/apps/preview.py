@@ -95,10 +95,8 @@ class FetchResult(IntEnum):
     LOAD_FAILED = -3
 
 
-# A sentinel value for when there is no data
 NO_DATA = None
 
-# Error messages for the dimension errors returned by the reload_data functions
 PLOT_ERROR_MESSAGES = {
     -1: "data axis cannot be reshaped, lengths not multiples",
     -2: "data has too high dimension for 1d slicing",
@@ -245,7 +243,6 @@ class UIBuilder:
         grid.addWidget(self.widgets.placeholder, 4, 0, 1, -1)
         grid.addWidget(self.widgets.status, 5, 0, 1, -1)
         grid.addWidget(self.widgets.notifier, 0, 0, 1, -1)
-        # set rescaling behavior
         grid.setColumnStretch(1, 1)
         grid.setRowStretch(4, 1)
         grid.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
@@ -371,13 +368,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.log_window = LoggingWindow(parent=self)
         self.log_window.hide()
         logger.info("matrix-preview starting")
-        # File-related properties
         self.filename: Path | None = filename
         self.file_dir: Path = Path()
         self.file_index: int = 0
         self.data_files: list[str] = []
 
-        # State properties
         self.closing_allowed = True
         self.multidim = False
         self.error = False
@@ -385,12 +380,10 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
         self.update_thread: UpdateThread | None = None
 
-        # UI components that are not part of the UIBuilder
         self.spw: SimplePlotWidget  # Plot widget, needs window callbacks at creation
         self.iv: pyqtgraph.ImageView | None = None  # Image view widget
         self.column_items: list[str] = []  # Column descriptions for current file
 
-        # Data properties
         self.names: list[str] = []
         self.units: list[str] = []
         self.shapes: list[tuple[int, ...]] = []
@@ -427,18 +420,15 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.setCentralWidget(self.ui.widgets.central_widget)
         self.show()
         check_config(core_config.config, self.ui.widgets.notifier)
-        # allow to store the settings
         self.settings = SaferQSettings("matr1x", "preview")
         self.meta_viewer = MetaViewerWidget(self.header)
         self.setup_meta_viewer()
         self._create_connections()
-        # signal from delayed file open
         self.openfile_dialog.connect(self.load_button_pressed)
         # Only connect for root windows (parent=None) to avoid duplicate connections
         application = MApplication.instance()
         if parent is None:
             application.connect_file_handler(lambda filename: self.open_file(Path(filename)))
-        # initialize filename if available
         if filename:
             self.open_file(filename)
         self.setAcceptDrops(True)
@@ -470,7 +460,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         """Read the data from the file."""
         logger.info("opening %s", filename)
         self.filename = filename
-        # get all files
         self.file_dir = self.filename.absolute().parent
         self.setWindowTitle(f"Matrix Preview: {self.file_dir}")
         self.file_list_refresh()
@@ -579,7 +568,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def populate_file_data(self) -> None:
         """Populate the file-dependent GUI elements after loading a file."""
-        # replace the placeholder with the plot widget on first file load
         if self.ui.widgets.placeholder.isVisible():
             self.ui.widgets.placeholder.hide()
             self.spw.show()
@@ -589,14 +577,12 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.ui.actions.auto_update.setChecked(False)
         self.ui.actions.auto_update.blockSignals(False)
 
-        # file list
         self.ui.widgets.file_selector.blockSignals(True)
         self.ui.widgets.file_selector.clear()
         self.ui.widgets.file_selector.addItems(self.data_files)
         self.ui.widgets.file_selector.setCurrentIndex(self.file_index)
         self.ui.widgets.file_selector.blockSignals(False)
 
-        # column selectors
         self.column_items = [
             f"{name} ({unit}), shape: {shape}"
             for name, unit, shape in zip(self.names, self.units, self.shapes)
@@ -612,7 +598,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
         self.reset()
 
-        # enable file-dependent actions
         self.ui.actions.export_png.setEnabled(True)
         self.ui.actions.export_data.setEnabled(True)
         self.ui.actions.update.setEnabled(True)
@@ -726,14 +711,10 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             for name, unit, shape in zip(self.names, self.units, self.shapes)
         ]
         if check == FetchResult.SHAPES_CHANGED:
-            # file has same columns but different shapes, only change
-            # names to reflect the dimensions
             for i in range(3):
                 for j, item in enumerate(self.column_items):
                     self.ui.widgets.column_selector[i].setItemText(j, item)
         elif check == FetchResult.COLUMNS_CHANGED:
-            # file has different columns
-            # reload interface
             for i in range(3):
                 self.ui.widgets.column_selector[i].blockSignals(True)
                 self.ui.widgets.column_selector[i].clear()
@@ -792,7 +773,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if check_state is True:
             self.spw.setVisible(False)
             if self.iv is None:
-                # set up image view on first initialization
                 self.iv = pyqtgraph.ImageView()
                 self.ui.grid.addWidget(self.iv, 4, 0, 1, -1)
             else:
@@ -802,7 +782,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             del self.iv
             self.iv = None
             self.spw.setVisible(True)
-        # reload data and set widget labels
         self.plotting_toggled(check_state or self.ui.widgets.plot2d.isChecked())
 
     def raise_error(self, error: str) -> None:
@@ -843,7 +822,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         Run if the filename has changed.
         """
         if state:
-            # start updatethread with 2s refresh time
             self.update_thread = UpdateThread(2)
             self.update_thread.update_now.connect(self.conditional_fetch_data)
             self.update_thread.start()
@@ -879,7 +857,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             or force is True
             or (not skip_update and self.lu_time < stat_result.st_mtime)
         ):
-            # file has changed after last update,
             # reload the data into the file structure
             ret = self.fetch_data(check=check)
             if ret == FetchResult.LOAD_FAILED:
@@ -895,7 +872,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             f"{name} ({unit}), shape: {shape}"
             for name, unit, shape in zip(self.names, self.units, self.shapes)
         ]
-        # change names to reflect the dimensions
         for i in range(3):
             for j, item in enumerate(self.column_items):
                 self.ui.widgets.column_selector[i].setItemText(j, item)
@@ -940,7 +916,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             names = self.header["columns"]
             units = self.header["units"]
             shapes = [self._col(col).shape for col in names]
-            # update meta data info
             self.meta_viewer.update_data(self.header)
         except OSError as exc:
             # transient: missing permission, file removed, or HDF5 file
@@ -971,7 +946,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         self.names = names
         self.units = units
         self.shapes = shapes
-        # update timer
         self.lu_time = time.time()
         return ret
 
@@ -997,7 +971,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             ret = self.reload_data_2d()
         else:
             ret = self.reload_data_curve()
-        # handle the error if there is any
         self.handle_error(ret)
 
     def handle_error(self, ret: int) -> None:
@@ -1014,13 +987,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
             self.ui.widgets.column_selector[i].currentIndex() for i in range(3)
         ]
 
-        # Declare the dictionaries as Optional[PlotData]
         x: PlotData | None = None
         y: PlotData | None = None
         z: PlotData | None = None
 
         if indexZ == -1:
-            # empty index selected
             return -3
 
         data_vars: list[PlotData | None] = [z, x, y]
@@ -1077,13 +1048,11 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
 
         z, x, y = data_vars
 
-        # Check for the sentinel value
         if x is None or y is None or z is None or z["data"] is NO_DATA:
             return -9
         # data in a 2d plot can always be transposed
         self.ui.widgets.transpose.setVisible(True)
 
-        # data is loaded, now try to combine the data so that it becomes
         # plottable in a 2d plot
         transpose = False
         if self.ui.widgets.transpose.isChecked() is True:
@@ -1165,17 +1134,14 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         """
         indexY, indexX = [self.ui.widgets.column_selector[i].currentIndex() for i in range(2)]
 
-        # disable transpose widget
         self.ui.widgets.transpose.setVisible(False)
 
         y: PlotData | None = None
         x: PlotData | None = None
 
         if indexY == -1:
-            # empty index selected
             return -3
         elif indexX == -1:
-            # set up axis labels and units according to index
             dim = len(self.shapes[indexY])
             if dim >= 3:
                 return -2
@@ -1207,7 +1173,6 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
                 "shape": x_shape,
             }
         else:
-            # both axes are defined, set up x and y dictionary
             yname = self.names[indexY]
             y = {
                 "label": yname,
@@ -1230,61 +1195,41 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if y["data"].size == 0 or x["data"].size == 0:
             return -9
 
-        # data is loaded, now try to combine the data so that it becomes
         # plottable in a curve/scatter plot
         if x["shape"] != y["shape"]:
-            # data has uneqal shape, so we need to think about format
             if x["dim"] == 1 and y["dim"] == 1:
-                # one dimensional data but of uneven length
-                # attempt to reshape
                 small_axis = min(x["shape"][0], y["shape"][0])
                 large_axis = max(x["shape"][0], y["shape"][0])
                 if large_axis % small_axis == 0:
-                    # data can be reshaped
                     x["data"] = x["data"].reshape(small_axis, -1)
                     y["data"] = y["data"].reshape(small_axis, -1)
                 else:
-                    # data cannot be reshaped, abort
                     return -1
             elif x["shape"][0] == y["shape"][0]:
-                # same length on first axis, reshape into sets of curves
                 # with the length given by the identical axis.
                 x["data"] = x["data"].reshape(x["shape"][0], -1)
                 y["data"] = y["data"].reshape(x["shape"][0], -1)
                 # This will flatten 3D arrays into something that can be
-                # previewed as curve, although it does not make too
-                # much sense.
             elif x["data"].size == y["data"].size:
-                # data has same size, try to reshape to the one with higher
                 # dimension
                 reshape_dim = x["shape"] if x["dim"] > y["dim"] else y["shape"]
                 x["data"] = x["data"].reshape(reshape_dim)
                 y["data"] = y["data"].reshape(reshape_dim)
-                # Might be smarter to flatten?
             else:
-                # data multidimensional but with different dimensions, so
-                # we do not know how to handle this
                 return -4
         else:
-            # data identical with single or multiple dimension, no reshaping
             # required
             if x["dim"] < 3:
-                # data is has lower dimension than three
                 if x["dim"] == 2:
-                    # identidcal 2D data on both axes,
-                    # allow and handle transposition
                     self.ui.widgets.transpose.setVisible(True)
                     if self.ui.widgets.transpose.isChecked() is True:
                         x["data"] = x["data"].T
                         y["data"] = y["data"].T
             else:
-                # data has too many dimensions to display, one can possibly
                 # reshape for the first axis to match and flatten the data
                 # to two dimensions, but this will be horrible for the meaning
-                # of 3D data. I see no use case in implementing this
                 return -2
 
-        # update meta information and data
         self.spw.plot(y, x, plot2d=self.ui.widgets.plot2d.isChecked())
         return 0
 

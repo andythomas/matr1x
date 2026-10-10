@@ -130,7 +130,6 @@ class IPS120_switchheater(IsobusDevice):
         Automatically checks that the value is within the
         configured field limits.
         """
-        # check xval <= fieldlimits
         if self.fieldlimits[1] < xval:
             xval = self.fieldlimits[1]
         elif self.fieldlimits[0] > xval:
@@ -206,10 +205,8 @@ class IPS120_switchheater(IsobusDevice):
             # set magnet on hold
             self.setMagnetStatus(0)
             time.sleep(0.1)
-            # set setpoint to persistent field value
             self.setMagneticField(self.getPersistentField())
             time.sleep(0.1)
-            # set magnet to go to setpoint
             self.setMagnetStatus(1)
             while self.persistentField != self.getMagneticField():
                 time.sleep(1)
@@ -226,20 +223,16 @@ class IPS120_switchheater(IsobusDevice):
         else:
             # switch heater is on anyway
             pass
-        # set magnet to hold
         self.setMagnetStatus(0)
         time.sleep(0.1)
-        # apply setpoint
         self.setMagneticField(field)
         time.sleep(0.1)
-        # set to go to setpoint and remain there
         self.setMagnetStatus(1)
         # switch heater stays on
         self.statusmsg = f"Ramping to {field} T"
         if block:
             while True:
                 current_field = self.getMagneticField()
-                # wait for magnet to reach setpoint
                 if math.isclose(field, current_field, abs_tol=0.0001):
                     # # wait for magnet hold mode after reaching setpoint
                     # if self.getMagnetStatus() == 0:
@@ -266,7 +259,6 @@ class IPS120_switchheater(IsobusDevice):
         self.setMagneticFieldNonPersistent(field, block=True)
         # wait to be certain all field is gone
         time.sleep(1)
-        # turn off switch heater
         self.setSwitchHeater(False)
         # set non persistent field to 0
         self.setMagnetStatus(2)

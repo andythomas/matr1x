@@ -80,7 +80,6 @@ class Keithley2701(VisaDevice):
         self.triggered = False
         self.write(":FORM:ELEM READ")
 
-    # high level functions
     @synchronized
     def configure4WireOhm(
         self,
@@ -134,7 +133,6 @@ class Keithley2701(VisaDevice):
             cmdList.append(":FORM:ELEM READ")
         else:
             cmdList = []
-        # we want to measure volts
         cmdList.append(':SENS:FUNC "FRES"')
         if NPLC is not None:
             cmdList.append(":SENS:FRES:NPLC " + str(int(NPLC)))
@@ -218,7 +216,6 @@ class Keithley2701(VisaDevice):
             cmdList.append(":FORM:ELEM READ")
         else:
             cmdList = []
-        # we want to measure volts
         cmdList.append(':SENS:FUNC "RES"')
         if NPLC is not None:
             cmdList.append(":SENS:RES:NPLC " + str(int(NPLC)))
@@ -302,7 +299,6 @@ class Keithley2701(VisaDevice):
             self.write("*RST")
             cmdList.append(":FORM:ELEM READ")
             time.sleep(0.05)
-        # we want to measure volts
         cmdList.append(':SENS:FUNC "VOLT:DC"')
         if NPLC is not None:
             cmdList.append(":SENS:VOLT:NPLC " + str(float(NPLC)))

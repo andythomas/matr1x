@@ -64,10 +64,8 @@ __all__ = [
     "write_config",
 ]
 
-# default datafile extension
 output_extension = ".ma8"
 
-# Global list to store validation errors from configuration loading
 validation_errors: list[str] = []
 
 
@@ -158,21 +156,18 @@ def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
     """
     config_data = {}
 
-    # Load user configuration if available
     user_config_path = Path("~/.matr1x.toml").expanduser()
     if user_config_path.exists():
         with user_config_path.open("rb") as f:
             user_config = tomllib.load(f)
             config_data = merge_dicts(config_data, user_config)
 
-    # Override with local configuration if available
     local_config_path = Path("./matr1x.toml")
     if local_config_path.exists():
         with local_config_path.open("rb") as f:
             local_config = tomllib.load(f)
             config_data = merge_dicts(config_data, local_config)
 
-    # Override with optional configuration if available
     if optional_config_path:
         if optional_config_path.exists():
             with optional_config_path.open("rb") as f:
@@ -205,7 +200,6 @@ def _validate_loaded_config(loaded_config: dict[str, Any]) -> tuple[MainConfig, 
     """Validate loaded config and return validated model."""
     msg = ""
     try:
-        # Validate and update config with defaults from the model.
         validated = MainConfig.model_validate(loaded_config)
     except (ValidationError, TypeError, ValueError) as e:
         msg = format_validation_error(e)
@@ -259,7 +253,6 @@ def _find_differences(
             continue  # Key is missing in the current settings
         current_value = current_dict[key]
 
-        # If both are dictionaries, compare recursively
         if isinstance(default_value, dict) and isinstance(current_value, dict):
             sub_diff = _find_differences(default_value, current_value)
             if sub_diff:  # Only add non-empty differences
@@ -267,7 +260,6 @@ def _find_differences(
         elif default_value != current_value:  # Value differs
             differences[key] = current_value
 
-    # Add keys that are in current_dict but not in default_dict
     for key, value in current_dict.items():
         if key not in default_dict:
             differences[key] = value
@@ -308,9 +300,7 @@ def write_config(
         with optional_config_path.open("wb") as toml_file:
             tomli_w.dump(dump_dict, toml_file)
     else:
-        # load default settings from Pydantic model
         default_settings = MainConfig().model_dump(mode="json", by_alias=True, exclude_none=True)
-        # Dictionary to store new TOML data
         user_config = _find_differences(default_settings, dump_dict)
 
         user_config_path = Path("~/.matr1x.toml").expanduser()
@@ -344,8 +334,6 @@ def reload_config(optional_config_path: str | Path | None = None):
     datetimefmt = config.matr1x.datetime_format
 
 
-# load config and combine values from multiple sources
-# validate the entries
 config: MainConfig
 config, msg = _validate_loaded_config(load_config())
 _warn_config_errors(msg)
@@ -375,7 +363,6 @@ if file_handler is not None:
     )
 else:
     logging.basicConfig(format=config.matr1x.logging_format, datefmt=datetimefmt)
-    # fallback to usersfolder if logfolder does not exist
     logfolder = usersfolder
 
 _systems_directory = resolve_pkgroot_path(
@@ -383,7 +370,6 @@ _systems_directory = resolve_pkgroot_path(
 )
 if not _systems_directory.is_dir():
     print("matrix.conf: option matr1x/systems_directory is invalid, using fallback")  # noqa: T201
-    # use fallback option
     _systems_directory = Path(__file__).resolve().parent.parent / "systems"
 
 system_names: list[str] = [
@@ -393,7 +379,6 @@ system_directories: list[Path] = [
     _systems_directory,
 ]
 
-# Iterate over both defined fields and extra sections
 all_sections = set(type(config).model_fields.keys())
 if config.model_extra:
     all_sections.update(config.model_extra.keys())

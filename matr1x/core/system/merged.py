@@ -72,7 +72,6 @@ class MergedSystem(System):
 
     def __init__(self, systems: list[System]):
         self.subsys: list[System] = systems
-        # initialize superclass
         # here self.subsys is already used when initializing the
         # filename, so this needs to come here
         super().__init__()
@@ -91,7 +90,6 @@ class MergedSystem(System):
         self._merge_dcdata()
         self._check_hdf5()
 
-        # add timeUTC if not in system yet
         if "timeUTC" not in self.columns:
             self.add_param("timeUTC", "s", default=None, setter=time.sleep, getter=time.time)
             self._parameter_owners.append(None)
@@ -378,14 +376,11 @@ class MergedSystem(System):
         for subsys in self.subsys:
             for key, value in subsys.dcdata.items():
                 if key == "date":
-                    # skip date
                     continue
                 if value:
                     tmpdcdata[key].add(value)
-        # merge dcdata
         for key, vlist in tmpdcdata.items():
             self.dcdata[key] = ";".join(vlist)
-        # set correct timestamp, overwrites value
         self.dcdata["date"] = time.strftime(f"{core_config.datetimefmt}", time.localtime())
 
     def _check_hdf5(self) -> None:
@@ -465,11 +460,9 @@ class MergedSystem(System):
         **kwargs : dict
             Keyword arguments that can be used here, currently not used.
         """
-        # use individual system for opening devices
         for subsys in self.subsys:
             subsys.set(*args, **kwargs)
         self.refresh_devs()
-        # remerge potentially changed dcdata
         self.opened = True
 
     def query(self) -> dict[str, dict[str, Any]]:
@@ -516,7 +509,6 @@ class MergedSystem(System):
         **kwargs : dict
             Keyword arguments that can be used here, currently not used.
         """
-        # close all individual systems again
         if "status" in kwargs:
             self._write_status(f"{kwargs['status']}")
         self.opened = False

@@ -107,14 +107,11 @@ class DcDict(dict):
         if self.system_ref.merged_system:
             # initialized subsystem, write into merged parent
             if key not in APP_META_KEY:
-                # is meta key is non-editable, no append is allowed
                 super().__setitem__(key, value)
                 return
             self._append_value(key, value, ";@set:", ref=self.system_ref.merged_system.dcdata)
         elif self.append and self[key]:
-            # read only mode is enabled, append values
             if key not in APP_META_KEY:
-                # is meta key is non-editable, no append is allowed
                 super().__setitem__(key, value)
                 return
             self._append_value(key, value, ";@ap:")
@@ -206,7 +203,6 @@ class Parameter:
         trigger_kwargs: dict[str, Any] | None = None,
         label: str | None = None,
     ):
-        # general error checking
         if any([isinstance(name, (list, tuple)), isinstance(unit, (list, tuple))]):
             if not (
                 isinstance(unit, (list, tuple))
@@ -230,18 +226,15 @@ class Parameter:
                     if len(name) != len(val):
                         raise ValueError(f"{key} must have same length as name")
 
-        # set functions
         self.setter = setter
         self.getter = getter
         self.trigger = trigger
-        # store optional function args/kwargs
         self.setter_args: tuple[Any] | list[Any] | None = setter_args
         self.setter_kwargs: dict[str, Any] | None = setter_kwargs
         self.getter_args: tuple[Any] | list[Any] | None = getter_args
         self.getter_kwargs: dict[str, Any] | None = getter_kwargs
         self.trigger_args: tuple[Any] | list[Any] | None = trigger_args
         self.trigger_kwargs: dict[str, Any] | None = trigger_kwargs
-        # set identifiers
         self.unit: str | list[str] = self.verify(unit, str)
         self.name: str | list[str] = self.verify(name, str)
         self.label: str
@@ -251,28 +244,23 @@ class Parameter:
             self.label = self.make_command_line_compatible(self.name)
         self.dtypes: str | list[str] | None
         if dtypes is None:
-            # initialize dtypes to default value if unspecified
             if isinstance(self.unit, (list, tuple)):
                 self.dtypes = ["f8"] * len(self.unit)
             else:
                 self.dtypes = "f8"
         else:
             self.dtypes = self.verify(dtypes, str)
-        # generate defaults or set to None
         self.default: float | list[float] | None
         if default is not None:
-            # make sure default are all floats or raise error
             self.default = self.verify(default, (int, float))
         else:
             self.default = default
-        # generate or set chunks
         if chunks is None:
             if isinstance(name, (list, tuple)):
                 self.chunks = [1 for i in name]
             else:
                 self.chunks = 1
         else:
-            # make sure chunks are all int or raise error
             if isinstance(name, (list, tuple)):
                 # if multiple columns are present, check each set of chunks
                 # individually. Required as verify has depth limit of 1, so
@@ -320,15 +308,11 @@ class Parameter:
             Command line argument compatible representation
             of the input string.
         """
-        # If input is a list/tuple, use first element
         if isinstance(s, (list, tuple)):
             s = s[0]
 
-        # Replace non-alphanumeric characters with hyphens,
-        # convert to lowercase, and strip extra hyphens
         s = re.sub(r"[^a-zA-Z0-9]", "-", s).strip("-").lower()
 
-        # Handle empty string fallback
         return s if s else "arg"
 
     def verify(self, param: T, cast: type[T] | tuple[type[T], ...]) -> T:
@@ -432,40 +416,30 @@ class System:
         self.config_section: str | None = None
 
         self._config = core_config.config.matr1x.apps.matrix_script
-        # define merged system reference
         self.merged_system: System | None = None
         self._reporter: Callable[[MeasurementData], None] | None = None
-        # initialize lists for later use
         self.parameters: list[Parameter] = []
 
-        # initialize devices dict
         self.devs = {}
         self._devs_init = {}  # variable holding dev init info for reopeneing
         self.query_dict = {}  # store device information query
 
-        # Allow warnings
         self.warnings: list[tuple[str, int]] = []
 
-        # initialize flag to check whether system has been set
         self.opened = False
         self.system_config_params = {}
 
-        # initialize HDF5 flag
         self._hdf5: bool = False
-        # data filename variables
         self._filename: Path | None = None
         self._file_mode = "w"
         self._datafile_initialized = False
 
-        # initialize empty config dictionary for system-specific configuration
         self.config: Any = {}
 
-        # initialize empty sensitive_config dictionary for sensitive information
         # This dictionary will NOT be included in query results or file headers
         self.sensitive_config: UntypedConfigModel = UntypedConfigModel()
         self._sensitive_keys = []
 
-        # Dublin Core metadata default entries
         self.dcdata: DcDict = DcDict(
             self,
             creator="",  # measurement user
@@ -638,7 +612,6 @@ class System:
             config_data = config_data.model_dump(by_alias=True)
 
         try:
-            # Validate the config data
             validated_config = model_class.model_validate(config_data)
         except (ValidationError, TypeError, ValueError) as e:
             from matr1x.core.config import validation_errors
@@ -650,10 +623,8 @@ class System:
             validated_config = model_class.model_construct(**config_data)
 
         if sensitive_keys:
-            # Move sensitive keys to sensitive_config
             sensitive_data = {}
             for key in sensitive_keys:
-                # Check if the key exists as a field or in extra attributes
                 # Standard BaseModel doesn't support 'in', so we use getattr
                 sentinel = object()
                 val = getattr(validated_config, key, sentinel)
@@ -887,7 +858,6 @@ class System:
             True if HDF5 format is required, False if plain
             text format can be used.
         """
-        # check if hdf5 format has to be used
         for parm in self.parameters:
             if isinstance(parm.chunks, (list, tuple)):
                 if (
@@ -981,7 +951,6 @@ class System:
         elif args is not None:
             entry = [descriptor, args]
         else:
-            # device instance can be initialized without arguments
             entry = [descriptor, ()]
         self.devs[name] = entry
         self._devs_init[name] = entry
@@ -1074,7 +1043,6 @@ class System:
         """
         if self._reporter is not None:
             self._reporter(data)
-        # Defer to merged_system if it is present
         elif self.merged_system:
             self.merged_system.report(data)
 
@@ -1114,9 +1082,7 @@ class System:
         Path
             Generated datafile.
         """
-        # check whether hdf5 is required and change output extensions
         if self.hdf5 is True:
-            # append h5 to filename to discern filetypes
             file_extension = ".h5" + core_config.output_extension
         else:
             file_extension = core_config.output_extension
@@ -1126,7 +1092,6 @@ class System:
             datafile = Path(outputfile).expanduser()
         elif inputfile:  # no output file given -> input filename as template
             datafile = Path(inputfile).expanduser().with_suffix("")
-            # generate fallback option for the datafile name
         else:  # no output nor input file, generate from system names
             timestamp = time.strftime(core_config.datetimefmt, time.localtime())
             filename = Path(self.__name__).stem
@@ -1135,13 +1100,10 @@ class System:
                 # Windows does not like : in filenames
                 datafile_name = datafile_name.replace(":", "")
             datafile = Path(datafile_name)
-        # check if file extension was provided
         if not re.search(f"{refileext}$", str(datafile)):
-            # Remove existing extensions and add the correct one
             cleaned_name = re.sub(r"(\.h5)?\.ma\d$", "", str(datafile))
             datafile = Path(cleaned_name + file_extension)
         if not datafile.exists():
-            # use the unmodified file name
             self.filename = datafile
             self._file_mode = "w"
             return datafile
@@ -1162,8 +1124,6 @@ class System:
                 break
         if extension is None:
             raise RuntimeError("Could not find available filename after 10000 attempts")
-        # as last resort start a new file
-        # append the next possible number as file extension
         outfile = outfile.with_name(f"{outfile.name}_{extension}{file_extension}")
         self.filename = outfile
         self._file_mode = "w"
@@ -1191,13 +1151,11 @@ class System:
             String with action (verb) during which the
             exception occurred.
         """
-        # print column identifier upon any exception
         if i in self.columns:
             colid = i
         else:
             colid = self.columns[i]
         info = f"Exception occured when {action} column {colid}"
-        # print device identifier if available
         if callable(func):
             info += f" via function {func.__name__}."
         elif isinstance(func, str):
@@ -1251,7 +1209,6 @@ class System:
             return values
 
         if isinstance(values, Iterable):
-            # parameter list, verify values
             values = list(map(float, values))  # type: ignore
         else:
             values = float(values)
@@ -1378,7 +1335,6 @@ class System:
         kwargs = self.parameters[idx].trigger_kwargs
         if trigger is not None:
             try:
-                # trigger function has been provided
                 if callable(trigger) is True:
                     self._call_func(trigger, args, kwargs)
                 elif isinstance(trigger, str):
@@ -1554,7 +1510,6 @@ class System:
                 self._inform_exception(i, getter, "reading")
                 raise
         else:
-            # if get func is None, return "nan" or list of "nan"
             if isinstance(self.parameters[idx].name, (list, tuple)):
                 return ["nan"] * len(self.parameters[idx].name)
             return "nan"
@@ -1575,12 +1530,10 @@ class System:
         for key, dev in self.devs.items():
             if isinstance(dev, list) is True:
                 try:
-                    # initializing an instance of class dev[0] with args dev[1]
                     # and optionally kwargs in dev[2]
                     cls, devargs = dev[:2]
                     devkwargs = dev[2] if len(dev) > 2 else {}
                     if len(devargs) > 1 and "sharedwith" in devargs[0]:
-                        # need to get connection from other device
                         devargs = list(devargs)
                         otherdev = devargs[0].split("::")[1]
                         devargs[0] = self.devs[otherdev].connection
@@ -1589,7 +1542,6 @@ class System:
                             devkwargs["sharedlock"] = self.devs[otherdev].sharedlock
                     self.devs[key] = cls(*devargs, **devkwargs)
                 except Exception:
-                    # print device identifier upon any exception
                     print(f"Exception occured when initializing device {key}")  # noqa: T201
                     raise
             else:
@@ -1622,28 +1574,21 @@ class System:
         if self.opened is False:
             raise ValueError("System must be set before query can be called")
         retquery: dict[str, dict[str, Any]] = {}
-        # iterate over devices to get their config
         for key, dev in self.devs.items():
-            # get device
             try:
                 if key in self.system_config_params and hasattr(dev, "config_params"):
-                    # device config_params are specified in system and device
                     retquery[key] = System._device_query(
                         dev, {**self.system_config_params[key], **dev.config_params}
                     )
                 elif key in self.system_config_params:
-                    # device config query is specified in system
                     retquery[key] = System._device_query(dev, self.system_config_params[key])
                 elif hasattr(dev, "config_params"):
-                    # device has config query specified, should return dictionary
                     retquery[key] = System._device_query(dev, dev.config_params)
                 else:
-                    # no query details available
                     retquery[key] = {}
             except Exception as error:
                 print(f"system: error: could not access '{key}': {dev} {error}")  # noqa: T201
                 raise
-        # iterate over remaining keys in system_config_params
         for key in self.system_config_params.keys() - self.devs.keys():
             obj = self.system_config_params[key]
             if callable(obj):
@@ -1651,7 +1596,6 @@ class System:
             else:
                 retquery[key] = obj
 
-        # Add all system-wide configuration options from self.config organized by system name
         if self.config:
             retquery["system_config"] = {}
             if hasattr(self.config, "model_dump"):
@@ -1841,7 +1785,6 @@ class System:
             available in the system (name + index) as well as
             custom-defined system methods and variables (if any).
         """
-        # generate dictionary from devices, parameters, methods and config
         info = {
             "devices": {},
             "parameters": {},
@@ -1854,15 +1797,11 @@ class System:
         self._add_devices_to_information(info)
         self._add_parameters_to_information(info)
 
-        # Add custom methods and variables (skipped by wrapper systems
         # such as MergedSystem)
         if not self._exclude_custom_information:
             self._add_attributes_to_dict(info)
 
         self._add_config_to_information(info)
-
-        # Note: sensitive_config is intentionally NOT included in the query results
-        # to prevent sensitive information from being stored in file headers
 
         return info
 
@@ -1935,18 +1874,14 @@ class System:
         if self.filename.exists():
             self._datafile_initialized = True
             if self._file_mode == "a":
-                # in case append is true, do not create a new header
                 return ("Appending to datafile", self.filename)
             return ("File already exists, not adding header", self.filename)
-        # query info from the devices
         self.query_dict = self.query()
-        # prepare file definitions (column header and units)
         flatten_lists = (tuple, list)
         telemetry = [
             list(flatten(self.columns, types=flatten_lists)),
             list(flatten(self.units, types=flatten_lists)),
         ]
-        # prepare datafile
         if self.hdf5 is True:
             import h5py
 
@@ -1959,7 +1894,6 @@ class System:
                 assert data_file.swmr_mode
                 data_file.attrs["input filename"] = inputfile
                 data_file.attrs["system filename"] = self.__name__
-                # store query dict in hierachical data structure
                 save_dict_to_hdf5(self.query_dict, data_file, "system query")
 
                 for dckey, dcvalue in self.dcdata.items():
@@ -1972,7 +1906,6 @@ class System:
 
                 init_hdf5_skel(data_file, *telemetry)
         else:
-            # the next line could have a real bug?!
             telemetry += [default_separator]  # ty: ignore[unsupported-operator]
             with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():
@@ -2031,7 +1964,6 @@ class System:
         for i, _ in enumerate(self.columns):
             value = self.read_value(i)
             if isinstance(value, Iterable) and not isinstance(value, (str, bytes, Mapping)):
-                # Expand multi-value readouts into their output columns.
                 values.extend(value)
             else:
                 values.append(value)
@@ -2080,13 +2012,11 @@ class System:
                 datafile.swmr_mode = True
                 assert datafile.swmr_mode
                 comments = datafile["comments"]
-                # Resize the dataset to accommodate the new comment string
                 current_size = comments.shape[0]
                 comments.resize((current_size + 1,))
                 comments[current_size] = (message, timestamp)
         else:
             with Path(dfilename).open("a", encoding="utf-8") as datafile:
-                # write comment to file
                 datafile.write(f"# comment ({timestamp}): ")
                 # add continuation line markers
                 comment = "\n## ".join(message.splitlines())
@@ -2104,7 +2034,6 @@ class System:
         dfilename = self.filename
 
         if dfilename is None:
-            # if not valid datafile was initialized do nothing.
             return
 
         if self.hdf5 is True:
@@ -2116,7 +2045,6 @@ class System:
                 datafile.attrs["status"] = status
         else:
             with Path(dfilename).open("a", encoding="utf-8") as datafile:
-                # write comment to file
                 datafile.write(f"# status: {status}")
 
 

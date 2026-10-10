@@ -196,7 +196,6 @@ def enable_windows_virtual_terminal_processing():
         hstdout = kernel32.GetStdHandle(-11)  # Get handle to the console output
         mode = ctypes.c_ulong()
 
-        # Get the current console mode
         kernel32.GetConsoleMode(hstdout, ctypes.byref(mode))
 
         # Enable the ENABLE_VIRTUAL_TERMINAL_PROCESSING flag (0x0004)
@@ -286,7 +285,6 @@ def check_system_specifics() -> bool:
     """
     os_type = platform.system().lower()
     if "linux" in os_type or "bsd" in os_type:
-        # Check for Linux/Unix dependencies
         commands_to_check = [
             ("xdg-icon-resource", "xdg-utils (xdg-icon-resource)"),
             ("xdg-mime", "xdg-utils (xdg-mime)"),
@@ -358,7 +356,6 @@ def unix_integration() -> None:
         except subprocess.CalledProcessError:
             logger.error("Failed to install %s", desktop_file)
 
-    # Install MIME type icons and GNOME theme icons
     try:
         # datafile
         subprocess.run(
@@ -413,7 +410,6 @@ def unix_integration() -> None:
     except subprocess.CalledProcessError:
         logger.error("Failed to install MIME type icons.")
 
-    # Install MIME types and update desktop and MIME databases
     subprocess.run(
         ["xdg-mime", "install", str(mime_path / "matr1x-datafile-mime.xml")], check=True
     )
@@ -690,7 +686,6 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
     for gui in guilist:
         guiname = gui.replace("_", " ").replace("-", " ")
         if system_type == "linux" or "bsd" in system_type:
-            # Linux section
             try:
                 icon = icns_path / "matr1x-control.png"
                 control_gui_executable = get_installed_file(gui, pkgname)
@@ -721,7 +716,6 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
                 logger.error("Error during GUI integration: %s", e)
 
         elif system_type == "darwin":
-            # macOS section
             try:
                 control_gui_executable = get_installed_file(gui, pkgname)
                 icon = icns_path / "matr1x-control.png"
@@ -744,7 +738,6 @@ def control_gui_integration(pkgname: str, guilist: list[str]) -> None:
                 logger.error("Error during GUI integration: %s", e)
 
         elif system_type == "windows":
-            # windows section
             if editable:
                 icon = icns_path / "matr1x-control.ico"
             else:
@@ -767,7 +760,6 @@ def finalize_desktop_integration() -> None:
     """
     system_type = platform.system().lower()
     if system_type == "linux" or "bsd" in system_type:
-        # Update desktop and MIME databases
         subprocess.run(
             ["update-desktop-database", Path.home() / ".local/share/applications"],
             check=True,
@@ -833,7 +825,6 @@ def uninstall_core_desktopintegration() -> None:
 
     if system_type == "linux" or "bsd" in system_type:
         try:
-            # Uninstall icons and desktop files
             subprocess.run(
                 xdg_uninstall_basic_icon("matr1x-matrix-gui.png"),
                 check=False,
@@ -858,7 +849,6 @@ def uninstall_core_desktopintegration() -> None:
             )
             remove_path(Path.home() / ".local/share/applications/matrix-preview.desktop")
 
-            # Uninstall datafile/matrix-file icons and mime types
             subprocess.run(
                 xdg_uninstall_mime_icon("application-matr1x-datafile"),
                 check=False,
@@ -896,7 +886,6 @@ def uninstall_core_desktopintegration() -> None:
                 check=False,
             )
 
-            # Update desktop and icon caches
             subprocess.run(
                 [
                     "update-desktop-database",
@@ -942,11 +931,9 @@ def uninstall_core_desktopintegration() -> None:
         logger.info("Deleted application bundles")
 
     elif system_type == "windows":
-        # Remove existing start menu entry if it exists
         if start_menu_path.exists():
             shutil.rmtree(start_menu_path)
 
-        # Remove file associations and registry entries
         delete_command = """
         Remove-Item -Path "HKCU:\\Software\\Classes\\.ma6" -Recurse -Force -ErrorAction SilentlyContinue;
         Remove-Item -Path "HKCU:\\Software\\Classes\\.ma7" -Recurse -Force -ErrorAction SilentlyContinue;
@@ -974,7 +961,6 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
     """
     system_type = platform.system().lower()
 
-    # controlled removal of control-guis configured in the config
     for gui in extra_guis:
         if system_type == "linux" or "bsd" in system_type:
             try:
@@ -993,9 +979,7 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
         elif system_type == "windows":
             pass
 
-    # removal of remaining files
     if system_type == "linux" or "bsd" in system_type:
-        # Find and remove files following the pattern
         desktop_files = Path.home().glob(f".local/share/applications/python.{pkgname}.*.desktop")
         for file in desktop_files:
             file.unlink()
@@ -1068,7 +1052,6 @@ def post_installation():
         create_folders()
     if install_config.desktopintegration:
         core_desktop_integration()
-        # desktop integration for control guis
         for pkg_name, section in core_config.config:
             if section.install:
                 # config keys use import names, but get_installed_file needs
