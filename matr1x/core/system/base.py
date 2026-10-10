@@ -2062,7 +2062,7 @@ class System:
             Comment string to be added to the datafile.
         """
         dfilename = self.filename
-        if not isinstance(dfilename, Path):
+        if not isinstance(dfilename, Path) or not self._datafile_initialized:
             self.report(
                 Message(
                     f"No datafile initialized. Comment '{message}' not added to the datafile.",
@@ -2103,7 +2103,7 @@ class System:
         """
         dfilename = self.filename
 
-        if dfilename is None:
+        if dfilename is None or not self._datafile_initialized:
             # if not valid datafile was initialized do nothing.
             return
 
