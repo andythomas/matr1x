@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for controlling Magnet Physik FH55 Hall probe.
+Driver for the Magnet-Physik FH55 Hall probe.
 
-This module provides a driver class for interfacing with the FH55 Hall
+Provides a driver class for interfacing with the FH55 Hall
 probe from Magnet Physik via VISA communication protocols. It enables
 control and reading of magnetic field measurements, temperature
 readings, and various device settings such as range, filter, and
@@ -40,13 +40,13 @@ class FH55(VisaDevice):
         Parameters
         ----------
         interface : str
-          The ip andress and port where the device is located.
-          e.g. TCPIP::192.98.143.1::5025::SOCKET
+            The ip andress and port where the device is located.
+            e.g. TCPIP::192.98.143.1::5025::SOCKET
         timeout : int
-          (Default = 1e3 ms)
-          The timeout of the ethernet connection.
+            (Default = 1e3 ms)
+            The timeout of the ethernet connection.
         **kwargs :
-          Keyword arguments passed to the VISAdevice constructor.
+            Keyword arguments passed to the VISAdevice constructor.
         """
         super().__init__(
             interface,
@@ -96,8 +96,9 @@ class FH55(VisaDevice):
         """
         Set the measurement range based on the current field strength.
 
-        Automatically selects the appropriate range for the Hall probe based on
-        the measured field magnitude. Range selection criteria:
+        Automatically selects the appropriate range for the Hall
+        probe based on the measured field magnitude. Range
+        selection criteria:
         - Range 1: < 30 µT
         - Range 2: < 300 µT
         - Range 3: < 3 mT

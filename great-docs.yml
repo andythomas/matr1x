@@ -35,8 +35,10 @@ skill:
       file: skills/install/SKILL.md
     - name: Migration
       file: skills/migration/SKILL.md
-    - name: Dependabot
-      file: skills/dependabot/SKILL.md
+    - name: Security
+      file: skills/security/SKILL.md
+    - name: Write Control
+      file: skills/writeControl/SKILL.md
 
 # Logo & Favicon
 # ---------------
@@ -102,6 +104,18 @@ reference:
         members: false
       - name: control.gui_dict:GuiDict
         members: false
+      # GuiDict subclass contract: declared class attributes
+      - control.gui_dict:GuiDict.cmds
+      - control.gui_dict:GuiDict.data
+      - control.gui_dict:GuiDict.refresh_period
+      - control.gui_dict:GuiDict.allow_disabling
+      # GuiDict subclass contract: overridden methods and helpers
+      - control.gui_dict:GuiDict.create_GUI
+      - control.gui_dict:GuiDict.refresh
+      - control.gui_dict:GuiDict.copy_values
+      - control.gui_dict:GuiDict.panic
+      - control.gui_dict:GuiDict.unpanic
+      - control.gui_dict:GuiDict.extended_visible
       # GuiDict building blocks, in typical authoring order
       - control.gui_dict:var
       - control.gui_dict:guiObject
@@ -146,10 +160,10 @@ reference:
   - title: Util
     desc: Shared helper classes and functions
     contents:
-      - name: core.util:Command
+      - name: core.commands:Command
         members: false
-      - core.util:Get
-      - core.util:Set
+      - core.commands:Get
+      - core.commands:Set
 
   # ── SCPI server ─────────────────────────────────────────────────────
   - title: SCPI Server

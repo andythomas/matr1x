@@ -75,7 +75,7 @@ class DcDict(dict):
     """
     Custom dictionary class that only allows append if key already exists.
 
-    This class extends the built-in dictionary class to modify its behavior
+    Extends the built-in dictionary class to modify its behavior
     when in append mode or when a merged system exists.
     In append mode non-empty entries are extended.
 
@@ -94,7 +94,7 @@ class DcDict(dict):
         """
         Set item in the dictionary with modified behavior.
 
-        This method wraps dict.__setitem__ to change behavior when in append mode
+        Wraps dict.__setitem__ to change behavior when in append mode
         or when a merged system exists (append in that case).
 
         Parameters
@@ -144,68 +144,41 @@ class Parameter:
     """
     Define a measurement parameter.
 
-    This class describes one parameter in matrix. It can define a
-    single or multiple columns of the measurement.
+    Describes one parameter of a measurement, which can span a single
+    or multiple columns of the data file.
 
     Parameters
     ----------
     name : str or list of str
-        Name of the column(s) as string or list of strings. If this is
-        a list, make sure unit, default and chunks have same length.
+        Name of the column(s). If a list, unit, default and chunks
+        must be lists of the same length.
     unit : str or list of str
-        Unit of the column(s) as string or list of strings.
+        Unit of the column(s).
     default : float or list of floats, optional
-        Default value for parameter. If not None this value is always
-        used unless another value is specified in the measurement.
-        If None (default), no default value is set/used.
+        Value always used unless the measurement specifies another
+        one. If None (default), no default value is set.
     dtypes : str or list of str, optional
-        Dtype specified for saving into hdf5 files, not used for ascii
-        files. Default value is "f8" (8 byte float).
+        Dtype used when saving to hdf5 files, not used for ascii
+        files. Default is "f8" (8 byte float).
     chunks : int or list of int, optional
-        Length of the readback value. If a list is returned for a
-        single parameter, set to the length of that list.
-        If None (default), a chunk of 1 is assumed (readback of
-        parameter is single float).
+        Length of the readback value; a chunk of 1 (a single float)
+        is assumed if None.
     setter : callable, str, or list, optional
-        Function which should be called to set the values.
-        Must be one of:
-
-        * A callable function with the call signature
-          `func(value, *args, **kwargs)`. For optional arguments and
-          kwargs see setter_args/setter_kwargs.
-        * A string with a system method/property name. If it
-          corresponds to a method its call signature and arguments must
-          be equal to the callable function above.
-        * A list of the following scheme
-          [device_name : str, method_name : str, args : tuple, kwargs : dict].
-          The args and kwargs entries are deprecated and should be
-          replaced by the setter_args, setter_kwargs parameters.
+        Called to set the values. Can be a callable with the
+        signature `func(value, *args, **kwargs)`, a system
+        method/property name, or a list
+        [device_name, method_name, args, kwargs] (the args and kwargs
+        entries are deprecated, use setter_args/setter_kwargs).
+        Optional arguments are supplied via setter_args/setter_kwargs.
     getter : callable, str, or list, optional
-        Function which should be called to fetch the values.
-        Must be one of:
-
-        * A callable function with the call signature
-          `func(*args, **kwargs)`. The arguments and kwargs are
-          optional and can be supplied via getter_args/getter_kwargs.
-        * A string with a system method/property name. If it
-          corresponds to a method its call signature and arguments must
-          be equal to the callable function above.
-        * A list of the following scheme
-          [device_name : str, method_name : str, args : tuple, kwargs : dict].
-          The args and kwargs entries are deprecated and should be
-          replaced by the getter_args, getter_kwargs parameters.
+        Called to fetch the values; same options as setter, with
+        optional arguments supplied via getter_args/getter_kwargs.
     trigger : callable, str, or list, optional
-        Takes a trigger function. The options are equal to the getter
-        options. For the optional arguments and kwargs use
-        trigger_args/trigger_kwargs.
+        Trigger function; same options as getter, with optional
+        arguments supplied via trigger_args/trigger_kwargs.
     label : str, optional
-        Parameters label if different from name. This might be in
-        particular needed if an automatically generated label from a
-        name-list is not describing the content very well.
-
-    Attributes
-    ----------
-    All parameters are set as attributes of same name.
+        Label if different from name, e.g. when an automatically
+        generated label from a name list is not descriptive.
 
     Raises
     ------
@@ -331,9 +304,10 @@ class Parameter:
         """
         Convert input string(s) to command line argument format.
 
-        Replaces non-alphanumeric characters with hyphens, converts to
-        lowercase, and prepends with double dashes. If a list of strings is
-        given only the first entry is used for the output generation.
+        Replaces non-alphanumeric characters with hyphens,
+        converts to lowercase, and prepends with double dashes.
+        If a list of strings is given only the first entry is
+        used for the output generation.
 
         Parameters
         ----------
@@ -343,7 +317,8 @@ class Parameter:
         Returns
         -------
         str
-            Command line argument compatible representation of the input string.
+            Command line argument compatible representation
+            of the input string.
         """
         # If input is a list/tuple, use first element
         if isinstance(s, (list, tuple)):
@@ -395,41 +370,37 @@ class System:
     """
     Define a measurement setup/system.
 
-    It is mostly defined by the individual `Parameter`s (stored in
-    `parameters`) that are used in the system as well as the list of
-    devices stored in `devs`. Additionally, it provides functions to
-    set, trigger and read the individual parameters using the
-    specifications provided there. Finally, it defines the set, query
-    and reset function, which are used to open and initialize the
-    devices, query the device configuration/status and return the system
-    to a defined state, respectively.
+    A system is defined by its `Parameter`s (stored in `parameters`)
+    and its devices (stored in `devs`). It provides functions to set,
+    trigger and read the individual parameters, as well as set, query
+    and reset functions to open and initialize the devices, query
+    their configuration and return the system to a defined state.
 
     Attributes
     ----------
     parameters : list
-        Contains the individual parameters that make up the system.
+        The parameters that make up the system.
     columns : list
-        Contains the column names extracted from the individual parameters.
+        Column names extracted from the parameters.
     units : list
-        Contains the units extracted from the individual parameters.
+        Units extracted from the parameters.
     dtypes : list
-        Contains the dtypes extracted from the individual parameters.
+        Dtypes extracted from the parameters.
     default_values : list
-        Contains the default_values extracted from the individual parameters.
+        Default values extracted from the parameters.
     chunks : list
-        Contains the chunks extracted from the individual parameters.
+        Chunk lengths extracted from the parameters.
     devs : dict
-        Contains the individual devices that belong to the system.
+        The devices that belong to the system.
     dcdata : dict
-        Contains telemetry according to the Dublin Core specification
-        that can be used to generate specific header information. see
-        `VALID_META_KEYS`
+        Telemetry according to the Dublin Core specification that can
+        be used to generate header information, see `VALID_META_KEYS`.
     system_config_params : dict
-        Contains the definition for custom device queries to read the
-        configuration. Keys match the device names in .devs.
+        Custom device queries to read the configuration; keys match
+        the device names in `devs`.
     name : str or None
-        Optional instance name used by control GUIs and as the subsystem
-        accessor for ordinary systems.
+        Optional instance name used by control GUIs and as the
+        subsystem accessor for ordinary systems.
     """
 
     stateful: ClassVar[bool] = False
@@ -544,14 +515,15 @@ class System:
         Parameters
         ----------
         device_handle : object
-            Must be an open device that implements a query or ask function.
+            Must be an open device that implements a query
+            or ask function.
         config_params : dict
             Dictionary must adhere to the following format. Key is
             descriptor which is used to identify the parameter. The
             corresponding values must be one of:
 
-            * An attribute or method name (if callable without arguments of
-              the device object)
+            * An attribute or method name (if callable
+              without arguments of the device object)
             * A callable function (without arguments)
             * A query string for the device
             * A list of the following scheme
@@ -560,8 +532,9 @@ class System:
         Returns
         -------
         dict
-            A dictionary of dictionaries containing the configuration. The
-            keys of are the parameters that were queried.
+            A dictionary of dictionaries containing the
+            configuration. The keys of are the parameters
+            that were queried.
         """
         if hasattr(device_handle, "name"):
             device_id = str(device_handle.name)
@@ -634,16 +607,17 @@ class System:
         """
         Load and validate a configuration section from the matr1x TOML file.
 
-        The configuration is loaded from the specified section of the global
-        matr1x configuration and validated against the provided Pydantic
-        model class.
+        The configuration is loaded from the specified section
+        of the global matr1x configuration and validated against
+        the provided Pydantic model class.
 
         Parameters
         ----------
         model_class : type[BaseModel]
             The Pydantic model class to use for validation.
         section : str
-            The TOML section name to load (e.g., 'matr1x.systems.my_system').
+            The TOML section name to load (e.g.,
+            'matr1x.systems.my_system').
         sensitive_keys : list[str], optional
             A list of keys that should be moved to sensitive_config.
         """
@@ -710,10 +684,11 @@ class System:
         """
         Load and construct a static or stateful system from a file or module.
 
-        A system module must define exactly one local ``System`` subclass.
-        Stateful subclasses receive their required state during construction.
-        Legacy initialized ``system`` exports remain supported for static
-        systems with a deprecation warning.
+        A system module must define exactly one local ``System``
+        subclass. Stateful subclasses receive their required
+        state during construction. Legacy initialized ``system``
+        exports remain supported for static systems with a
+        deprecation warning.
         """
         try:
             reference = SystemReference.from_value(filename)
@@ -900,7 +875,7 @@ class System:
         """
         Get whether the system requires or uses HDF5 format for data storage.
 
-        This property determines if HDF5 format is needed based on the structure
+        Determines if HDF5 format is needed based on the structure
         of parameter chunks. HDF5 is required if any parameter:
         - Has a list/tuple of chunks but single name
         - Has nested tuple chunks
@@ -909,7 +884,8 @@ class System:
         Returns
         -------
         bool
-            True if HDF5 format is required, False if plain text format can be used.
+            True if HDF5 format is required, False if plain
+            text format can be used.
         """
         # check if hdf5 format has to be used
         for parm in self.parameters:
@@ -932,7 +908,8 @@ class System:
         Parameters
         ----------
         value : bool
-            Whether to use HDF5 format (True) or plain text format (False)
+            Whether to use HDF5 format (True) or plain text
+            format (False)
         """
         if self._hdf5 == value:
             return
@@ -994,7 +971,8 @@ class System:
         kwargs : dict, optional
             Dictionary with kwargs passed upon device initialization.
         config_params : dict, optional
-            Dictionary with query configuration, see query function for details.
+            Dictionary with query configuration, see query
+            function for details.
         """
         if args is not None and kwargs is not None:
             entry = [descriptor, args, kwargs]
@@ -1110,22 +1088,26 @@ class System:
         """
         Generate output datafile name.
 
-        No file should be overwritten. If append=True an existing datafile can be amended.
-        In all other cases a new file name is generated.
+        No file should be overwritten. If append=True an
+        existing datafile can be amended. In all other cases a
+        new file name is generated.
 
-        The datafilename will be generated preferentially from the outputfile
-        or the inputfile-name. An appropriate extension is automatically added.
+        The datafilename will be generated preferentially from
+        the outputfile or the inputfile-name. An appropriate
+        extension is automatically added.
 
         Parameters
         ----------
         outputfile : str | Path, optional
-            Output filename which should be used. Potentially a running number
-            will be added to avoid overwriting an existing file.
+            Output filename which should be used.
+            Potentially a running number will be added to
+            avoid overwriting an existing file.
         inputfile : str | Path, optional
-            If outputfile is empty this string will be used to generate a
-            datafile name.
+            If outputfile is empty this string will be used
+            to generate a datafile name.
         append : bool, optional
-            Flag to decide if one should append to a potentially existing datafile.
+            Flag to decide if one should append to a
+            potentially existing datafile.
 
         Returns
         -------
@@ -1203,9 +1185,11 @@ class System:
         i : int or str
             Index or name of the parameter where the exception occurred.
         func : callable, str, or list
-            Function, parameter name or list used when the parameter occurred.
+            Function, parameter name or list used when the
+            parameter occurred.
         action : str
-            String with action (verb) during which the exception occurred.
+            String with action (verb) during which the
+            exception occurred.
         """
         # print column identifier upon any exception
         if i in self.columns:
@@ -1231,10 +1215,11 @@ class System:
         """
         Set a parameter i to values.
 
-        Takes the column name or index and sets the corresponding parameter as
-        defined by the setter of the parameter, take care to send a correct
-        list.
-        If the setter is None, returns the send values (most likely nan or None).
+        Takes the column name or index and sets the
+        corresponding parameter as defined by the setter of the
+        parameter, take care to send a correct list. If the
+        setter is None, returns the send values (most likely nan
+        or None).
 
         Parameters
         ----------
@@ -1288,8 +1273,8 @@ class System:
         """
         Set values by a function call.
 
-        The function call includes optional arguments and kwarguments only when
-        they are not None.
+        The function call includes optional arguments and
+        kwarguments only when they are not None.
 
         Parameters
         ----------
@@ -1336,16 +1321,18 @@ class System:
         """
         Set some device property.
 
-        The device property can be a callable method or an attribute. The
-        callable method can receive optional additional arguments and keyword
-        arguments which will be preferentially taken from the `args`/`kwargs`
-        arguments. If those are not given the third and fourth entry of the
+        The device property can be a callable method or an
+        attribute. The callable method can receive optional
+        additional arguments and keyword arguments which will be
+        preferentially taken from the `args`/`kwargs` arguments.
+        If those are not given the third and fourth entry of the
         setter list are used instead.
 
         Parameters
         ----------
         setter : list
-            List of device name, property name/method, optional arguments, kwargs.
+            List of device name, property name/method,
+            optional arguments, kwargs.
         value : Any
             Value to which the device property should be set.
         args : list or None
@@ -1406,8 +1393,8 @@ class System:
         """
         Call a function with optional arguments/kwargs.
 
-        The function call includes arguments and kwarguments only when they are
-        not None.
+        The function call includes arguments and kwarguments
+        only when they are not None.
 
         Parameters
         ----------
@@ -1436,9 +1423,10 @@ class System:
         """
         Call some method which is specified by its attribute name.
 
-        The attribute name correspond to a callable method, otherwise no action
-        will be taken. An exception will be raised if no callable method can be
-        found and needs_callable is True.
+        The attribute name correspond to a callable method,
+        otherwise no action will be taken. An exception will be
+        raised if no callable method can be found and
+        needs_callable is True.
 
         Parameters
         ----------
@@ -1449,12 +1437,14 @@ class System:
         kwargs : dict or None
             Optional keyword arguments to the callable method.
         needs_callable : bool, optional
-            If True an exception will be raised if no callable method is found.
+            If True an exception will be raised if no
+            callable method is found.
 
         Returns
         -------
         Any
-            The return value of the called method or the attribute value.
+            The return value of the called method or the
+            attribute value.
 
         Raises
         ------
@@ -1474,25 +1464,29 @@ class System:
         """
         Call some device property.
 
-        The device property must be a callable method, otherwise no action will
-        be taken. An exception will be raised if no callable method can be found
-        and needs_callable is True.
+        The device property must be a callable method, otherwise
+        no action will be taken. An exception will be raised if
+        no callable method can be found and needs_callable is
+        True.
 
         Parameters
         ----------
         listdef : list
-            List of device name, property name/method, optional arguments, kwargs.
+            List of device name, property name/method,
+            optional arguments, kwargs.
         args : list or None
             Optional arguments to the device method.
         kwargs : dict or None
             Optional keyword arguments to the device method.
         needs_callable : bool, optional
-            If True an exception will be raised if no callable method is found.
+            If True an exception will be raised if no
+            callable method is found.
 
         Returns
         -------
         Any
-            The return value of the called method or the attribute value.
+            The return value of the called method or the
+            attribute value.
 
         Raises
         ------
@@ -1524,9 +1518,9 @@ class System:
         """
         Fetch readout value of parameter using the getter.
 
-        Takes the column name or index and reads the corresponding parameter
-        as defined by the getter of the parameter.
-        If the getter is None, returns nan.
+        Takes the column name or index and reads the
+        corresponding parameter as defined by the getter of the
+        parameter. If the getter is None, returns nan.
 
         Parameters
         ----------
@@ -1536,8 +1530,9 @@ class System:
         Returns
         -------
         readout : Any
-            The readout from the device/parameter getter. If getter is None,
-            returns "nan" or a list of "nan" values.
+            The readout from the device/parameter getter. If
+            getter is None, returns "nan" or a list of "nan"
+            values.
         """
         if isinstance(i, str) and i in self.columns:
             idx = self.columns.index(i)
@@ -1613,16 +1608,16 @@ class System:
         * An attribute or method name (if callable without arguments) of
           the device object
         * A query string for the device
-        * A list of the following scheme [method_name : str, args : tuple,
-          kwargs : dict]
+        * A list of the following scheme [method_name : str,
+          args : tuple, kwargs : dict]
 
         Refer also to matr1x.devices.visadevice for further information.
 
         Returns
         -------
         retquery : dict
-            Dictionary with dictionaries containing the configuration of each
-            device.
+            Dictionary with dictionaries containing the
+            configuration of each device.
         """
         if self.opened is False:
             raise ValueError("System must be set before query can be called")
@@ -1676,8 +1671,9 @@ class System:
         """
         General reset function for deinitialization of system.
 
-        Clears the read buffer of the instrument. The device will be left open
-        and initialized unless the system is closed or deleted.
+        Clears the read buffer of the instrument. The device
+        will be left open and initialized unless the system is
+        closed or deleted.
 
         Parameters
         ----------
@@ -1917,10 +1913,10 @@ class System:
         """
         Prepare the header of a matrix file for the matrix program.
 
-        This function inserts all relevant information including the setstr into
-        the header of a matrix file. If the file already exists, no second header
-        will be added. The header will also include information queried from the
-        devices.
+        Inserts all relevant information including the setstr
+        into the header of a matrix file. If the file already
+        exists, no second header will be added. The header will
+        also include information queried from the devices.
 
         Parameters
         ----------

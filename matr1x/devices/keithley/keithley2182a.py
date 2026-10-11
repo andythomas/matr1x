@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module providing the Keithley2182A nanovoltmeter interface."""
+"""Driver for the Keithley 2182A nanovoltmeter."""
 
 import logging
 from typing import ClassVar
@@ -29,7 +29,7 @@ class Keithley2182A(VisaDevice):
     """
     Keithley2182A nanovoltmeter instrument driver.
 
-    This class provides methods to control and interface with a Keithley 2182A
+    Provides methods to control and interface with a Keithley 2182A
     nanovoltmeter over a VISA connection.
 
     Parameters
@@ -75,14 +75,16 @@ class Keithley2182A(VisaDevice):
         """
         Send a query to the instrument and return the response.
 
-        This method overrides the parent class query method.
+        Overrides the parent class query method.
 
         Parameters
         ----------
         *args : tuple
-            Variable length argument list to pass to the parent query method
+            Variable length argument list to pass to the
+            parent query method
         **kwargs : dict
-            Arbitrary keyword arguments to pass to the parent query method
+            Arbitrary keyword arguments to pass to the
+            parent query method
 
         Returns
         -------
@@ -121,11 +123,14 @@ class Keithley2182A(VisaDevice):
         NPLC : int or float, optional
             Number of power line cycles to integrate over
         dFil : bool, optional
-            If True, turn on the digital filter. If False, window and filter count are ignored
+            If True, turn on the digital filter. If False,
+            window and filter count are ignored
         voltage_range : float, optional
-            Range of the voltage detection. Selected by the instrument to include the value
+            Range of the voltage detection. Selected by the
+            instrument to include the value
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional time during measurements
+            Automatic detection of the measurement range.
+            Takes additional time during measurements
         trigBus : bool, optional
             Sets trigger source to BUS if True
         delay : float, optional
@@ -134,7 +139,8 @@ class Keithley2182A(VisaDevice):
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving
         reset : bool, optional
-            If True, the device is reset prior to configuration (default False)
+            If True, the device is reset prior to
+            configuration (default False)
 
         Returns
         -------
@@ -213,7 +219,7 @@ class Keithley2182A(VisaDevice):
         """
         Get the most recent reading from the instrument.
 
-        This method should be called after triggering a reading with
+        Should be called after triggering a reading with
         triggerReading(). Resets the triggered flag to False after
         retrieving the reading.
 

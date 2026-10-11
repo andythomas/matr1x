@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Tempco 9300 temperature controller."""
+"""Driver for the Tempco 9300 temperature controller."""
 
 import enum
 
@@ -26,22 +26,13 @@ class TempcoMode(enum.Enum):
     """
     Temperature controller operation modes.
 
-    Parameters
-    ----------
-    PID : int
-        PID control mode
-    CALIBRATION : int
-        Calibration mode
-    AUTOTUNE : int
-        Auto-tuning mode
-    FAILURE : int
-        Failure mode
-    MANUAL : int
-        Manual control mode
-    SLEEP : int
-        Sleep mode
-    RAMP : int
-        Temperature ramping mode
+    - `PID`: PID control mode
+    - `CALIBRATION`: Calibration mode
+    - `AUTOTUNE`: Auto-tuning mode
+    - `FAILURE`: Failure mode
+    - `MANUAL`: Manual control mode
+    - `SLEEP`: Sleep mode
+    - `RAMP`: Temperature ramping mode
     """
 
     PID = 0

@@ -16,7 +16,7 @@
 """
 Interface for the Cryomagnetics CS04 magnet power supply.
 
-This module provides control functions for Cryomagnetics CS04
+Provides control functions for Cryomagnetics CS04
 superconducting magnet power supplies over VISA interface.
 """
 
@@ -29,17 +29,17 @@ class CS04(VisaDevice):
     """
     Cryomagnetics CS04 magnet power supply.
 
-    Typically connected via `GPIB::<address>::INSTR`
-    The user shall set `max_field` to a reasonable value upon initialization.
+    Typically connected via `GPIB::<address>::INSTR` The user shall
+    set `max_field` to a reasonable value upon initialization.
 
     Parameters
     ----------
     interface : str
         VISA resource name
-    max_field : float, optional
-        Maximum allowed field in Tesla, defaults to 0.1 T
     **kwargs
-        Additional arguments passed to VisaDevice
+        Additional arguments passed to VisaDevice. Includes the optional
+        `max_field` (float), the maximum allowed field in Tesla
+        (defaults to 0.1 T).
     """
 
     def __init__(self, interface, **kwargs):
@@ -129,12 +129,14 @@ class CS04(VisaDevice):
         setpoint : float, optional
             Target field in Tesla. If None, uses the internal setpoint.
         delta : float, optional
-            Acceptable difference between current and target field, defaults to 0.0002 T
+            Acceptable difference between current and target
+            field, defaults to 0.0002 T
 
         Notes
         -----
-        The method will wait until the field is within delta of the setpoint
-        for at least two consecutive readings, then pause the sweep.
+        The method will wait until the field is within delta of
+        the setpoint for at least two consecutive readings, then
+        pause the sweep.
         """
         if not setpoint:
             setpoint = self._setpoint

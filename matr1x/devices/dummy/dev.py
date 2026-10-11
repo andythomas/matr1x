@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module implementing a dummy device used for automatic testing of the code base."""
+"""Dummy device for automatic testing of the code base."""
 
 import copy
 from typing import ClassVar
@@ -21,7 +21,7 @@ from typing import ClassVar
 from pyvisa import rname
 
 from matr1x.core import scpi_tcpserver
-from matr1x.core.util import Command, Get, Set
+from matr1x.core.commands import Command, Get, Set
 from matr1x.core.visa_helpers import validate_local_tcpip_socket_visa_resource
 from matr1x.devices.scpi_dev import makeSCPIdevice
 
@@ -53,9 +53,10 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
     """
     Dummy device for testing.
 
-    Upon initialization the device starts a socket server which processes
-    queries received via this network socket. The server is hosted on the
-    loopback interface (localhost) and uses a high TCP/IP port number.
+    Upon initialization the device starts a socket server which
+    processes queries received via this network socket. The server
+    is hosted on the loopback interface (localhost) and uses a high
+    TCP/IP port number.
 
     Parameters
     ----------

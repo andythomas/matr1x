@@ -13,6 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Horst temperature controllers."""
+"""Horst temperature controller drivers."""
 
 from .htmc import HTMC11, HorstManualMode

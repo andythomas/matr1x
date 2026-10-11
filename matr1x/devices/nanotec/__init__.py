@@ -13,6 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with devices from Nanotec."""
+"""Nanotec device drivers."""
 
 from .pd4 import NanotecPD4

@@ -2,18 +2,16 @@
 
 ## Agentic Installation
 
-An agent can be utilized to perform all the required and recommended steps as indicated on this page automatically.
-Please install the package skills using the agent framework of your choice.
-Create an empty directory, point you agent to this directory and prompt for example:
+An agent can perform all the required and recommended steps of this
+page automatically, driven by the `matr1x-install` skill.
+Start an agent of your choice in the target directory of the
+installation, e.g. an empty one or an existing folder with your own
+drivers, and point it to the [skills page](https://andythomas.github.io/matr1x/skills.html),
+for example:
 
 ```markdown
-Please install matr1x as described in the matr1x-install skill.
-```
-
-If you have problems installing the skills, please point the agent to
-
-```markdown
-https://andythomas.github.io/matr1x/.well-known/agent-skills/matr1x-install/SKILL.md
+Please install matr1x as described in the matr1x-install skill on
+https://andythomas.github.io/matr1x/skills.html
 ```
 
 ## Basic Installation

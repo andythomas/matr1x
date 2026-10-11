@@ -46,6 +46,7 @@ else:
 import shiboken6
 from PySide6.QtCore import (
     QByteArray,
+    QEvent,
     Signal,
     Slot,
 )
@@ -127,6 +128,26 @@ class FileDropMixin:
             "Invalid File",
             "Unsupported file dropped.",
         )
+
+
+class ThemeChangeMixin:
+    """Call update_colors() when the desktop theme changes."""
+
+    def update_colors(self) -> None:
+        """Update the colors. Subclasses must override this method."""
+
+    def changeEvent(self, event: QEvent) -> None:
+        """
+        Call update_colors() on a palette change event.
+
+        Parameters
+        ----------
+        event : QEvent
+            The received event.
+        """
+        if event.type() == QEvent.Type.PaletteChange:
+            self.update_colors()
+        super().changeEvent(event)  # ty: ignore[unresolved-attribute]
 
 
 class hasLogActions(Protocol):

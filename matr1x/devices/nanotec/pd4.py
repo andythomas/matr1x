@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with Nanotec stepper motor controllers."""
+"""Driver for Nanotec stepper motor controllers."""
 
 import re
 import time
@@ -114,12 +114,14 @@ class NanotecPD4(VisaDevice):
         """
         Perform a reference run and set positioning mode to absolute.
 
-        Recommended to use when the position of the magnet isn't defined.
+        Recommended to use when the position of the magnet isn't
+        defined.
 
         Parameters
         ----------
         wait : float, optional
-            Timeout value for the reference run in milliseconds, by default 600e3
+            Timeout value for the reference run in
+            milliseconds, by default 600e3
 
         Returns
         -------
@@ -256,14 +258,16 @@ class NanotecPD4(VisaDevice):
         """
         Halbach function to move the motor.
 
-        Moves the motor by a given amount of steps (rel) or to a given position (abs)
-        depending on the current positioning mode. In relative positioning mode,
-        moves has to be a positive integer.
+        Moves the motor by a given amount of steps (rel) or to a
+        given position (abs) depending on the current
+        positioning mode. In relative positioning mode, moves
+        has to be a positive integer.
 
         Parameters
         ----------
         moves : int
-            Number of steps to move or target position (positive in rel pos mode)
+            Number of steps to move or target position
+            (positive in rel pos mode)
         position : int
             Current position
         speed : float
@@ -321,9 +325,11 @@ class NanotecPD4(VisaDevice):
         """
         Move the motor with position clipping.
 
-        Move the motor by a given distance (rel) or to a given position (abs)
-        in the specified unit, depending on active positioning mode.
-        Suitable for absolute and relative movement as well as degrees (if calibrated) or steps.
+        Move the motor by a given distance (rel) or to a given
+        position (abs) in the specified unit, depending on
+        active positioning mode. Suitable for absolute and
+        relative movement as well as degrees (if calibrated) or
+        steps.
 
         Parameters
         ----------
@@ -362,10 +368,11 @@ class NanotecPD4(VisaDevice):
         """
         Move the motor with position clipping and wait for completion.
 
-        Move the motor by a given distance (rel) or to a given position (abs)
-        in the specified unit, depending on active positioning mode.
-        Wait for move to finish.
-        Suitable for absolute and relative movement as well as degrees (if calibrated) or steps.
+        Move the motor by a given distance (rel) or to a given
+        position (abs) in the specified unit, depending on
+        active positioning mode. Wait for move to finish.
+        Suitable for absolute and relative movement as well as
+        degrees (if calibrated) or steps.
 
         Parameters
         ----------
@@ -402,10 +409,6 @@ class NanotecPD4(VisaDevice):
         """
         Read the current position in steps.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         int
@@ -417,10 +420,6 @@ class NanotecPD4(VisaDevice):
     def getPosDeg(self):
         """
         Get current position in degrees.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -434,10 +433,6 @@ class NanotecPD4(VisaDevice):
     def getPosMode(self):
         """
         Get active positioning mode.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -456,10 +451,6 @@ class NanotecPD4(VisaDevice):
         """
         Read the current minimum step frequency.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         int
@@ -471,10 +462,6 @@ class NanotecPD4(VisaDevice):
         """
         Get the time of the last reference run in local time.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         str
@@ -485,10 +472,6 @@ class NanotecPD4(VisaDevice):
     def getMovingStatus(self):
         """
         Read if the motor is still moving.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -505,10 +488,6 @@ class NanotecPD4(VisaDevice):
         """
         Read if the motor has a position error.
 
-        Parameters
-        ----------
-        None
-
         Returns
         -------
         bool
@@ -524,10 +503,6 @@ class NanotecPD4(VisaDevice):
     def getRotDir(self):
         """
         Get the rotation direction.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------
@@ -572,10 +547,6 @@ class NanotecPD4(VisaDevice):
     def resetMoves(self):
         """
         Reset the position of the motor to 0.
-
-        Parameters
-        ----------
-        None
 
         Returns
         -------

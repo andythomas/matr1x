@@ -32,12 +32,13 @@ logger = logging.getLogger(__name__)
 
 class ModbusDevice(minimalmodbus.Instrument):
     """
-    A class for communicating with Modbus devices using the minimalmodbus library.
+    Driver for Modbus devices using the minimalmodbus library.
 
-    This class extends minimalmodbus.Instrument to provide thread-safe register read/write
-    operations with error handling.
+    Extends minimalmodbus.Instrument to provide thread-safe register
+    read/write operations with error handling.
 
-    Note that devices implemented based on this class will likely be deprecated in the future.
+    Note that devices implemented based on this class will likely be
+    deprecated in the future.
 
     Parameters
     ----------
@@ -48,7 +49,8 @@ class ModbusDevice(minimalmodbus.Instrument):
     baudrate : int
         Communication speed in baud (bits/s)
     parity : str, optional
-        Parity setting for serial communication (default serial.PARITY_NONE)
+        Parity setting for serial communication (default
+        serial.PARITY_NONE)
     """
 
     def __init__(

@@ -15,8 +15,8 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Pydantic models (schema) for the matr1x configuration.
 
-This module is a leaf of the ``matr1x.core`` package: it must not import
-from ``matr1x.core.config`` or ``matr1x.core.models``.
+A leaf of the `matr1x.core` package: it must not import
+from `matr1x.core.config` or `matr1x.core.models`.
 """
 
 from pathlib import Path
@@ -57,7 +57,8 @@ def GuiField(
     decimals : int, optional
         The number of decimals to display for float values.
     ui_type : str, optional
-        The GUI hint for the field (e.g., 'scifloat', 'file', 'folder', 'visa_resource').
+        The GUI hint for the field (e.g., 'scifloat', 'file',
+        'folder', 'visa_resource').
     **kwargs
         Additional arguments passed to pydantic.Field.
     """
@@ -158,7 +159,7 @@ class SystemConfigModel(BaseModel):
 
 
 class ConfigBaseModel(BaseModel):
-    """Base class for configuration models providing recursive attribute access for extra fields."""
+    """Config model base providing recursive access to extra fields."""
 
     def __getattr__(self, name: str) -> Any:
         """Allow attribute-style access to extra fields."""

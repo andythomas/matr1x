@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for Keithley 2701 multimeter control.
+Driver for the Keithley 2701 multimeter.
 
-This module provides an interface to the Keithley 2701 multimeter for
+Provides an interface to the Keithley 2701 multimeter for
 precise measurements of resistance, voltage, and other electrical
 parameters through VISA communication.
 """
@@ -33,13 +33,14 @@ class Keithley2701(VisaDevice):
     """
     Interface for the Keithley 2701 multimeter.
 
-    This class provides methods to configure and control the Keithley 2701
+    Provides methods to configure and control the Keithley 2701
     for various measurement types including resistance and voltage.
 
     Attributes
     ----------
     config_params : dict
-        Dictionary of configuration parameters and their corresponding commands
+        Dictionary of configuration parameters and their
+        corresponding commands
     triggered : bool
         Flag indicating if a measurement has been triggered
     """
@@ -108,17 +109,21 @@ class Keithley2701(VisaDevice):
         NPLC : int, optional
             Number of power line cycles to integrate over
         dFil : bool, optional
-            If True, turn on the digital filter. If False window and filter count are ignored
+            If True, turn on the digital filter. If False
+            window and filter count are ignored
         resistance_range : float, optional
-            Range of the resistance detection. Selected by the instrument to include the value
+            Range of the resistance detection. Selected by
+            the instrument to include the value
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional time during measurements
+            Automatic detection of the measurement range.
+            Takes additional time during measurements
         trigBus : bool, optional
             Sets trigger source to BUS if True
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving
         reset : bool, optional
-            If True, the device is reset prior to configuration (default False)
+            If True, the device is reset prior to
+            configuration (default False)
 
         Returns
         -------
@@ -188,17 +193,21 @@ class Keithley2701(VisaDevice):
         NPLC : int, optional
             Number of power line cycles to integrate over
         dFil : bool, optional
-            If True, turn on the digital filter. If False window and filter count are ignored
+            If True, turn on the digital filter. If False
+            window and filter count are ignored
         resistance_range : float, optional
-            Range of the resistance detection. Selected by the instrument to include the value
+            Range of the resistance detection. Selected by
+            the instrument to include the value
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional time during measurements
+            Automatic detection of the measurement range.
+            Takes additional time during measurements
         trigBus : bool, optional
             Sets trigger source to BUS if True
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving
         reset : bool, optional
-            If True, the device is reset prior to configuration (default False)
+            If True, the device is reset prior to
+            configuration (default False)
 
         Returns
         -------
@@ -268,17 +277,21 @@ class Keithley2701(VisaDevice):
         NPLC : int, optional
             Number of power line cycles to integrate over
         dFil : bool, optional
-            If True, turn on the digital filter. If False window and filter count are ignored
+            If True, turn on the digital filter. If False
+            window and filter count are ignored
         voltage_range : float, optional
-            Range of the voltage detection. Selected by the instrument to include the value
+            Range of the voltage detection. Selected by the
+            instrument to include the value
         rangeAuto : bool, optional
-            Automatic detection of the measurement range. Takes additional time during measurements
+            Automatic detection of the measurement range.
+            Takes additional time during measurements
         trigBus : bool, optional
             Sets trigger source to BUS if True
         repeatingFilter : bool, optional
             If True set the filter to repeating, if False to moving
         reset : bool, optional
-            If True, the device is reset prior to configuration (default False)
+            If True, the device is reset prior to
+            configuration (default False)
 
         Returns
         -------
@@ -323,7 +336,7 @@ class Keithley2701(VisaDevice):
         """
         Trigger a measurement reading from the device.
 
-        This method sends the trigger command to the device and
+        Sends the trigger command to the device and
         sets the triggered flag to True.
 
         Returns
@@ -337,7 +350,7 @@ class Keithley2701(VisaDevice):
         """
         Get a reading from the device if it has been triggered.
 
-        This method retrieves the measurement data from the device,
+        Retrieves the measurement data from the device,
         clears the triggered flag, and returns the result as a float.
 
         Returns
@@ -347,7 +360,7 @@ class Keithley2701(VisaDevice):
 
         Notes
         -----
-        This method only works if triggerReading() has been called previously.
+        Only works if triggerReading() has been called previously.
         """
         if self.triggered is True:
             self.write(":SENS:DATA:FRES?")

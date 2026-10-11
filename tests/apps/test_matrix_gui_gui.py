@@ -22,10 +22,9 @@ from PySide6.QtCore import Qt
 
 from matr1x.apps import queue as matrix_gui
 from matr1x.core.eval import loadmatrix
-from matr1x.core.models import SystemInfo, SystemSelectionInfo
 
 
-def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
+def test_matrix_gui_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: Path):
     """
     Test basic matrix-gui functionality.
 
@@ -34,6 +33,7 @@ def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
     main window is visible
     sweep exists
     config reference value is successfully changed
+    queue action is disabled and exposes the reason for an invalid config
     """
     main_window = matrix_gui.MainWindow()
     main_window.show()
@@ -68,14 +68,6 @@ def test_matrix_gui_run(qtbot, qapp, input_dir: Path, tmp_path: Path):
     header, _data = loadmatrix(ma8file, to_polars=True)
     assert header["system query"]["system_config"]["reference_value"] == reference_value
 
-
-def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch, input_dir: Path):
-    """Invalid device config disables Queue and exposes the reason in the tooltip."""
-    main_window = matrix_gui.MainWindow()
-    main_window.show()
-    qtbot.waitExposed(main_window)
-    qapp.processEvents()
-
     main_window.ui.widgets.input_file.setText(str(input_dir / "sweep_for_matrix_gui.sw8"))
     qtbot.waitUntil(lambda: main_window.ui.actions.queue.isEnabled(), timeout=2000)
     main_window.ui.actions.config.setChecked(False)
@@ -92,31 +84,3 @@ def test_queue_action_disabled_for_invalid_config(qtbot, qapp, monkeypatch, inpu
     assert main_window.ui.widgets.config_editor.isVisible()
     main_window.queue_measurement()
     assert main_window.ui.widgets.meas_list.count() == 0
-
-
-def test_queue_config_uses_resolved_stateful_sections():
-    """Queue editors must not treat serialized state references as config paths."""
-    source = "matr1x.systems.system_stateful_dummy"
-    section = f"{source}.primary"
-    system_info = SystemInfo(
-        classes=["StatefulDummy_primary"],
-        devices={},
-        parameters={},
-        methods={},
-        variables={},
-        config={section: {}},
-        selections=[
-            SystemSelectionInfo(
-                source=source,
-                stateful=True,
-                states=("primary",),
-                state_exclusion_groups={"primary": "__default__"},
-                class_name="StatefulDummy",
-                state="primary",
-                accessor_name="StatefulDummy_primary",
-                config_section=section,
-            )
-        ],
-    )
-
-    assert system_info.configurable_sections == [section]

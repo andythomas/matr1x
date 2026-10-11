@@ -549,9 +549,10 @@ def _is_nonnegative_int(value: _SymbolicValue) -> TypeGuard[int]:
 def infer_point_counts(source: str) -> PointCounts:
     """Infer exact per-datafile ``measure_system`` totals from source.
 
-    The analyzer interprets only a deliberately restricted, side-effect-free
-    Python subset. It returns unknown totals whenever user code could change
-    the measurement count at runtime.
+    The analyzer interprets only a deliberately restricted,
+    side-effect-free Python subset. It returns unknown totals
+    whenever user code could change the measurement count at
+    runtime.
 
     Parameters
     ----------

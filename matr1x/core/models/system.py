@@ -44,7 +44,7 @@ class SystemReference(BaseModel):
 
     @classmethod
     def from_value(cls, value: "SystemReference | str | Path") -> "SystemReference":
-        """Normalize a reference object, source path, or compact ``source::name`` token."""
+        """Normalize a reference, source path, or ``source::name`` token."""
         if isinstance(value, cls):
             return value
         token = str(value).strip()
@@ -158,8 +158,9 @@ class SystemInfo(BaseModel):
     def configurable_sections(self) -> list[str]:
         """Return config sections for selections without a system file on disk.
 
-        For each selection whose ``source`` does not exist as a file, the
-        ``config_section`` is returned if set, otherwise the ``source``.
+        For each selection whose ``source`` does not exist as a
+        file, the ``config_section`` is returned if set,
+        otherwise the ``source``.
         """
         return [
             selection.config_section or selection.source

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling OWIS PS10 motor controllers."""
+"""Driver for the OWIS PS10 motor controller."""
 
 import logging
 import time
@@ -30,9 +30,9 @@ class Ps10(VisaDevice):
     r"""
     Owis PS10 motor controller class for stepper motor control.
 
-    This class provides an interface to control Owis PS10 motor controllers,
-    particularly for DMT100 stepper motors. It supports both absolute and
-    relative movement modes.
+    Provides an interface to control Owis PS10 motor controllers,
+    particularly for DMT100 stepper motors. It supports both absolute
+    and relative movement modes.
 
     Parameters
     ----------
@@ -60,8 +60,8 @@ class Ps10(VisaDevice):
 
     Notes
     -----
-    The DMT100 motor configuration uses 50 microsteps, 200 steps per motor
-    revolution, and a 180:1 gear ratio by default.
+    The DMT100 motor configuration uses 50 microsteps, 200 steps per
+    motor revolution, and a 180:1 gear ratio by default.
     """
 
     config_params: ClassVar[dict[str, str]] = {"Mode": "getMode"}
@@ -217,8 +217,9 @@ class Ps10(VisaDevice):
         """
         Move the motor by a specified number of steps.
 
-        In absolute mode, moves to the absolute position.
-        In relative mode, moves by the specified amount from current position.
+        In absolute mode, moves to the absolute position. In
+        relative mode, moves by the specified amount from
+        current position.
 
         Parameters
         ----------
@@ -234,8 +235,9 @@ class Ps10(VisaDevice):
         """
         Move the motor by a specified angle.
 
-        In absolute mode, moves to the absolute angle.
-        In relative mode, moves by the specified angle from current position.
+        In absolute mode, moves to the absolute angle. In
+        relative mode, moves by the specified angle from current
+        position.
 
         Parameters
         ----------

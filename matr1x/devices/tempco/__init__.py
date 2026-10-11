@@ -13,6 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Tempco temperature controllers."""
+"""Tempco temperature controller drivers."""
 
 from .tempco9300 import Tempco9300, TempcoMode

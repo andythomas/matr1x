@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Provide a base class for creating control GUIs for data acquisition systems.
+Base class for creating control GUIs for data acquisition systems.
 
-This module includes functionality for:
+Includes functionality for:
 - Setting up a GUI with collapsible sections
 - Managing multiple GuiDict objects for different parts of the interface
 - Handling device connections and communication
@@ -24,8 +24,8 @@ This module includes functionality for:
 - Creating a local SCPI TCP server for remote control
 - Error handling and GUI state management
 
-The ControlWindow class serves as a foundation for building specific control interfaces
-for various data acquisition setups.
+The ControlWindow class serves as a foundation for building specific
+control interfaces for various data acquisition setups.
 """
 
 import ast
@@ -44,7 +44,7 @@ from types import TracebackType
 from typing import Any
 
 from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -60,12 +60,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import matr1x
-from matr1x import logfolder, output_extension
+import matr1x.core.config as core_config
 from matr1x.control.gui_dict import GuiDict, catchEmitError
 from matr1x.core import scpi_tcpserver, system
+from matr1x.core.commands import Command, Get
 from matr1x.core.pymeasure_threading_fix import apply_pymeasure_threading_fix
-from matr1x.core.util import Command, Get, StreamToLogger
+from matr1x.core.util import StreamToLogger
 from matr1x.gui.app import MApplication
 from matr1x.gui.helpers import get_matrix_icon, open_matrix_toml
 from matr1x.gui.logging import LoggingWindow
@@ -264,7 +264,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     """
     Base class for control GUIs.
 
-    This class prepares a lot of things behind the scenes for use in typical
+    Prepares a lot of things behind the scenes for use in typical
     control GUIs.
 
     Parameters
@@ -272,20 +272,22 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     name : str
         Identifier string of the control GUI.
     guidicts : GuiDict or GuiDict subclass, or a list or tuple of those
-        GuiDict object(s) which build the basis of the controlGUI. Their
-        Systems must have unique names that are valid, non-keyword Python
-        identifiers.
+        GuiDict object(s) which build the basis of the
+        controlGUI. Their Systems must have unique names that
+        are valid, non-keyword Python identifiers.
     extra_cmds : dict, optional
-        Dictionary of commands offered for the measurement system. Commands from
-        the GuiDict object are merged together with this list.
+        Dictionary of commands offered for the measurement
+        system. Commands from the GuiDict object are merged
+        together with this list.
     parent : QWidget, optional
         Qt parent widget.
     package : str, optional
         Package name used in the generated log files.
     logging : bool or int, optional
-        Flag to enable logging on startup of the control GUI. If a numerical
-        value is given, the integer part of it will be used as interval (in
-        seconds) for the logging function.
+        Flag to enable logging on startup of the control GUI. If
+        a numerical value is given, the integer part of it will
+        be used as interval (in seconds) for the logging
+        function.
     port : int, optional
         TCP port number for the control GUI SCPI server socket.
     """
@@ -320,16 +322,18 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self.log_window.hide()
         logger.info("Control window '%s' starting", name)
         self.setWindowTitle(name)
-        icondir = Path(__file__).parent.parent / "scripts" / "icons"
-        self.setWindowIcon(QIcon(str(icondir / "matr1x-control.png")))
+        self.setWindowIcon(get_matrix_icon("matr1x-control.png"))
         self.settings = SaferQSettings(package, name)
         # initialize parameters
         self.running = False
         self.logging = False
-        filename = f"{package}.{name}_{time.strftime(matr1x.datetimefmt)}{output_extension}"
+        filename = (
+            f"{package}.{name}_{time.strftime(core_config.datetimefmt)}"
+            f"{core_config.output_extension}"
+        )
         if os.name == "nt":
             filename = filename.replace(":", "")  # Windows does not like : in filenames
-        self.logfile: Path = Path(logfolder) / filename
+        self.logfile: Path = Path(core_config.logfolder) / filename
         self._log_stop_event = threading.Event()
         self._log_interval_updated = threading.Event()
         self._log_stopped_event = threading.Event()
@@ -356,7 +360,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         self.create_connections()
         self.statusloggingUI()
-        check_config(matr1x.config, self.ui.widgets.notifier)
+        check_config(core_config.config, self.ui.widgets.notifier)
         self._restore_gui_settings()
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
@@ -422,9 +426,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Normalize GuiDict inputs and attach them to this control window.
 
-        `guidicts` may contain already-created GuiDict instances or GuiDict
-        subclasses, which are instantiated here. Legacy plain dictionaries and
-        non-var data entries are intentionally not converted anymore.
+        `guidicts` may contain already-created GuiDict instances
+        or GuiDict subclasses, which are instantiated here.
+        Legacy plain dictionaries and non-var data entries are
+        intentionally not converted anymore.
         """
         if guidicts is None:
             raw_guidicts = []
@@ -445,15 +450,15 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Restore previously saved GUI settings from persistent storage.
 
-        This method restores various GUI elements to their previous states,
+        Restores various GUI elements to their previous states,
         including:
         - GuiDict state and features
         - Window geometry (size, position)
         - Window state (layout of docks and toolbars)
         - Visibility of the status box
 
-        The settings are loaded from QSettings storage that was initialized
-        during the class construction.
+        The settings are loaded from QSettings storage that was
+        initialized during the class construction.
         """
         # restore settings of GuiDicts
         for g in self.guidicts:
@@ -709,7 +714,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Set up status and logging user interface.
 
-        This method creates and configures the widgets for status display
+        Creates and configures the widgets for status display
         and logging controls.
         """
         # initialize common widgets
@@ -847,7 +852,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
             # update date to reflect logging start time instead of GUI start time
-            self.S_log.dcdata["date"] = time.strftime(matr1x.datetimefmt, time.localtime())
+            self.S_log.dcdata["date"] = time.strftime(core_config.datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             msg, outputfile = self.S_log.init_datafile("matrix script generated")
@@ -877,7 +882,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     def select_datafile(self) -> None:
         """Allow selecting a file for the data recorder."""
         filename = QFileDialog.getSaveFileName(
-            self, "Select data file", str(logfolder), f"data recorder files (*{output_extension})"
+            self,
+            "Select data file",
+            str(core_config.logfolder),
+            f"data recorder files (*{core_config.output_extension})",
         )[0]
 
         # If no file was selected, keep the current logfile
@@ -893,7 +901,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
 
         # Update the logfile
         self.logfile = Path(filename)
-        self.logfile = self.logfile.with_suffix(output_extension)
+        self.logfile = self.logfile.with_suffix(core_config.output_extension)
         self.ui.widgets.recorder_file_label.setText(
             f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
         )
@@ -962,7 +970,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         Parameters
         ----------
         timeout : float, optional
-            Maximum wait time in seconds for the logging thread to terminate.
+            Maximum wait time in seconds for the logging
+            thread to terminate.
         """
         self._log_stop_event.set()
         thread = self._log_thread
@@ -980,9 +989,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Initialize GuiDicts and align them with their dock visibility.
 
-        The setup runs on the GUI thread and ensures that only visible guidicts
-        are started. Optionally, a delayed log start is scheduled to give all
-        guidicts time to populate their values.
+        The setup runs on the GUI thread and ensures that only
+        visible guidicts are started. Optionally, a delayed log
+        start is scheduled to give all guidicts time to populate
+        their values.
         """
         max_period = 1
         for guidict in self.guidicts:
@@ -1064,7 +1074,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Start the local TCP server with the driver functions specified in cmds.
 
-        This method initializes and starts a SCPI TCP server using the
+        Initializes and starts a SCPI TCP server using the
         command list defined in the class.
         """
         self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, port=self._port)
@@ -1130,13 +1140,14 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Disable all GUI elements.
 
-        This method is typically called after an error occurs to prevent further
+        Is typically called after an error occurs to prevent further
         interaction with the GUI.
 
         Parameters
         ----------
         flag : bool
-            If True, disables the GUI elements. If False, no action is taken.
+            If True, disables the GUI elements. If False, no
+            action is taken.
         """
         if flag:
             if self.logging:
@@ -1169,7 +1180,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Save current window and dock geometry.
 
-        This method saves the current size, position, and state of the
+        Saves the current size, position, and state of the
         window, as well as the visibility of the status box and toolbar
         visibility state. These settings will be reloaded upon restart
         of the Control GUI.
@@ -1189,14 +1200,13 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         a0 : QCloseEvent
             The close event.
         """
-        # Save window and dock states
+        logger.info("Control window '%s' closed by user", self.windowTitle())
         self.save_window_state()
         for g in self.guidicts:
             g.dock.saveCurrentState()
 
         self.cleanup_log_window()
 
-        # Accept the close event
         super().closeEvent(a0)
 
     @AutoSlot
@@ -1247,10 +1257,11 @@ Please investigate the error and eventually restart the graphical user interface
 
 class EnableAction(QAction):
     """
-    A QAction subclass that automatically updates its icon based on checked state.
+    QAction subclass that updates its icon with the checked state.
 
-    This action is designed for enable/disable functionality and automatically
-    updates its icon color when the checked state changes.
+    This action is designed for enable/disable functionality and
+    automatically updates its icon color when the checked state
+    changes.
 
     Parameters
     ----------
@@ -1298,10 +1309,11 @@ class EnableAction(QAction):
 
 class FullInfoAction(QAction):
     """
-    A QAction subclass that automatically updates its icon based on checked state.
+    QAction subclass that updates its icon with the checked state.
 
-    This action is designed for full info/less info functionality and automatically
-    updates its icon (+ or -) when the checked state changes.
+    This action is designed for full info/less info functionality
+    and automatically updates its icon (+ or -) when the checked
+    state changes.
 
 
     Parameters

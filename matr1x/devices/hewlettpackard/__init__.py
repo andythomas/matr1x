@@ -13,6 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Hewlett-Packard devices."""
+"""Hewlett-Packard device drivers."""
 
 from .hp3245a import HP3245A

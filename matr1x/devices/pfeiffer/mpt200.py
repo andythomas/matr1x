@@ -22,7 +22,7 @@ class MPT200(VisaDevice):
     """
     MPT200 pressure gauge interface.
 
-    This class provides methods to interact with a MPT200 pressure gauge
+    Provides methods to interact with a MPT200 pressure gauge
     through a VISA interface.
     """
 

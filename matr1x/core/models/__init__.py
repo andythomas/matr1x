@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Pydantic data models for configuration, system info, and measurement data."""
+"""Pydantic models for configuration, system info, and measurement data."""
 
 from matr1x.core.models.config import (
     ConfigBaseModel,

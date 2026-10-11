@@ -39,7 +39,8 @@ class Agilent8114A(VisaDevice):
         interface : str
             VISA resource name or interface identifier
         **kwargs : dict
-            Additional keyword arguments to pass to the VisaDevice constructor
+            Additional keyword arguments to pass to the
+            VisaDevice constructor
         """
         self.local = False
         self.output = False
@@ -123,8 +124,8 @@ class Agilent8114A(VisaDevice):
         """
         Set impedance of output.
 
-        Disables the output for the setting and reenables if output was on
-        before command was called.
+        Disables the output for the setting and reenables if
+        output was on before command was called.
 
         Parameters
         ----------
@@ -194,7 +195,8 @@ class Agilent8114A(VisaDevice):
         Parameters
         ----------
         period : float
-            Pulse period in nanoseconds, valid range is 66.7 ns to 999 ms
+            Pulse period in nanoseconds, valid range is 66.7
+            ns to 999 ms
         """
         if period > 66.6:
             self.write(f"PULS:PER {period:.1f} NS")
@@ -272,8 +274,8 @@ class Agilent8114A(VisaDevice):
         Different trigger modes are available:
         - continuous: Start with output = 1
         - external/edge/positive slope
-        - manual trigger: Will be used with the start_pulsing() function.
-          It replaces MAN Key button.
+        - manual trigger: Will be used with the start_pulsing()
+          function. It replaces MAN Key button.
 
         Parameters
         ----------
@@ -314,7 +316,8 @@ class Agilent8114A(VisaDevice):
         """
         Configure the Agilent 8114A with common settings.
 
-        This is a utility function to quickly set up the most common parameters.
+        This is a utility function to quickly set up the most
+        common parameters.
 
         Parameters
         ----------

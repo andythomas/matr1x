@@ -23,13 +23,14 @@ dependencies = [
     "numpy >= 1.21.2",                              # core
     "pyobjc-framework-Cocoa >= 8.0 ; platform_system == 'Darwin'",  # gui.app (macOS integration)
     "decorator >= 5.2.1",                           # control.gui_dict
-    "polars >= 1.0",                                # core.eval
+    # polars 2.0.0 bug, fix pending in pola-rs/polars#29811
+    "polars >= 1.0, != 2.0.0",                      # core.eval
     "psutil >= 5.9.0",                              # control
     "pyqtgraph >= 0.12.3",                          # gui plotting
     "PySide6 >= 6.4.0",                             # gui
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'",  # gui
-    "pygit2 >= 1.16",                               # gui.helpers, devices.git
-    "pygit2 >= 1.19; python_version >= '3.14'",     # gui.helpers, devices.git (Py 3.14+)
+    "pygit2 >= 1.16",                               # core.util, devices.git
+    "pygit2 >= 1.19; python_version >= '3.14'",     # core.util, devices.git (Py 3.14+)
     "wrapt > 2.0",                                  # devices
     "urwid > 2.0",                                  # TUI (apps.cli)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
@@ -45,7 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-elab = ["elabapi_python >= 5.3.0", "jinja2"] # for the electronic notebook
+elab = ["elabapi_python >= 5.3.0", "jinja2", "urllib3"] # for the electronic notebook
 ppms = [
     "MultiPyVu >= 3.6.1", # for matr1x/devices/quantumdesign/ppms,
 ]
@@ -95,6 +96,7 @@ line-length = 99       # max per pep8
 
 [tool.ruff.lint]
 extend-select = [
+    'D',        # pydocstyle (docstring formatting)
     'A',        # flake8 builtins (Python builtins being used as variables or parameters.)
     'W505',     # doc line too long
     'E501',     # line too long

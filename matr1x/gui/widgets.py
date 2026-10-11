@@ -46,7 +46,7 @@ class QRangeWidget(QGroupBox):
     """
     Widget that displays a range slider with decrement/increment sliders.
 
-    This widget consists of a range slider with a decrement/increment
+    Consists of a range slider with a decrement/increment
     slider on either side and a label on the left.
     """
 
@@ -180,7 +180,7 @@ class FileLineEdit(QLineEdit):
     """
     Widget that displays a LineEdit with a button that opens a QFileDialog.
 
-    This widget consists of a QLineEdit and a FileDialog. Upon return
+    Consists of a QLineEdit and a FileDialog. Upon return
     the selected filename is passed to the callback function provided as
     argument
     """

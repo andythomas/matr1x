@@ -40,6 +40,7 @@ Please note that the notiications overwrite each other and inform the correspond
 | numpy input to `delta`/`delta3p`        |    8.6.0    | >=8.8.0 |
 | numpy return from `loadmatrix`          |    8.6.0    | >=8.8.0 |
 | `[matr1x.scripts]` config section       |    8.6.0    | >=8.8.0 |
+| legacy import paths (re-export shims)   |    8.6.0    | >=8.8.0 |
 | `logging_format` config entry           |    8.6.0    | >=8.8.0 |
 [^logfmt]: Removed already in the current `development` version: the entry is
     ignored and triggers a warning for two releases; the warning check itself

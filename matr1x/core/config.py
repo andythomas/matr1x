@@ -16,10 +16,11 @@
 """
 Configuration management for the matr1x data acquisition software.
 
-This module loads, validates, and manages the matr1x configuration. It owns
-the live configuration globals (``config``, ``datetimefmt``) together with the
-derived directories and the logging setup. The ``matr1x`` package imports this
-module and re-exports these names for backward compatibility.
+Loads, validates, and manages the matr1x configuration. It owns the live
+configuration globals (``config``, ``datetimefmt``) together with the
+derived directories and the logging setup. The ``matr1x`` package
+imports this module and re-exports these names for backward
+compatibility.
 
 Key features:
 - Configuration loading from default, user, and local sources
@@ -62,8 +63,6 @@ __all__ = [
     "validation_errors",
     "write_config",
 ]
-
-deprecation_marker = "[MATR1X_DEPRECATED]"
 
 # default datafile extension
 output_extension = ".ma8"
@@ -167,10 +166,10 @@ def _migrate_config(config_data):
 
 def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
     """
-    Load configuration from user config, local config, and an optional config.
+    Load configuration from user, local, and optional configs.
 
-    The configuration files are loaded in the following order, with later files
-    overriding settings from earlier ones:
+    The configuration files are loaded in the following order, with
+    later files overriding settings from earlier ones:
     1. User configuration (~/.matr1x.toml)
     2. Local configuration (./matr1x.toml)
     3. Optional configuration (if provided e.g. in GUI)
@@ -178,9 +177,9 @@ def load_config(optional_config_path: Path | None = None) -> dict[str, Any]:
     Parameters
     ----------
     optional_config_path : pathlib.Path, optional
-        Path to an optional TOML configuration file.  If provided, settings
-        in this file will override those in the user and local configuration
-        files.
+        Path to an optional TOML configuration file. If
+        provided, settings in this file will override those in
+        the user and local configuration files.
     """
     config_data = {}
 
@@ -260,7 +259,7 @@ def _find_differences(
     """
     Recursively compares two dictionaries and finds differences.
 
-    This function compares a dictionary representing default settings with
+    Compares a dictionary representing default settings with
     a dictionary representing current settings. It returns a new
     dictionary containing only the keys and values that differ from the
     default settings.
@@ -275,9 +274,9 @@ def _find_differences(
     Returns
     -------
     differences : dict
-        A dictionary containing only the settings that differ from the
-        default settings. If no differences are found, an empty dictionary
-        is returned.
+        A dictionary containing only the settings that differ
+        from the default settings. If no differences are found,
+        an empty dictionary is returned.
     """
     differences = {}
     for key, default_value in default_dict.items():
@@ -307,21 +306,21 @@ def write_config(
     """
     Write non-default config options to the user config or optional config.
 
-    Writes the differences between the current configuration and the default
-    configuration to the user configuration file (~/.matr1x.toml) or the
-    specified optional configuration file. If an optional configuration file
-    is specified, the differences are written to that file instead of the
-    user configuration file, and no comparison with the default settings
-    is performed.
+    Writes the differences between the current configuration and the
+    default configuration to the user configuration file
+    (~/.matr1x.toml) or the specified optional configuration file.
+    If an optional configuration file is specified, the differences
+    are written to that file instead of the user configuration file,
+    and no comparison with the default settings is performed.
 
     Parameters
     ----------
     config_dict : dict or BaseModel
         Configuration settings to write.
     optional_config_path : pathlib.Path, optional
-        Path to an optional TOML configuration file.  If provided, settings
-        in this file will be written without comparing to the default
-        configuration.
+        Path to an optional TOML configuration file. If
+        provided, settings in this file will be written without
+        comparing to the default configuration.
     """
     # Ensure we are working with a dictionary for tomli_w
     # Using mode='json' converts Paths to strings and Enums to their values
@@ -349,15 +348,16 @@ def reload_config(optional_config_path: str | Path | None = None):
     """
     Reload the configuration dictionary.
 
-    Reloads the configuration dictionary by calling the `load_config` function
-    with the specified optional configuration path.
+    Reloads the configuration dictionary by calling the
+    `load_config` function with the specified optional configuration
+    path.
 
     Parameters
     ----------
     optional_config_path : str or pathlib.Path, optional
-        Path to an optional TOML configuration file.  If provided, settings
-        in this file will override those in the user and local configuration
-        files.
+        Path to an optional TOML configuration file. If
+        provided, settings in this file will override those in
+        the user and local configuration files.
     """
     global config, datetimefmt
     if isinstance(optional_config_path, str):

@@ -16,11 +16,12 @@
 """
 Defines a system for demonstration of the HDF5 data file format option.
 
-Note: The hdf5 data format is needed for multidimensional datasets but includes
-a rather large overhead which is only compensated for if at each single data point
-a large number of values is stored. For simple floating point values it is recommended
-to stick to the ascii format.
-In case you are interested in the overhead for chunked data storage in hdf5 see
+Note: The hdf5 data format is needed for multidimensional datasets but
+includes a rather large overhead which is only compensated for if at
+each single data point a large number of values is stored. For simple
+floating point values it is recommended to stick to the ascii format. In
+case you are interested in the overhead for chunked data storage in hdf5
+see
 https://davis.lbl.gov/Manuals/HDF5-1.8.7/Advanced/Chunking/index.html
 """
 
@@ -41,7 +42,7 @@ class Hdf5(System):
     """
     Measurement system with HDF5 support for testing matr1x-matrix.
 
-    This class extends the base System class to provide a dummy system
+    Extends the base System class to provide a dummy system
     with HDF5 capabilities for testing purposes.
     """
 
@@ -101,7 +102,8 @@ class Hdf5(System):
         Parameters
         ----------
         shape : int or tuple, optional
-            The shape to reshape the p4 array to. Default is -1 (flattened array).
+            The shape to reshape the p4 array to. Default is
+            -1 (flattened array).
 
         Returns
         -------

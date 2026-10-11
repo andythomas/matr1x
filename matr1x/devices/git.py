@@ -16,7 +16,7 @@
 """
 Git repository interface module for the matr1x data acquisition system.
 
-This module provides classes for interacting with Git repositories.
+Provides classes for interacting with Git repositories.
 """
 
 from typing import ClassVar
@@ -28,8 +28,8 @@ class gitDevice:
     """
     Interface to Git repositories.
 
-    A class that provides methods to interact with a Git repository using
-    the pygit2 library.
+    A class that provides methods to interact with a Git repository
+    using the pygit2 library.
 
     Parameters
     ----------
@@ -112,7 +112,8 @@ class gitDevice:
         Returns
         -------
         str or None
-            The URL of the first remote, or None if no remotes are configured.
+            The URL of the first remote, or None if no
+            remotes are configured.
         """
         remotes = self.repo.remotes
         if remotes:
@@ -138,8 +139,9 @@ class gitDevice:
         Returns
         -------
         dict
-            A dictionary with keys representing different status categories
-            (staged, modified, untracked, etc.) and values as lists of file paths.
+            A dictionary with keys representing different
+            status categories (staged, modified, untracked,
+            etc.) and values as lists of file paths.
         """
         status = self.repo.status()
         status_output = {

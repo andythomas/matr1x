@@ -22,7 +22,7 @@ class CAENelsEasyDriver(VisaDevice):
     """
     Interface class for CAEN ELS EasyDriver power supply.
 
-    This class provides methods to control and monitor CAEN ELS
+    Provides methods to control and monitor CAEN ELS
     EasyDriver power supplies through a VISA interface.
     """
 

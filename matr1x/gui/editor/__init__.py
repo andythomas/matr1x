@@ -15,7 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Editor IDE functionality for matrix-script.
 
-This package 'translates' to the JavaScript interface of Monaco. No
+Translates to the JavaScript interface of Monaco. No
 JavaScript should be used outside of this package!
 """
 

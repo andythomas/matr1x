@@ -13,6 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with devices from Mini-Circuits."""
+"""Mini-Circuits device drivers."""
 
 from .switchmatrix import RC_2SPDT_A18

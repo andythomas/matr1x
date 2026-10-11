@@ -16,7 +16,7 @@
 """
 Provides a driver for the Keithley 2611A Source Measure Unit.
 
-This module implements full control of the Keithley 2611A SMU, including
+Implements full control of the Keithley 2611A SMU, including
 voltage/current sourcing and measurement, range control, and various
 sensing configurations.
 """
@@ -32,18 +32,20 @@ class Keithley2611A(VisaDevice):
     """
     Control interface for Keithley 2611A Source Measure Unit (SMU).
 
-    This class provides methods to control and read data from the Keithley 2611A.
-    It supports voltage and current sourcing and sensing in both 2-wire and 4-wire
-    configurations.
+    Provides methods to control and read data from the Keithley
+    2611A. It supports voltage and current sourcing and sensing in
+    both 2-wire and 4-wire configurations.
 
     Attributes
     ----------
     config_params : dict
-        Dictionary of configuration parameters and their corresponding commands
+        Dictionary of configuration parameters and their
+        corresponding commands
     mode_int : dict
         Mapping of mode strings to numeric values
     mode_char : dict
-        Mapping of mode strings to character identifiers used in commands
+        Mapping of mode strings to character identifiers used in
+        commands
     """
 
     config_params: ClassVar[dict[str, str]] = {
@@ -69,9 +71,9 @@ class Keithley2611A(VisaDevice):
 
         Notes
         -----
-        Sets default termination characters and initializes the device.
-        Reads the initial state including source mode, four-wire setting,
-        and output state.
+        Sets default termination characters and initializes the
+        device. Reads the initial state including source mode,
+        four-wire setting, and output state.
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -118,38 +120,39 @@ class Keithley2611A(VisaDevice):
         Parameters
         ----------
         sourceMode : str, optional
-            The parameter to source, either "VOLT" or "CURR"
+            Parameter to source, "VOLT" or "CURR".
         senseMode : str, optional
-            The parameter to measure, either "VOLT" or "CURR"
+            Parameter to measure, "VOLT" or "CURR".
         fourWire : bool, optional
-            Whether to use four-wire (True) or two-wire (False) sensing
+            Four-wire (True) or two-wire (False) sensing.
         senseAutoRange : bool, optional
-            Whether to automatically set the measurement range
+            Automatically set the measurement range.
         senseRange : float, optional
-            Manual range for measurements, device selects next inclusive range
+            Manual measurement range; the device selects the next
+            inclusive range.
         sourceAutoRange : bool, optional
-            Whether to automatically set the sourcing range
+            Automatically set the sourcing range.
         sourceRange : float, optional
-            Manual range for sourcing, device selects next inclusive range
+            Manual sourcing range; the device selects the next
+            inclusive range.
         senseLimit : float, optional
-            Voltage or current limit for the sense circuit
-        output : bool, default False
-            Whether to enable the output after configuration
-        delayAuto : bool, default False
-            Whether to automatically set the stabilization delay
+            Voltage or current limit for the sense circuit.
+        output : bool, optional
+            Enable the output after configuration. Default is False.
+        delayAuto : bool, optional
+            Automatically set the stabilization delay. Default is
+            False.
         delay : float or bool, optional
-            Manual delay in seconds for output stabilization, or False to disable
-        reset : bool, default False
-            Whether to reset the device before configuration
-
-        Returns
-        -------
-        None
+            Manual delay in seconds for output stabilization, or
+            False to disable.
+        reset : bool, optional
+            Reset the device before configuration. Default is False.
 
         Notes
         -----
-        The output will be turned off during configuration.
-        If sourceMode and senseMode are not provided, no configuration is done.
+        The output will be turned off during configuration. If
+        sourceMode and senseMode are not provided, no configuration
+        is done.
 
         Examples
         --------
@@ -157,9 +160,10 @@ class Keithley2611A(VisaDevice):
                                  fourWire=True, senseAutoRange=True,
                                  sourceRange=0.001, output=True)
 
-        This configures the instrument to source current, measure voltage,
-        use 4-wire sensing, automatically set the voltage measurement range,
-        set the current sourcing range to include 1mA, and enable the output.
+        This configures the instrument to source current, measure
+        voltage, use 4-wire sensing, automatically set the voltage
+        measurement range, set the current sourcing range to include
+        1mA, and enable the output.
         """
         # do nothing if source/sensemode is not defined
         if sourceMode is None or senseMode is None:

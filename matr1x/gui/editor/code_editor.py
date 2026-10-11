@@ -57,8 +57,8 @@ from matr1x.core.util import (
     get_script_prefix_offset,
     run_python_cmdline,
 )
-from matr1x.gui.app import MApplication
-from matr1x.gui.mixins import AutoSlot, FileDropMixin, LoggerMixin
+from matr1x.gui.helpers import is_dark
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LoggerMixin, ThemeChangeMixin
 
 from .lsp_client import LSPClient
 from .lsp_protocol import JsonRpcNotification, LSPServer
@@ -526,7 +526,7 @@ class _AssetDownloadSignals(QObject):
     finished = Signal()
 
 
-class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
+class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
     """Code editor connected to Monaco."""
 
     contentModified = Signal(bool)
@@ -553,6 +553,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.lsp_initialize()
         self._assets_dir: Path | None = None
         self._asset_signals = _AssetDownloadSignals()
+        self._assets_ready = threading.Event()
         self._asset_window: QDialog | None = None
         self._asset_progress_bar: QProgressBar | None = None
         if not monaco_assets.has_cached_assets():
@@ -564,7 +565,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
             target=self._prepare_assets, args=(self._asset_signals,), daemon=True
         )
         thread.start()
-        self.editor_page = CodeEditorPage()
+        self.editor_page = CodeEditorPage(self)
         self.setPage(self.editor_page)
         settings = self.page().settings()
         settings.setAttribute(QWebEngineSettings.WebAttribute.ErrorPageEnabled, True)
@@ -621,6 +622,9 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         except (RuntimeError, OSError) as e:
             self.logger.error("Failed to prepare Monaco assets: %s", e)
         finally:
+            # Set before the Qt signal: a signal emitted with no connected
+            # slot is lost, which could strand the wait loop below.
+            self._assets_ready.set()
             signals.finished.emit()
 
     def _wait_for_assets(self) -> None:
@@ -632,7 +636,8 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         timer.setSingleShot(True)
         timer.timeout.connect(loop.quit)
         timer.start(self.ASSET_TIMEOUT * 1000)
-        loop.exec()
+        if not self._assets_ready.is_set():
+            loop.exec()
         timer.stop()
         if self._asset_window is not None:
             self._asset_window.close()
@@ -675,7 +680,6 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.backend.contentChanged.connect(self.on_content_changed)
         self.backend.cursorPositionChanged.connect(self.on_cursor_position_changed)
         self._highlight_timer.timeout.connect(self._apply_pending_highlight)
-        MApplication.instance().isDarkSignal.connect(lambda: self.setTheme(self._current_theme))
         self.lsp_tc.notification.connect(self.on_notification)
 
     def _run_javascript(self, command: str):
@@ -827,8 +831,9 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         Parameters
         ----------
         line_numbers: list[int]
-            Line numbers ordered from the innermost execution point to its
-            outermost user-script caller.
+            Line numbers ordered from the innermost
+            execution point to its outermost user-script
+            caller.
         """
         self._pending_highlight_lines = list(dict.fromkeys(line_numbers))
         self._highlight_timer.start(HIGHLIGHT_INTERVAL_MS)
@@ -1026,6 +1031,10 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         self.row = line
         self.column = column
 
+    def update_colors(self) -> None:
+        """Re-apply the current Monaco theme after a system theme change."""
+        self.setTheme(self._current_theme)
+
     def setTheme(self, theme_selection: str) -> None:
         """
         Set the Monaco editor theme.
@@ -1038,7 +1047,7 @@ class CodeEditor(FileDropMixin, QWebEngineView, LoggerMixin):
         monaco_theme = next(iter(CodeEditor.THEMES["Standard"].values()))
         for name, theme_pair in CodeEditor.THEMES.items():
             if name == theme_selection:
-                dark = MApplication.instance().isDark
+                dark = is_dark()
                 self._current_theme = theme_selection
                 monaco_theme = list(theme_pair.values())[1 if dark else 0]
             for name, theme in theme_pair.items():

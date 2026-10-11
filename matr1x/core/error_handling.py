@@ -60,9 +60,10 @@ def set_uncaught_exception_dialog(fn: UncaughtExceptionDialog | None) -> None:
     Parameters
     ----------
     fn:
-        A callable taking ``(exc_type, exc_value, exc_tb)`` and showing the
-        exception (e.g. a Qt message box), or ``None`` to clear the
-        registration and fall back to logging the traceback.
+        A callable taking ``(exc_type, exc_value, exc_tb)`` and
+        showing the exception (e.g. a Qt message box), or
+        ``None`` to clear the registration and fall back to
+        logging the traceback.
     """
     global _uncaught_exception_dialog
     _uncaught_exception_dialog = fn

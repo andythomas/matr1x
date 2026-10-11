@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module defines a class to recording calls to System methods for test purposes."""
+"""Defines a class recording calls to System methods for test purposes."""
 
 # system_tapin.py
 import atexit
@@ -38,7 +38,7 @@ _TAP_LOCK = Lock()
 
 
 def _open_once() -> TextIO | None:
-    """Open the tap connection exactly once; return the writeable file-like object."""
+    """Open the tap connection once; return the writable file-like object."""
     global _TAP_SOCK, _TAP_FILE
 
     if _TAP_FILE is not None:
@@ -164,6 +164,11 @@ class TapinSystem(System):
         with tap() as emit:
             emit("reset", args=list(args), kwargs=dict(kwargs))
         super().reset(*args, **kwargs)
+
+    def close(self) -> None:
+        """Close the tap connection and the device connections."""
+        super().close()
+        _close_tap()
 
     def set_p1(self, value):
         """Set the value of parameter p1.

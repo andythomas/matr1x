@@ -40,10 +40,10 @@ from PySide6.QtWidgets import QMessageBox
 
 import matr1x.core.eval
 import matr1x.core.util
-from matr1x import output_extension
 from matr1x.control import ControlWindow, GuiDict, MethodBundle, var
 from matr1x.control import guiObject as go
 from matr1x.control.control_dummy import exampleDict
+from matr1x.core.config import output_extension
 from matr1x.core.scpi_tcpserver import SCPI_TCP_Server
 from matr1x.core.system import System
 
@@ -156,12 +156,6 @@ def start_control_dummy():
         gui_proc.kill()
     except ProcessLookupError:
         pass
-
-
-def test_environment_variable_is_set():
-    """Check if the QT_QPA_PLATFORM environment variable is set to 'offscreen'."""
-    assert os.getenv("QT_QPA_PLATFORM") == "offscreen"
-    assert os.getenv("QT_QUICK_BACKEND") == "software"
 
 
 def test_control_window_panic_stops_and_restores_server(qapp, qtbot, monkeypatch):

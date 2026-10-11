@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling PicoVNA Vector Network Analyzer instruments."""
+"""Driver for the PicoVNA vector network analyzer."""
 
 from struct import iter_unpack
 
@@ -26,7 +26,7 @@ class PicoVNA(VisaDevice):
     """
     Driver for PicoVNA Vector Network Analyzer instruments.
 
-    This class provides control and data acquisition capabilities for
+    Provides control and data acquisition capabilities for
     PicoVNA instruments using the VISA communication protocol.
     """
 
@@ -45,9 +45,10 @@ class PicoVNA(VisaDevice):
             If True, reset the instrument during initialization.
             Default is False.
         **kwargs
-            Additional arguments to pass to the VisaDevice constructor.
-            If not provided, default values are set for write_termination,
-            read_termination, and timeout.
+            Additional arguments to pass to the VisaDevice
+            constructor. If not provided, default values are
+            set for write_termination, read_termination, and
+            timeout.
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -89,8 +90,9 @@ class PicoVNA(VisaDevice):
         fPoints : int or 'MIN'/'MAX'
             The number of points per sweep.
         if_bw : int
-            The bandwidth of the digital IF filter.
-            A lower value usually means a slower, but more accurate mesurement.
+            The bandwidth of the digital IF filter. A lower
+            value usually means a slower, but more accurate
+            mesurement.
         average : int, optional
             The number of averages which make up the final values.
             Default is None.
@@ -160,12 +162,12 @@ class PicoVNA(VisaDevice):
         param : str
             The parameter to retrieve from the VNA.
         precision : {'single', 'double', 'ascii'}, optional
-            Precision of the data transfer.
-            'single' and 'double' precisions are transferd as binary data,
-            and achive much faster transfer speeds.
-            'ascii' is only implemented as a fallback method, as it is
-            much easier to debug.
-            Default is 'double'.
+            Precision of the data transfer. 'single' and
+            'double' precisions are transferd as binary
+            data, and achive much faster transfer speeds.
+            'ascii' is only implemented as a fallback
+            method, as it is much easier to debug. Default
+            is 'double'.
 
         Returns
         -------
