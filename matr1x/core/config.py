@@ -68,7 +68,6 @@ deprecation_marker = "[MATR1X_DEPRECATED]"
 # default datafile extension
 output_extension = ".ma8"
 
-# fixed log line format (no longer a user-configurable option)
 LOG_FORMAT = "%(asctime)s,%(msecs)03d,%(levelname)s,%(name)s: %(message)s"
 
 # Global list to store validation errors from configuration loading
