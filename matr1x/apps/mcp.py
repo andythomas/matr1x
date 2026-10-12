@@ -237,7 +237,7 @@ def _render(
     filename: Path,
 ) -> list[TextContent | ImageContent]:
     """Render the frame to a PNG and build the tool result."""
-    plt.rcParams.update(_PLOT_STYLE)  # ty: ignore[no-matching-overload]
+    plt.rcParams.update(cast(Any, _PLOT_STYLE))
     if x is None and y is None:
         return _error("at least one of x or y is required")
     # If only x is given, use it as the y axis and plot against the row index.
