@@ -2332,9 +2332,6 @@ source = { editable = "." }
 dependencies = [
     { name = "decorator" },
     { name = "h5py" },
-    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
-    { name = "matplotlib", version = "3.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-    { name = "mcp" },
     { name = "minimalmodbus" },
     { name = "monaco-assets" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -2368,6 +2365,11 @@ elab = [
     { name = "jinja2" },
     { name = "urllib3" },
 ]
+mcp = [
+    { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "matplotlib", version = "3.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "mcp" },
+]
 ppms = [
     { name = "multipyvu" },
 ]
@@ -2395,8 +2397,8 @@ requires-dist = [
     { name = "elabapi-python", marker = "extra == 'elab'", specifier = ">=5.3.0" },
     { name = "h5py", specifier = ">=3.6.0" },
     { name = "jinja2", marker = "extra == 'elab'" },
-    { name = "matplotlib", specifier = ">=3.6" },
-    { name = "mcp", specifier = ">=2.0.0" },
+    { name = "matplotlib", marker = "extra == 'mcp'", specifier = ">=3.6" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0.0" },
     { name = "minimalmodbus" },
     { name = "monaco-assets", specifier = "==0.7.1" },
     { name = "multipyvu", marker = "extra == 'ppms'", specifier = ">=3.6.1" },
@@ -2424,7 +2426,7 @@ requires-dist = [
     { name = "wrapt", specifier = ">2.0" },
     { name = "zeroconf", specifier = ">=0.36.8" },
 ]
-provides-extras = ["elab", "ppms"]
+provides-extras = ["elab", "mcp", "ppms"]
 
 [package.metadata.requires-dev]
 dev = [

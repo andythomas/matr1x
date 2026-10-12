@@ -59,8 +59,10 @@ the environment, lockfile and build (build backend: `uv_build`).
 ## MCP Server
 
 `matrix-mcp` (`matr1x/apps/mcp.py`) is a stateless MCP
-server. Start it with `uv run matrix-mcp`; an MCP
-client config looks like:
+server. The required packages live in the optional `mcp` extra,
+so sync with `uv sync --extra mcp` (or `--all-extras`) before
+use. Start it with `uv run matrix-mcp`; an MCP client config looks
+like:
 
 ```json
 {
