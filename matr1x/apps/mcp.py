@@ -230,15 +230,24 @@ def _render(
 ) -> list[TextContent | ImageContent]:
     """Render the frame to a PNG and build the tool result."""
     plt.rcParams.update(_PLOT_STYLE)  # ty: ignore[no-matching-overload]
-    value = y if y is not None else x
-    if value is None:
+    if x is None and y is None:
         return _error("at least one of x or y is required")
-    x_values = frame.get_column(x).to_numpy() if x is not None else np.arange(len(frame))
-    y_values = frame.get_column(value).to_numpy()
+    # If only x is given, use it as the y axis and plot against the row index.
+    x_column: str | None
+    y_column: str
+    if y is None:
+        assert x is not None
+        x_column, y_column = None, x
+    else:
+        x_column, y_column = x, y
+    x_values = (
+        frame.get_column(x_column).to_numpy() if x_column is not None else np.arange(len(frame))
+    )
+    y_values = frame.get_column(y_column).to_numpy()
     fig, ax = plt.subplots()
     ax.plot(x_values, y_values)
-    ax.set_xlabel(_label(x, units) if x is not None else "index")
-    ax.set_ylabel(_label(value, units))
+    ax.set_xlabel(_label(x_column, units) if x_column is not None else "index")
+    ax.set_ylabel(_label(y_column, units))
     buffer = io.BytesIO()
     fig.savefig(buffer, format="png", bbox_inches="tight")
     plt.close(fig)
