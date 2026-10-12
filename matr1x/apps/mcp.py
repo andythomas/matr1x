@@ -20,7 +20,7 @@ import io
 import logging
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import matplotlib
 
@@ -109,12 +109,20 @@ def _load_frame(filename: Path) -> tuple[pl.DataFrame, dict[str, str]]:
     if isinstance(data, pl.DataFrame):
         frame = data
     elif isinstance(data, dict):
-        frame = pl.DataFrame(data)
+        frame = pl.DataFrame(_align_dict(cast(dict[str, np.ndarray], data)))
     else:
         names = data.dtype.names or ()
         frame = pl.DataFrame({name: data[name] for name in names})
     units = dict(zip(header["columns"], header["units"]))
     return frame, units
+
+
+def _align_dict(data: dict[str, Any]) -> dict[str, list[Any]]:
+    """Align columns of unequal length by padding shorter ones with NaN."""
+    size = max(len(values) for values in data.values())
+    return {
+        name: list(values) + [float("nan")] * (size - len(values)) for name, values in data.items()
+    }
 
 
 def _apply_math(frame: pl.DataFrame, column: str, math_mode: str | None, is_x: bool) -> pl.Series:
