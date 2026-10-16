@@ -376,11 +376,13 @@ class MergedSystem(System):
         for subsys in self.subsys:
             for key, value in subsys.dcdata.items():
                 if key == "date":
+                    # skip date, handled below
                     continue
                 if value:
                     tmpdcdata[key].add(value)
         for key, vlist in tmpdcdata.items():
             self.dcdata[key] = ";".join(vlist)
+        # set correct timestamp, overwriting merged value
         self.dcdata["date"] = time.strftime(f"{core_config.datetimefmt}", time.localtime())
 
     def _check_hdf5(self) -> None:

@@ -257,6 +257,7 @@ class MercurySingleAxisIPS(VisaDevice):
                     try:
                         self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
+                        # what happened?
                         logger.info(
                             "Non bool value at %s is %s and can not be assigned to status",
                             key,
@@ -810,6 +811,7 @@ class MercuryIPS(VisaDevice):
                     try:
                         self.workingDict[key][0][0] = status.index(dummy)
                     except ValueError:
+                        # what happened?
                         logger.info(
                             "Non bool value at %s is %s and can not be assigned to status",
                             key,
@@ -865,6 +867,8 @@ class MercuryIPS(VisaDevice):
         if 6 + tolerance < zval:
             valid = False
             zval = math.copysign(6, yval)
+        # check if total field would exceed 2T and limit magnitude
+        # while conserving direction
         if 1.5 + tolerance < math.sqrt(xval**2 + yval**2) and 2.0 + tolerance < math.sqrt(
             xval**2 + yval**2 + zval**2
         ):

@@ -177,6 +177,7 @@ def _patch_pymeasure_instrument_methods():
         if hasattr(Instrument, method_name):
             original_method = getattr(Instrument, method_name)
             if callable(original_method):
+                # create a thread-safe wrapper with proper closure handling
 
                 def create_synchronized_method(
                     orig_method: Callable[..., Any], name: str

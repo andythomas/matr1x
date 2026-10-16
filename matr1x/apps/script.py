@@ -1213,7 +1213,8 @@ class MainWindow(LogWindowMixin, MMainWindow):
         """Restore app configuration from the previous use."""
         self.restore_layout_state(self.settings)
 
-        # against strange side effect, caused by the default values.
+        # check if there is a settings file; this improves the robustness
+        # against strange side effects caused by the default values
         if self.settings.contains("created"):
             self.settings.beginGroup("script_edit")
             self.ui.widgets.script_edit.setZoomFactor(

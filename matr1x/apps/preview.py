@@ -1053,6 +1053,7 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         # data in a 2d plot can always be transposed
         self.ui.widgets.transpose.setVisible(True)
 
+        # data is loaded, now try to combine the data so that it becomes
         # plottable in a 2d plot
         transpose = False
         if self.ui.widgets.transpose.isChecked() is True:
@@ -1195,41 +1196,53 @@ class SweepPreview(FileDropMixin, LogWindowMixin, MMainWindow):
         if y["data"].size == 0 or x["data"].size == 0:
             return -9
 
+        # data is loaded, now try to combine the data so that it becomes
         # plottable in a curve/scatter plot
         if x["shape"] != y["shape"]:
+            # data has unequal shape, so we need to think about format
             if x["dim"] == 1 and y["dim"] == 1:
+                # one dimensional data but of uneven length, attempt to reshape
                 small_axis = min(x["shape"][0], y["shape"][0])
                 large_axis = max(x["shape"][0], y["shape"][0])
                 if large_axis % small_axis == 0:
+                    # data can be reshaped
                     x["data"] = x["data"].reshape(small_axis, -1)
                     y["data"] = y["data"].reshape(small_axis, -1)
                 else:
+                    # data cannot be reshaped, abort
                     return -1
             elif x["shape"][0] == y["shape"][0]:
-                # with the length given by the identical axis.
+                # same length on first axis, reshape into sets of curves
+                # with the length given by the identical axis
                 x["data"] = x["data"].reshape(x["shape"][0], -1)
                 y["data"] = y["data"].reshape(x["shape"][0], -1)
-                # This will flatten 3D arrays into something that can be
+                # this will flatten 3D arrays into something that can be
+                # previewed as curve, although it does not make too much sense
             elif x["data"].size == y["data"].size:
+                # data has same size, try to reshape to the one with higher
                 # dimension
                 reshape_dim = x["shape"] if x["dim"] > y["dim"] else y["shape"]
                 x["data"] = x["data"].reshape(reshape_dim)
                 y["data"] = y["data"].reshape(reshape_dim)
             else:
+                # multidimensional data with different dimensions,
+                # so we do not know how to handle this
                 return -4
         else:
-            # required
+            # data identical with single or multiple dimension, no reshaping required
             if x["dim"] < 3:
                 if x["dim"] == 2:
+                    # identical 2D data on both axes, allow and handle transposition
                     self.ui.widgets.transpose.setVisible(True)
                     if self.ui.widgets.transpose.isChecked() is True:
                         x["data"] = x["data"].T
                         y["data"] = y["data"].T
             else:
-                # reshape for the first axis to match and flatten the data
-                # to two dimensions, but this will be horrible for the meaning
+                # too many dimensions to display; reshaping first axis would
+                # flatten the data but destroy the meaning of 3D data
                 return -2
 
+        # update meta information and data
         self.spw.plot(y, x, plot2d=self.ui.widgets.plot2d.isChecked())
         return 0
 

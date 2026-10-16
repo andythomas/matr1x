@@ -542,7 +542,7 @@ class SimplePlotWidget(QGroupBox):
                 xc = None
                 yc = None
                 try:
-
+                    # define function based on the string stored in math_texts[1]
                     def fx(xf, yf):
                         return eval(
                             self.math_texts[1],
@@ -554,7 +554,7 @@ class SimplePlotWidget(QGroupBox):
                     self._raise_error("error in math function (x): " + str(e))
 
                 try:
-
+                    # define function based on the string stored in math_texts[0]
                     def fy(yf, xf):
                         return eval(
                             self.math_texts[0],

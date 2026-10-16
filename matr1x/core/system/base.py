@@ -418,17 +418,22 @@ class System:
         self._config = core_config.config.matr1x.apps.matrix_script
         self.merged_system: System | None = None
         self._reporter: Callable[[MeasurementData], None] | None = None
+        # initialize lists for later use
         self.parameters: list[Parameter] = []
 
+        # initialize devices dict
         self.devs = {}
         self._devs_init = {}  # variable holding dev init info for reopeneing
         self.query_dict = {}  # store device information query
 
+        # allow warnings
         self.warnings: list[tuple[str, int]] = []
 
+        # initialize flag to check whether system has been set
         self.opened = False
         self.system_config_params = {}
 
+        # initialize HDF5 flag and data filename variables
         self._hdf5: bool = False
         self._filename: Path | None = None
         self._file_mode = "w"
@@ -436,10 +441,12 @@ class System:
 
         self.config: Any = {}
 
+        # sensitive config is separate from config to keep it out of headers
         # This dictionary will NOT be included in query results or file headers
         self.sensitive_config: UntypedConfigModel = UntypedConfigModel()
         self._sensitive_keys = []
 
+        # Dublin Core metadata default entries
         self.dcdata: DcDict = DcDict(
             self,
             creator="",  # measurement user
@@ -1530,10 +1537,10 @@ class System:
         for key, dev in self.devs.items():
             if isinstance(dev, list) is True:
                 try:
-                    # and optionally kwargs in dev[2]
                     cls, devargs = dev[:2]
                     devkwargs = dev[2] if len(dev) > 2 else {}
                     if len(devargs) > 1 and "sharedwith" in devargs[0]:
+                        # need to get connection from other device
                         devargs = list(devargs)
                         otherdev = devargs[0].split("::")[1]
                         devargs[0] = self.devs[otherdev].connection
@@ -1596,6 +1603,7 @@ class System:
             else:
                 retquery[key] = obj
 
+        # Add all system-wide configuration options from self.config organized by system name
         if self.config:
             retquery["system_config"] = {}
             if hasattr(self.config, "model_dump"):
@@ -1803,6 +1811,8 @@ class System:
 
         self._add_config_to_information(info)
 
+        # Note: sensitive_config is intentionally NOT included in the query
+        # results to prevent sensitive information being stored in file headers.
         return info
 
     def _add_devices_to_information(self, info: dict[str, Any]) -> None:
@@ -1906,6 +1916,7 @@ class System:
 
                 init_hdf5_skel(data_file, *telemetry)
         else:
+            # the next line could have a real bug?!
             telemetry += [default_separator]  # ty: ignore[unsupported-operator]
             with Path(self.filename).open("w", encoding="utf-8") as data_file:
                 for dckey, dcvalue in self.dcdata.items():

@@ -931,6 +931,7 @@ def uninstall_core_desktopintegration() -> None:
         logger.info("Deleted application bundles")
 
     elif system_type == "windows":
+        # remove existing start menu entry if it exists
         if start_menu_path.exists():
             shutil.rmtree(start_menu_path)
 
@@ -980,6 +981,7 @@ def uninstall_control_gui_desktop_integration(pkgname: str, extra_guis: list[str
             pass
 
     if system_type == "linux" or "bsd" in system_type:
+        # find and remove files following the pattern
         desktop_files = Path.home().glob(f".local/share/applications/python.{pkgname}.*.desktop")
         for file in desktop_files:
             file.unlink()

@@ -292,6 +292,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         TCP port number for the control GUI SCPI server socket.
     """
 
+    # flag controlling if the SCPI server is shut-down during panic
     stop_server_on_panic: bool = True
 
     sig_error = Signal(type, Exception, str)
@@ -805,7 +806,6 @@ class ControlWindow(LogWindowMixin, QMainWindow):
                     and variable.log is not None
                     and variable.widgets[-1].checkState() == Qt.CheckState.Checked
                 ):
-                    # logged parameters
                     self.S_log.add_param(f"dict{i}/{key}", "", getter=lambda v=variable: v.value)
         if len(self.S_log.parameters) == 1:
             QMessageBox.warning(

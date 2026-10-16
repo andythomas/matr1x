@@ -31,8 +31,6 @@ from matr1x.devices.dummy import dummy
 # the optional reimplementation of the set and reset function
 # ============================
 
-# ============================
-
 
 class MeasSystem(System):
     """Dummy measurement system for testing system merging."""
