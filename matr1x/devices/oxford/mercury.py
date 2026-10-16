@@ -138,6 +138,7 @@ class MercurySingleAxisIPS(VisaDevice):
         super().__init__(interface, write_termination="\n", read_termination="\n")
         self.maxfield = maxfield
         self.maxrate = maxrate
+        # determine status now
         self.queryAllDicts()
         self.logAllDicts()
 
@@ -248,6 +249,7 @@ class MercurySingleAxisIPS(VisaDevice):
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
                 )
             except (TypeError, IndexError):
+                # If float conversion fails, try bool conversion
                 if dummy == "ON":
                     self.workingDict[key][0][0] = True
                 elif dummy == "OFF":
@@ -691,6 +693,7 @@ class MercuryIPS(VisaDevice):
         """
         self._initialize_state()
         super().__init__(interface, write_termination="\n", read_termination="\n", **kwargs)
+        # determine status now
         self.queryAllDicts()
         self.logAllDicts()
 
@@ -802,6 +805,7 @@ class MercuryIPS(VisaDevice):
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
                 )
             except (TypeError, IndexError):
+                # If float conversion fails, try bool conversion
                 if dummy == "ON":
                     self.workingDict[key][0][0] = True
                 elif dummy == "OFF":
@@ -950,6 +954,7 @@ class MercuryIPS(VisaDevice):
         valid, (xv, yv, zv) = self.checkFields(xval, yval, zval)
         if valid is False:
             logger.info("Magnetic field exceeding limits was set, reduced amplitude")
+        # check that values also do not exceed limits with current fields
         self.setVal(xv, *self.workingDict["xFSet"][1:])
         self.setVal(yv, *self.workingDict["yFSet"][1:])
         self.setVal(zv, *self.workingDict["zFSet"][1:])
@@ -1403,11 +1408,13 @@ class MercuryITC(VisaDevice):
                     re.findall(r"([+-]?(?:\d+(?:\.\d*)?)(?:[eE][-+]\d+)?)", dummy)[0]
                 )
             except (TypeError, IndexError):
+                # If float conversion fails, try bool conversion
                 if dummy == "ON":
                     self.workingDict[key][0][0] = True
                 elif dummy == "OFF":
                     self.workingDict[key][0][0] = False
                 else:
+                    # what happened?
                     logger.info("Non bool value at %s is %s", key, dummy)
 
     def getDictValue(self, key):

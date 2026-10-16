@@ -430,6 +430,7 @@ def _process_special_lines(matrix_file, header: HeaderDict) -> None:
     """Process special lines (comments, status) after the main content."""
     special_lines = [(i, line) for i, line in enumerate(matrix_file) if line.startswith("#")]
 
+    # combine multiline comments and note after which datapoint the comment was in the file
     lastdpoint = -1
     for i, (linenr, msg) in enumerate(special_lines):
         dpoint = linenr - i

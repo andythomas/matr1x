@@ -1001,6 +1001,7 @@ class var(QObject):
     @AutoSlot
     def _copy_value_slot(self) -> None:
         """Perform the widget update on the GUI thread."""
+        # check that a set-field exists, otherwise pass
         if (
             len(self._widgets) > 2
             and self._widgets[2] is not None

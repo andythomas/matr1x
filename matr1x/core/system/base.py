@@ -309,10 +309,14 @@ class Parameter:
             of the input string.
         """
         if isinstance(s, (list, tuple)):
+            # If input is a list/tuple, use first element
             s = s[0]
 
+        # Replace non-alphanumeric characters with hyphens,
+        # convert to lowercase, and strip extra hyphens
         s = re.sub(r"[^a-zA-Z0-9]", "-", s).strip("-").lower()
 
+        # Handle empty string fallback
         return s if s else "arg"
 
     def verify(self, param: T, cast: type[T] | tuple[type[T], ...]) -> T:
@@ -1100,6 +1104,7 @@ class System:
         elif inputfile:  # no output file given -> input filename as template
             datafile = Path(inputfile).expanduser().with_suffix("")
         else:  # no output nor input file, generate from system names
+            # generate fallback option for the datafile name
             timestamp = time.strftime(core_config.datetimefmt, time.localtime())
             filename = Path(self.__name__).stem
             datafile_name = f"{timestamp}_{filename}"

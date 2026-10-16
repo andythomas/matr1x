@@ -196,6 +196,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
                 # obeyed, otherwise some ~40ms delay is caused.
                 return "\x06"
         except (IndexError, TypeError, ValueError):
+            # in case of incorrectly sent command do nothing
             pass
 
     def parse(self, data):

@@ -202,6 +202,7 @@ class Keithley2400(Keithley24xx):
             cmdlist = ["*RST"]
         else:
             cmdlist = []
+        # we want sourceIsenseV
         cmdlist.append(f":SOUR:FUNC {sourceMode}")
         cmdlist.append(f':SENS:FUNC "{senseMode}"')
 
