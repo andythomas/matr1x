@@ -32,6 +32,7 @@ import numpy as np
 import pyqtgraph
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
+    QRectF,
     Qt,
 )
 from PySide6.QtGui import (
@@ -1454,3 +1455,7 @@ class CustomViewBox(pyqtgraph.ViewBox):
             self.setMouseMode(self.RectMode)
         else:
             pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
+
+    def showAxRect(self, ax: QRectF, **kwargs):
+        """Zoom exactly to the selected rectangle, without padding."""
+        super().showAxRect(ax, padding=0, **kwargs)
