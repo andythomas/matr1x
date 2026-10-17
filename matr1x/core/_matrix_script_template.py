@@ -73,7 +73,6 @@ if _typing.TYPE_CHECKING:
     _script = _thread_api._exec_thread.script
     _system = _thread_api._exec_thread.system
 
-# load config section from toml file
 _validated_config = _core_config.config.matr1x.apps.matrix_script
 
 for _key, _value in _meta_data.items():
@@ -101,7 +100,6 @@ def _configure_script_storing(system: _MergedSystem, script: str) -> None:
     if _validated_config.store_script_in_datafile:
         _, suffix = _matrix_util.generate_script_prefix_suffix()
         npref, nsuff = _matrix_util.get_script_prefix_offset(), len(suffix.splitlines())
-        # strip prefix and suffix lines from script for storing
         user_script = _textwrap.dedent("\\n".join(script.splitlines()[npref:-nsuff]))
         if "user script" not in system.system_config_params:
             system.system_config_params["user script"] = user_script
@@ -120,22 +118,17 @@ _script_api._inject_decorator(_system, _script_api._breakpoint)  # inject system
 for subsys in _system.subsys:
     _script_api._inject_decorator(subsys, _script_api._breakpoint)
     _script_api._inject_decorator(subsys, _script_api._lineno_decorator)
-# bring meta_data and system into namespace
 meta_data = _system.dcdata
 system = _system
 
-# load execution path of scripts and change to this directory
 _configure_execution_path(_scriptname)
-# optionally set user script to be stored in data file
 _configure_script_storing(_system, _script)
-# initialize system and put devs into namespace
 _report(_Message("setting system", to_comment=False))
 # system.set is called before the filename is set. So, we have no
 # arguments here -> this is a difference to matrix
 _system.set()
 devs = _system.devs
 
-# switch meta data to append state
 _system.dcdata.append = True
 _script_api.capture_initial_meta_data()
 
@@ -161,7 +154,6 @@ except Exception as e:  # noqa: BLE001  # top-level handler for user script, rep
     tbstr = "".join(tbinfo[1:])  # Skip only the first line (Traceback header)
     tbstr = tbstr.replace("<module>", "script")
 
-    # get line information from traceback
     ms = _re.search(r"line (\d+)", tbstr)
 
     if ms:
@@ -181,11 +173,9 @@ except Exception as e:  # noqa: BLE001  # top-level handler for user script, rep
 
         _report(_Message(tbstr, to_comment=False))
 
-        # Check adjusted line instead of original line
         if adjusted_line < 1:
             _report(_Message(" error during device initialization", to_comment=False))
     else:
-        # No line number found in traceback
         tbstr = tbstr.replace('File "<string>"', '"<script>"')
         _report(_Message(tbstr, to_comment=False))
         _report(_Message(" error during device initialization", to_comment=False))
@@ -195,7 +185,6 @@ except Exception as e:  # noqa: BLE001  # top-level handler for user script, rep
         _system.add_comment(f"Script errored: {e}")
     else:
         _system.add_comment(f"Script errored: {exc_type.__name__}: {e}")
-# mark last open file as finished, if not labeled elsewhere
 if "status" not in _reset_kwargs:
     _reset_kwargs["status"] = "finished"
 _report(_Message("resetting system"))

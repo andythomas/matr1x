@@ -73,7 +73,6 @@ class FH55(VisaDevice):
         self.query("#AUTO 1")  # sets autorange
         self.query("#RESET")
 
-    # high level functions
     def getField(self):
         """
         Return magnetic field in T.

@@ -54,7 +54,6 @@ if TYPE_CHECKING:
             ...
 
 
-# default separator
 default_separator = "\t"
 
 SUBPROCESS_CREATION_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
@@ -157,7 +156,6 @@ def get_install_info(
         commit_short_sha = str(last_commit.id)[:7]
         commit_time = last_commit.author.time
         if commit_branch == "HEAD":
-            # Attempt to find the remote branch
             for ref_name in repo.references:
                 ref = repo.lookup_reference(ref_name)
                 if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
@@ -201,11 +199,9 @@ def create_temp_dir_with_symlinks(
     TemporaryDirectory
         Temporary directory instance.
     """
-    # Create a temporary directory
     temp_dir = TemporaryDirectory(prefix="systemdir-links-")
     temp_path = Path(temp_dir.name)
 
-    # Create symbolic links in the temporary directory
     for name, target in zip(names, targets):
         target_path = Path(target)
 
@@ -223,7 +219,6 @@ def create_temp_dir_with_symlinks(
         else:
             link_path.symlink_to(target_path)
 
-    # Return the temporary directory object
     return temp_dir
 
 
@@ -242,7 +237,6 @@ def module_from_path(filename: Path) -> ModuleType:
         Imported module.
     """
     filename = Path(filename).absolute()
-    # create module specification from file and open
     spec = importlib.util.spec_from_file_location("dummyname", filename)
     if spec is None:
         raise ImportError(f"Could not load spec for file '{filename}'")
@@ -352,7 +346,6 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
     with template_path.open(encoding="utf-8") as f:
         template_content = f.read()
 
-    # Find the markers
     start_marker_pos = template_content.find(_USER_SCRIPT_START_MARKER)
     end_marker_pos = template_content.find(_USER_SCRIPT_END_MARKER)
     insertion_point_pos = template_content.find(_USER_SCRIPT_INSERTION_POINT)
@@ -364,7 +357,6 @@ def generate_script_prefix_suffix() -> tuple[str, str]:
     if insertion_point_pos == -1:
         raise ValueError(f"Insertion point '{_USER_SCRIPT_INSERTION_POINT}' not found in template")
 
-    # Split the template at the insertion point
     prefix = template_content[:insertion_point_pos]
     suffix = template_content[insertion_point_pos + len(_USER_SCRIPT_INSERTION_POINT) :]
 
@@ -452,7 +444,6 @@ def generate_script(user_script: str) -> str:
         the custom matrix_script syntax. Returned script must be
         run in the context of the matrix_script_process.
     """
-    # define basic part of script, imports relevant commands
     prefix, suffix = generate_script_prefix_suffix()
     if user_script and not user_script.endswith("\n"):
         user_script += "\n"
@@ -581,7 +572,6 @@ def flatten(iterable: Iterable[Any], types: tuple[type[Any], ...] | None = None)
             yield el
 
 
-# utility functions
 def get_pt100_temp(res: float) -> float:
     """
     Calculate the Pt100 equivalent temperature using Wikipedia coefficients.

@@ -64,7 +64,6 @@ class SelectLakeshoreInput(QDialog):
         if not hasattr(lakeshore_dev, "getCurveNumber"):
             raise AttributeError(f"Device {lakeshore_dev} does not support 'getCurveNumber")
         self._dev = lakeshore_dev
-        # read input curves
         self.curves = {}
         for i in range(1, 60):
             self.curves[i] = self._dev.getCurveName(i)
@@ -284,7 +283,6 @@ class WriteLakeshoreZonePID(QDialog):
             self.model = TableModel(self.data.T)
             self.table.setModel(self.model)
             if len(self.data.shape) == 2 and self.data.shape[0] == 5:
-                # if entries found enable write button
                 self.writeButton.setEnabled(True)
 
     def write_zone_to_device(self):

@@ -179,7 +179,6 @@ class CryogenicPS(VisaDevice):
         try:
             up = self.getUpdate()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
-            # log incident and retry
             logger.info("getStatus: retrying after %s (depth=%d)", type(e).__name__, depth)
             logger.debug("getStatus: failed, retrying", exc_info=e)
             return self.getStatus(depth + 1)
@@ -192,7 +191,6 @@ class CryogenicPS(VisaDevice):
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
         except (IndexError, TypeError, ValueError) as e:
-            # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)
             return self.getStatus(depth + 1)
@@ -220,7 +218,6 @@ class CryogenicPS(VisaDevice):
         try:
             ret = self.query("G O")
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
-            # log incident and retry
             logger.info("getOutput: retrying after %s (depth=%d)", type(e).__name__, depth)
             logger.debug("getOutput: failed, retrying", exc_info=e)
             return self.getOutput(depth + 1)
@@ -530,7 +527,6 @@ class CryogenicBipolarPS(VisaDevice):
         try:
             up = self.getUpdate()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
-            # log incident and retry
             logger.info("getStatus: retrying after %s (depth=%d)", type(e).__name__, depth)
             logger.debug("getStatus: failed, retrying", exc_info=e)
             return self.getStatus(depth + 1)
@@ -543,7 +539,6 @@ class CryogenicBipolarPS(VisaDevice):
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
         except (IndexError, TypeError, ValueError) as e:
-            # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)
             return self.getStatus(depth + 1)
@@ -571,7 +566,6 @@ class CryogenicBipolarPS(VisaDevice):
         try:
             ret = self.query("G O")
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
-            # log incident and retry
             logger.info("getOutput: retrying after %s (depth=%d)", type(e).__name__, depth)
             logger.debug("getOutput: failed, retrying", exc_info=e)
             return self.getOutput(depth + 1)

@@ -118,7 +118,6 @@ class KeithleyDMM6500(VisaDevice):
             cmdList = ["*RST"]
         else:
             cmdList = []
-        # we want to measure 4-wire resistance
         cmdList.append(':SENS:FUNC "FRES"')
         if NPLC is not None:
             cmdList.append(":SENS:FRES:NPLC " + str(int(NPLC)))
@@ -193,7 +192,6 @@ class KeithleyDMM6500(VisaDevice):
             cmdList = ["*RST"]
         else:
             cmdList = []
-        # we want to measure 2-wire resistance
         cmdList.append(':SENS:FUNC "RES"')
         if NPLC is not None:
             cmdList.append(":SENS:RES:NPLC " + str(int(NPLC)))
@@ -268,7 +266,6 @@ class KeithleyDMM6500(VisaDevice):
         if reset is True:
             self.write("*RST")
             time.sleep(0.05)
-        # we want to measure DC volts
         cmdList.append(':SENS:FUNC "VOLT:DC"')
         # ensure high input impedance
         cmdList.append(":SENS:VOLT:INP AUTO")

@@ -226,7 +226,6 @@ class Keithley6221(VisaDevice):
                 raise ValueError("List of points has insufficient length")
             elif len(points) > 65535:
                 raise ValueError("List of points is too long")
-            # convert floats to string
             points = [str(point) for point in points]
             cmdlist.append(f"SOUR:WAVE:ARB:DATA {', '.join(points[:100])}")
             nappend = ceil(len(points) / 100)

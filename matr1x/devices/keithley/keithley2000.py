@@ -134,7 +134,6 @@ class Keithley2000(VisaDevice):
             cmdList = ["*RST"]
         else:
             cmdList = []
-        # we want to measure 4-wire resistance
         cmdList.append(':SENS:FUNC "FRES"')
         if NPLC is not None:
             cmdList.append(":SENS:FRES:NPLC " + str(int(NPLC)))
@@ -213,7 +212,6 @@ class Keithley2000(VisaDevice):
             cmdList = ["*RST"]
         else:
             cmdList = []
-        # we want to measure 2-wire resistance
         cmdList.append(':SENS:FUNC "RES"')
         if NPLC is not None:
             cmdList.append(":SENS:RES:NPLC " + str(int(NPLC)))
@@ -292,7 +290,6 @@ class Keithley2000(VisaDevice):
         if reset is True:
             self.write("*RST")
             time.sleep(0.05)
-        # we want to measure volts
         cmdList.append(':SENS:FUNC "VOLT:DC"')
         if NPLC is not None:
             cmdList.append(":SENS:VOLT:NPLC " + str(float(NPLC)))

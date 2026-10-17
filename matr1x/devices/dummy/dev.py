@@ -88,7 +88,6 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
         self._p5 = kwargs.pop("p5", 0.0)
         self._p6 = kwargs.pop("p6", False)
         self._p7 = kwargs.pop("p7", False)
-        # regenerate function entries in cmd_list
         self.cmd_list = copy.deepcopy(cmd_list)  # keep original for reopening
         for cmd in self.cmd_list.values():
             # replace with real functions. This is more comprehensively
@@ -123,7 +122,6 @@ class dummy(dummy_dev):  # ty: ignore[unsupported-base]
         self.localServer.stop()
         self.adapter.close()
 
-    # high level functions
     def trigger(self):
         """
         Simulate device triggering.

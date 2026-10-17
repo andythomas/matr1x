@@ -78,9 +78,6 @@ class FeatureConfig(SystemConfigModel):
 
 
 # ============================
-
-
-# ============================
 # This area contains the required System definition and
 # the optional reimplementation of the set and reset function
 # ============================
@@ -96,7 +93,6 @@ class Feature(System):
         initializing data collection attributes.
         """
         super().__init__()
-        # Load and validate configuration
         self.load_config(FeatureConfig, "matr1x.systems.system_dummy_feature")
 
         self.dcdata["source"] = "Dummy feature system"

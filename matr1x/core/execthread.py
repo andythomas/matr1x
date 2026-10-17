@@ -92,14 +92,12 @@ def _parse_until_time(until: str | datetime, current_time: datetime) -> datetime
         return until.astimezone()
 
     if isinstance(until, str) and until.startswith("+"):
-        # Parse relative time
         match = re.match(r"\+(\d+\.?\d*)([smhd])", until)
         if match is None:
             raise ValueError("Invalid relative time format.")
         value, unit = float(match.group(1)), match.group(2)
         return current_time + timedelta(seconds=value * _RELATIVE_TIME_SECONDS[unit])
 
-    # Parse absolute time with multiple date formats
     formats = [
         "%Y-%m-%d %H:%M:%S",
         "%d-%m-%Y %H:%M:%S",
@@ -335,7 +333,6 @@ class ExecThread(threading.Thread):
         else:
             raise ValueError("Either `duration` or `until` must be provided.")
 
-        # Perform the wait with pause handling
         self._execute_sleep(sleep_time, end_time, duration is not None, silent, msg)
         # Ensure interrupt and pause checks are called at least once, even if `sleep_time` is 0
         self.check_for_interrupt_and_pause()
@@ -365,11 +362,9 @@ class ExecThread(threading.Thread):
         initial_sleep_time = sleep_time  # Save the initial sleep time for reference
 
         while sleep_time > 0:
-            # Calculate remaining time based on the end time for "until" waits
             if not is_duration and end_time:
                 sleep_time = (end_time - _local_now()).total_seconds()
 
-            # Check for interruption or pause
             pause_start = time.time()  # Record when the pause starts
             if self.check_for_interrupt_and_pause():
                 if not is_duration and end_time and _local_now() >= end_time:
@@ -377,19 +372,16 @@ class ExecThread(threading.Thread):
                     self.report(Message(text))
                     return
                 elif is_duration:
-                    # Calculate pause duration and extend end_time accordingly
                     pause_end = time.time()
                     pause_duration += pause_end - pause_start
                     end_time = _local_now() + timedelta(
                         seconds=(initial_sleep_time - (time.time() - start_time - pause_duration))
                     )
 
-                    # Recalculate sleep_time after adjusting for pause
                     sleep_time = (end_time - _local_now()).total_seconds()
                     text = f"\nResuming wait for {sleep_time:.0f} seconds{message}."
                     self.report(Message(text))
                 else:
-                    # For "until" wait, recalculate based on the current end_time
                     sleep_time = max(0, (end_time - _local_now()).total_seconds())
                     text = (
                         f"\nResuming wait until {end_time.strftime('%Y-%m-%d %H:%M:%S')} "
@@ -397,7 +389,6 @@ class ExecThread(threading.Thread):
                     )
                     self.report(Message(text))
 
-            # Sleep in precise intervals, adjusting each time
             if sleep_time > 1:
                 if initial_sleep_time > silent:
                     self.report(
@@ -439,14 +430,12 @@ class ExecThread(threading.Thread):
         # inside the script. Make sure that all functions called here are
         # not decorated themselves. (e.g. system.add_comment)
         if self.interrupt_flag:
-            # script will be aborted
             self.system.add_comment("measurement aborted on user request")
             self.interrupt_flag = False
             raise KeyboardInterrupt("Execution interrupted by user.")
         if self.pause_flag:
             self.system.add_comment("measurement paused on user request")
             while self.pause_flag and not self.interrupt_flag:
-                # execution paused, wait for 100ms and recheck
                 time.sleep(0.1)
             return True
         return False
@@ -492,7 +481,6 @@ class ExecThread(threading.Thread):
         t0 = time.time()
         if self.recv != "" and not self.recv_flag:
             self.recv = ""
-        # Format the input pattern with proper handling of empty timeout slot
         if message == "":
             base_message = "User input requested, see executing line for context"
         else:
@@ -516,13 +504,11 @@ class ExecThread(threading.Thread):
                 self.report(Message("still waiting for user input", to_comment=False))
                 t0 = time.time()
             self.check_for_interrupt_and_pause()
-        # remove trailling line feed
         ret = self.recv.strip()
         self.logger.info("User input received: %s", ret)
         self.recv = ""
         return ret
 
-    # callback function that handles the input
     def handle_input(self, inp: str) -> None:
         """
         Handle input that is passed to the thread.
@@ -544,7 +530,6 @@ class ExecThread(threading.Thread):
             return
         if self.recv_flag is False:
             if inp == "i":
-                # reset input if already available
                 self.recv = ""
                 self.recv_flag = True
             return
@@ -663,13 +648,11 @@ def matrix_script_process(
     else:
         temp_opener = None
 
-    # reads the script from the temporary file
     script = ""
     with open(filename, "rb", opener=temp_opener) as file:
         for line in file:
             script += line.decode()
 
-    # initialize communication to matrix script
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         client_socket.connect(("127.0.0.1", port))
@@ -679,7 +662,6 @@ def matrix_script_process(
         # or port is not set
         connected = False
 
-    # initialize the thread
     if connected is True:
         thread = ExecThread(script, meta_data, scriptname, client_socket, systems)
     else:
@@ -691,7 +673,6 @@ def matrix_script_process(
     if connected:
         stop_event = threading.Event()
 
-    # start the thread that runs the script
     thread.start()
 
     if connected:
@@ -712,7 +693,6 @@ def matrix_script_process(
                 try:
                     decoded = decoder.decode(datachunk)
                 except UnicodeDecodeError:
-                    # invalid byte sequence, skip this chunk
                     continue
                 for char in decoded:
                     thread.handle_input(char)
@@ -743,5 +723,4 @@ def matrix_script_process(
             pass
         if control_thread is not None:
             control_thread.join(timeout=1)
-        # close socket
         client_socket.close()

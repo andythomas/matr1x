@@ -148,7 +148,6 @@ class Lakeshore3xx(VisaDevice):
             return float(ret)
         except ValueError:
             logger.info("%s.query_float: float conversion error ('%s', %s)", self.name, msg, ret)
-            # retry query
             return self.query_float(msg, depth + 1)
 
     @synchronized
@@ -173,10 +172,8 @@ class Lakeshore3xx(VisaDevice):
             return int(ret)
         except ValueError:
             logger.info("%s.query_int: integer conversion error ('%s', %s)", self.name, msg, ret)
-            # retry query
             return self.query_int(msg, depth + 1)
 
-    # High level functions
     def getTemp(self, channel: str | None = None) -> float:
         """
         Get the temperature reading from the specified channel.

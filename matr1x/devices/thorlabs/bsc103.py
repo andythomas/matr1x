@@ -100,12 +100,9 @@ class BSC103(VisaDevice):
             read_termination="\n",
         )
         self.drive_config = conf
-        # Drive setup:
         # address of motherboard, will fail if conf does not contain these
         self.mb = self.drive_config["mb address"]
-        # addresses of connected drives
         self.drives = self.drive_config["drive addresses"]
-        # number of drives
         self.ndrives = len(self.drives)
         self.uStepsPerStep = 128
 
@@ -163,8 +160,6 @@ class BSC103(VisaDevice):
         str
             Hexadecimal representation of the bytes.
         """
-        # helper function to format bytes into
-        # string without displaying ascii characters
         return " ".join(format(b, "02X") for b in bytearr)
 
     def mmto_uSteps(self, mm):
@@ -820,7 +815,6 @@ class BSC103(VisaDevice):
             int(self.drive_config["ccw soft limit"]),
             self.drive_config["soft limit mode"],
         )
-        # Backlash dist:
         self.write(
             self.message(
                 0x043A,
@@ -829,7 +823,6 @@ class BSC103(VisaDevice):
                 dst,
             )
         )
-        # Power settings:
         self.write(
             self.message(
                 0x0426,

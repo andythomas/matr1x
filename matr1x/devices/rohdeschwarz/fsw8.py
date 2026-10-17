@@ -233,15 +233,12 @@ class FSW8(VisaDevice):
         if vidBW:
             self.write(f"BWID:VID {vidBW!s} Hz")
         else:
-            # automatic video bandwidth selection
             self.write("BAND:VID:AUTO ON")
         self.write(f"DISP:TRAC:Y:RLEV {refLev!s}dbm")
         self.query("*OPC?")
 
-        # activates automatic sweep time.
         self.write("SWE:TIME:AUTO ON")
 
-        # selects the coupling type AC of the RF input
         self.write("INP:COUP AC")  # options : AC / DC
         self.query("*OPC?")
 

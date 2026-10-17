@@ -67,9 +67,7 @@ def _make_identifier(s: str) -> str:
     str
         A valid Python identifier
     """
-    # Remove invalid characters
     s = re.sub("[^0-9a-zA-Z_]", "", s)
-    # Remove leading characters until we find a letter or underscore
     s = re.sub("^[^a-zA-Z_]+", "", s)
     return s
 
@@ -352,7 +350,6 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
     """
     _load_pymeasure()
     cmd_list = {}
-    # merge commands in arguments
     for entry in cmds:
         normalize_cmds(entry)
         cmd_list.update(entry)
@@ -365,10 +362,8 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
         "check_set_errors": _check_set_errors,
     }
 
-    # make id standard config parameter
     attributes["config_params"] = {"id": "idn"}
 
-    # add system query to config_params
     if system and ":conf" not in cmd_list:
         attributes["config_params"]["SCPIdevconf"] = "conf"
         # The synthetic client-side :conf entry only uses dtype as the response
@@ -381,7 +376,6 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
         )
 
     for name, cmd in cmd_list.items():
-        # create an pymeasure attribute for every command
         att = _make_identifier(name)
         if isinstance(cmd.dtype, (list, tuple)):
             stringplaceholder = "%s"
@@ -402,7 +396,6 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
             attributes[att] = Instrument.measurement(name + "?", f"get {att}", **kwargs)
         elif cmd.getfunc is None:
             if cmd.dtype is None:
-                # create parameterless functions (e.g. trigger)
                 methods[f"{att}"] = _create_parameterless(name)
             else:
                 kwargs["check_set_errors"] = True
@@ -421,7 +414,6 @@ def makeSCPIdevice(*cmds: Mapping[str, Command], system: bool = False) -> type[S
             attributes[att] = Instrument.control(
                 name + "?", name + f" {stringplaceholder}", f"get/set {att}", **kwargs
             )
-        # create set and wait/poll method in case this is asked for
         if cmd.polling_cmd is not None:
             methods[f"set_{att}"] = _create_setnwait(att, _make_identifier(cmd.polling_cmd))
 

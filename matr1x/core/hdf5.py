@@ -59,17 +59,13 @@ def save_dict_to_hdf5(data_dict: dict, hdf5_file: h5py.File, root_group: str) ->
         """Recursively write a dictionary to an HDF5 group."""
         for key, value in d.items():
             if isinstance(value, dict):
-                # Create a subgroup for nested dictionaries
                 subgroup = group.create_group(key)
                 write_dict(subgroup, value)
             elif isinstance(value, list):
-                # Convert lists to datasets
                 group.create_dataset(key, data=value)
             else:
-                # Save scalar values
                 group.attrs[key] = value
 
-    # Create or get the specified root group
     group = hdf5_file.require_group(root_group)
 
     write_dict(group, data_dict)
@@ -102,7 +98,6 @@ def init_hdf5_skel(
             ("timestamp", h5py.string_dtype(encoding="utf-8")),
         ]
     )
-    # Create an empty dataset for comments
     file_handle.create_dataset("comments", shape=(0,), maxshape=(None,), dtype=dt)
     for col, uni, chu, dtype in zip(columns, units, chunks, dtypes):
         if isinstance(chu, tuple):
@@ -163,22 +158,17 @@ def _load_dict_from_hdf5(hdf5_file: h5py.File, root_group: str) -> dict:
         """
         d = {}
 
-        # Read attributes from the group
         for key, value in group.attrs.items():
             d[key] = value
 
-        # Read subgroups and datasets
         for key, item in group.items():
             if isinstance(item, h5py.Group):
-                # Recursively read subgroups
                 d[key] = read_group(item)
             elif isinstance(item, h5py.Dataset):
-                # Read dataset as list
                 d[key] = item[:]
 
         return d
 
-    # Get the specified root group
     if root_group in hdf5_file:
         group = hdf5_file[root_group]
     else:
@@ -269,22 +259,17 @@ def load_hdf5_file(
         if not isinstance(h5g, h5py.Group):
             raise TypeError(f"Expected 'data' to be a Group, got {type(h5g).__name__}")
 
-        # populate header fields from HDF5
         header["columns"] = list(h5g.keys())
         header["units"] = [it.attrs["unit"] for it in h5g.values()]
 
-        # check whether comments exist in file
         _parse_comments(h5f, header)
 
-        # parse additional attributes
         for key, val in h5f.attrs.items():
             header[key.lower()] = "" if val == "__None__" else val
 
-        # parse System query entry into hierarchical dictionary
         if filename.suffix == ".ma8":
             header["system query"] = _load_dict_from_hdf5(h5f, "system query")
 
-        # generate data object as structured array
         data = _read_data(h5g)
 
     return header, data

@@ -69,7 +69,6 @@ class Hdf5(System):
         # enforce HDF5 flag, will be set automatically if needed by any Parameter
         # self.hdf5 = True
 
-        # define columns for measurement
         self.add_param("devhdfp4_flat", "cnt", getter=["devhdf", "p4"], dtype="f8", chunks=4)
         self.add_param("devhdfp4_1d", "cnt", getter=["devhdf", "p4"], chunks=(4,))
         self.add_param(

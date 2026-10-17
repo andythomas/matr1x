@@ -55,10 +55,7 @@ class Agilent8114A(VisaDevice):
         if "read_termination" not in kwargs:
             kwargs["read_termination"] = "\r"
         super().__init__(interface, **kwargs)
-        # after initialization get the source function to determine
-        # whether voltage or current is the sourced
 
-    # high level functions
     def reset(self):
         """Reset instrument to factory details."""
         self.write("*RST")

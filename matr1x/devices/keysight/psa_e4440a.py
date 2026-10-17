@@ -175,9 +175,7 @@ class PSA_E4440A(VisaDevice):
         else:
             print(f"Please choose a valid scale! Your input was: {scale!s}")  # noqa: T201
 
-        # selects the sweep type automatic mode
         self.write("SWEep:TYPE AUTO")
-        # sets the rules for the sweep type auto mode to dynamic range
         self.write("SWE:TYPE:AUTO:RUL DRAN")
 
         if getData:
@@ -211,7 +209,6 @@ class PSA_E4440A(VisaDevice):
         self.connection.timeout = self.maxAverage * (1e3 * sweep_time + n_points) + 120e3
         self.write("INIT:IMM")
         self.query("*OPC?")
-        # reset timeout to default
         self.connection.timeout = self.timeout
 
     @synchronized

@@ -93,7 +93,6 @@ class Keithley2182A(VisaDevice):
         """
         return super().query(*args, **kwargs)
 
-    # high level functions
     @synchronized
     def configure(
         self,
@@ -154,7 +153,6 @@ class Keithley2182A(VisaDevice):
             # make sure the device is in the idle state
             self.write(":ABOR")
 
-        # we want to measure volts
         cmdList.append(':SENS:FUNC "VOLT"')
         if NPLC is not None:
             cmdList.append(f":SENS:VOLT:NPLC {float(NPLC):f}")

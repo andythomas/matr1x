@@ -96,7 +96,6 @@ logger = logging.getLogger(__name__)
 _DEFAULT_PARENT_INDEX = QModelIndex()
 
 
-# dictionary of commonly used validators
 validator: dict[type, QDoubleValidator | QIntValidator] = {
     float: QDoubleValidator(),
     int: QIntValidator(),
@@ -105,7 +104,6 @@ validator: dict[type, QDoubleValidator | QIntValidator] = {
 _lo = QLocale("C")
 _lo.setNumberOptions(QLocale.NumberOption.RejectGroupSeparator)
 validator[float].setLocale(_lo)
-# integer validator for unsigned values (e.g. number of points)
 uint_validator = QIntValidator()
 uint_validator.setBottom(0)
 
@@ -190,7 +188,6 @@ class MetaViewerWidget(QDockWidget):
             )
 
             if "enum" in schema:
-                # strict, use combobox
                 editor = QComboBox(parent)
                 editor.insertItems(0, [str(i) for i in schema["enum"]])
                 editor.setStyleSheet("QComboBox { border: none; padding: 0px; }")
@@ -255,7 +252,6 @@ class MetaViewerWidget(QDockWidget):
             else:
                 editor = QTextEdit(parent)
                 editor.setStyleSheet("QTextBox { border: none; padding: 0px; }")
-                # disable frame remove margins and scroll bar
                 editor.setFrameStyle(0)
                 editor.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
@@ -490,7 +486,6 @@ class MetaViewerWidget(QDockWidget):
         if "_schema" in schema:
             return MetaViewerWidget.resolve_schema(schema["_schema"], root_schema)
 
-        # Handle $ref
         if "$ref" in schema and root_schema:
             ref_path = schema["$ref"].split("/")
             # Assuming refs are always like #/$defs/MyModel
@@ -499,7 +494,6 @@ class MetaViewerWidget(QDockWidget):
                 ref_schema = ref_schema.get(part, {})
             return MetaViewerWidget.resolve_schema(ref_schema, root_schema)
 
-        # Handle anyOf (often used for Optional[T] -> [T, null])
         if "anyOf" in schema:
             for sub_schema in schema["anyOf"]:
                 resolved = MetaViewerWidget.resolve_schema(sub_schema, root_schema)
@@ -509,7 +503,6 @@ class MetaViewerWidget(QDockWidget):
                     merged.pop("anyOf", None)
                     return merged
 
-        # Handle allOf (merging multiple schemas)
         if "allOf" in schema:
             merged = {**schema}
             for sub_schema in schema["allOf"]:
@@ -578,7 +571,6 @@ class MetaViewerWidget(QDockWidget):
             if isinstance(types, dict) and isinstance(types.get("_schema"), dict):
                 self.root_schema = types["_schema"]
 
-            # Resolve schema if it's a dict
             if isinstance(types, dict):
                 self._type = MetaViewerWidget.resolve_schema(types, self.root_schema)
             else:
@@ -590,16 +582,13 @@ class MetaViewerWidget(QDockWidget):
             self.hidden: bool = False
             self.validation_error: str | None = None
 
-            # If value is a dict or Pydantic model, convert its items to TreeItem children
             if isinstance(self.value, (dict, BaseModel)):
                 schema = self._type if isinstance(self._type, dict) else {}
-                # Update root_schema if this is a new Pydantic model
                 if isinstance(self.value, BaseModel):
                     self.root_schema = self.value.__class__.model_json_schema()
                     schema = self.root_schema
 
                 if isinstance(self.value, BaseModel):
-                    # Get all field names and extra fields
                     all_keys = list(self.value.__class__.model_fields.keys())
                     if self.value.model_extra:
                         all_keys.extend(self.value.model_extra.keys())
@@ -641,7 +630,6 @@ class MetaViewerWidget(QDockWidget):
                     if child_key == "_schema":
                         continue
 
-                    # Determine type from Pydantic schema or nested types dict
                     cast_type = {}
                     if isinstance(schema, dict):
                         cast_type = schema.get("properties", {}).get(child_key)
@@ -659,8 +647,6 @@ class MetaViewerWidget(QDockWidget):
                         )
                     )
             elif isinstance(self.value, (tuple, list)) or _is_ndarray(self.value):
-                # for lists with finite length also use nest view
-                # key is list index
                 cast_type = self._type.get("items", {}) if isinstance(self._type, dict) else {}
 
                 if len(self.value) > 1:
@@ -671,10 +657,8 @@ class MetaViewerWidget(QDockWidget):
                             )
                         )
                 elif len(self.value) == 1:
-                    # only list with length one, use that element only
                     self.value = self.value[0]
                 else:
-                    # length 0 list, replace with string representation
                     self.value = str(self.value)
 
         def child(self, row: int) -> MetaViewerWidget.TreeItem:
@@ -760,7 +744,6 @@ class MetaViewerWidget(QDockWidget):
                 if self.missing:
                     return ""
                 if isinstance(self.value, (tuple, list, dict)) or _is_ndarray(self.value):
-                    # Display an empty value if it's a nested iterable
                     return ""
                 if self.hidden and role == Qt.ItemDataRole.DisplayRole:
                     # editor is active, act like there is no value
@@ -1167,13 +1150,11 @@ class MetaViewerWidget(QDockWidget):
             self.tree_view.resizeColumnToContents(i)
         self.tree_view.expandAll()
 
-        # make widget expanding
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.tree_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.tree_view.setVerticalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
         self.setWidget(self.tree_view)
 
-        # Set the custom editable delegate
         delegate = self.EditableDelegate(editable=self.editable, parent=self.tree_view)
         self.tree_view.setItemDelegate(delegate)
 
@@ -1200,19 +1181,16 @@ class MetaViewerWidget(QDockWidget):
         types : dict, optional
             Type definition for editable meta data
         """
-        # get position of scroll bar before resetting the data
         if types is None:
             types = {}
         if self.schema_contains_visa_resource(types):
             self.prefetch_visa_resource_names()
         current_pos = self.tree_view.verticalScrollBar().value()
         self.model.resetData(self.parse_header(meta), self.parse_header(types))
-        # resize and expand all entries
         # (the latter might be disabled in the future, or configurable?)
         for i in range(2):
             self.tree_view.resizeColumnToContents(i)
         self.tree_view.expandAll()
-        # restore scroll bar position
         self.tree_view.verticalScrollBar().setValue(current_pos)
 
     def get_validation_errors(self) -> list[str]:
@@ -1287,7 +1265,6 @@ class ConfigEditWidget(MetaViewerWidget):
         layout = QVBoxLayout()
         button_layout = QHBoxLayout()
 
-        # Dublin Core Elements
         self.w_update_config: QPushButton = QPushButton("Reload all")
         self.w_update_config.setIcon(get_matrix_icon("SP_BrowserReload"))
         self.w_update_config.setToolTip("Reload all system configurations from disk.")
@@ -1506,7 +1483,6 @@ class ConfigEditWidget(MetaViewerWidget):
                 if hasattr(system_config, "model_json_schema"):
                     syst_dict[system_name]["_schema"] = system_config.model_json_schema()
             except Exception:
-                # If type information is unavailable, retain the values alone.
                 logger.debug(
                     "Could not load the local schema for runtime system %s",
                     system_name,
@@ -1533,7 +1509,6 @@ class ConfigEditWidget(MetaViewerWidget):
         reload_config()
         syst_dict = self._config_from_systemfile()
 
-        # parse config from system info (from subprocess)
         if self.system_info is not None:
             for system_name, config_info in self.system_info.config.items():
                 self._add_system_config(syst_dict, system_name, config_info)
@@ -1730,7 +1705,6 @@ class ConfigEditWidget(MetaViewerWidget):
         for key, value in nested.items():
             new_key = f"{parent_key}{sep}{key}" if parent_key else key
             if isinstance(value, dict):
-                # If all nested values are non-dicts, stop flattening here
                 if all(not isinstance(v, dict) for v in value.values()):
                     items[new_key] = value
                 else:
@@ -1860,7 +1834,6 @@ class ConfigEditWidget(MetaViewerWidget):
         config_dict = {}
         for item in self.model.root_item.child_items:
             if item.child_count() == 0:
-                # system has no configurable options
                 continue
             sys_key = item.key
             key_parts = sys_key.split(".")

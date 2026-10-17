@@ -87,11 +87,9 @@ class SMS(VisaDevice):
 
         super().__init__(interface, **kwargs)
 
-        # define class variables
         self._steps_per_deg = steps_per_revolution * gear_ratio / angle_ratio
         self._settings = {ax: {} for ax, it in self._axes.items()}
 
-        # Set default limits if none provided
         default_limits = {ax: {"lo": -40, "hi": 400} for ax in self._axes}
         if limits is not None:
             for ax, limit_values in limits.items():
@@ -100,7 +98,6 @@ class SMS(VisaDevice):
 
         self._limits = default_limits
 
-    # high level functions
     def id(self):
         """
         Get the device identification string.
@@ -139,11 +136,9 @@ class SMS(VisaDevice):
         (stepfreq-startfreq)/ramp must be >= 100 Hz/s (watch units).
         For more details, refer to the device manual.
         """
-        # cast to int
         stepfreq = int(stepfreq)
         startfreq = int(startfreq)
         ramp = int(ramp)
-        # check validity:
         if (stepfreq - startfreq) / (ramp / 1000) < 100:
             # >= 100 Hz/s is required
             return
@@ -186,11 +181,9 @@ class SMS(VisaDevice):
             configured limits or if the motor is already moving.
         """
         if pos > self._limits[ax]["hi"] or pos < self._limits[ax]["lo"]:
-            # only allows rotations within limits
             return
         pos *= self._steps_per_deg
         if self.get_moving():
-            # ignore command if still moving
             return
         if self._settings[ax] != {}:
             self.query(
@@ -227,11 +220,9 @@ class SMS(VisaDevice):
             exceed limits or if the motor is already moving.
         """
         if abs(pos) > abs(self._limits[ax]["hi"] - self._limits[ax]["lo"]):
-            # ignore rotations that are guaranteed to exceed the limit
             return
         pos *= self._steps_per_deg
         if self.get_moving():
-            # ignore command if still moving
             return
         if self._settings[ax] != {}:
             self.query(
@@ -269,11 +260,9 @@ class SMS(VisaDevice):
             configured limits or if the motor is already moving.
         """
         if pos > self._limits[ax]["hi"] or pos < self._limits[ax]["lo"]:
-            # only allows rotations within limits
             return
         pos *= self._steps_per_deg
         if self.get_moving():
-            # ignore command if still moving
             return
         if self._settings[ax] != {}:
             self.write(
@@ -313,11 +302,9 @@ class SMS(VisaDevice):
             exceed limits or if the motor is already moving.
         """
         if abs(pos) > abs(self._limits[ax]["hi"] - self._limits[ax]["lo"]):
-            # ignore rotations that are guaranteed to exceed the limit
             return
         pos *= self._steps_per_deg
         if self.get_moving():
-            # ignore command if still moving
             return
         if self._settings[ax] != {}:
             self.write(

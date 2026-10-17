@@ -92,15 +92,12 @@ class AboutBox(QMessageBox):
         pixmap = icon.pixmap(icon_size)
         self.setIconPixmap(pixmap)
         self.setWindowTitle(title)
-        # Get package and git information
         (version, branch, sha, time) = get_install_info(package)
         if time != "not available":
             date = _format_local_timestamp(time, date_format)
         else:
             date = time
-        # Get Python interpreter information
         python_info = self.get_python_interpreter_info()
-        # Get system and Qt information
         system_type = platform.system().lower()
         result = subprocess.run(
             "qmake6 --version | grep -oE '6[.][0-9]+[.][0-9]+'",
@@ -186,7 +183,6 @@ class AboutBox(QMessageBox):
         # Interpreter executable path (shortened)
         executable = self._shorten_path(sys.executable)
 
-        # Virtual environment detection
         venv_info = self.get_virtual_env_info()
 
         return {
@@ -214,7 +210,6 @@ class AboutBox(QMessageBox):
             env_type = "system"
             env_location = sys.prefix
 
-        # Check for conda
         conda_env = os.environ.get("CONDA_DEFAULT_ENV")
         if conda_env:
             if env_type == "system":
@@ -225,7 +220,6 @@ class AboutBox(QMessageBox):
         else:
             env_description = env_type.title()
 
-        # Shorten location path for display
         location = self._shorten_path(env_location)
 
         return {"description": env_description, "location": location}
@@ -373,11 +367,9 @@ class MApplication(QApplication):
             if bundle:
                 info_dict = bundle.localizedInfoDictionary() or bundle.infoDictionary()
                 info_dict["CFBundleName"] = name
-            # Correct the menu
             app = NSApplication.sharedApplication()
             main_menu = app.mainMenu()
             if main_menu:
-                # Get left-most menu with app-specific items
                 app_menu = main_menu.itemAtIndex_(0).submenu()
                 for i in range(app_menu.numberOfItems()):
                     item = app_menu.itemAtIndex_(i)

@@ -570,13 +570,9 @@ def parse_inputfile(inputfile: str, system: MergedSystem) -> Generator:
         )
     # allow point with and without measurements
     pointparser.add_argument("--logpoint", default=1, nargs="?", type=int)
-    # start parsing the input file
     with Path(inputfile).open() as parameterfile:
         for nr, line in enumerate(parameterfile):
-            # jump over comments
             if line[0] != "#":
-                # divide the string into a list and
-                # read the values into datapoint
                 parameterlist = shlex.split(line)
                 for i, arg in enumerate(parameterlist):
                     if (arg[0] == "-") and arg[1].isdigit():
@@ -590,7 +586,6 @@ def parse_inputfile(inputfile: str, system: MergedSystem) -> Generator:
                 # get the list with parameters from the parser and sort so that
                 # order is maintained
                 datapoint = [value for key, value in sorted(vars(raw_input[0]).items(), key=sort)]
-                # prepare values for system.set_value by casting to float
                 for i in range(len(system.columns)):
                     datapoint[i] = _cast_datapoint_value(datapoint[i])
 

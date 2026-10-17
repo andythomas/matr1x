@@ -862,24 +862,20 @@ class MercuryIPS(VisaDevice):
             adjusted values
         """
         valid = True
-        # check -2 <= xval <= 2
         if 2 + tolerance < abs(xval):
             valid = False
             xval = math.copysign(2, xval)
-        # check -2 <= yval <= 2
         if 2 + tolerance < abs(yval):
             valid = False
             yval = math.copysign(2, yval)
-        # check -6 <= zval <= 6
         if 6 + tolerance < zval:
             valid = False
             zval = math.copysign(6, yval)
-        # check if "ip" field is greater than 1.5T and limit magnitude to 2T
+        # check if total field would exceed 2T and limit magnitude
+        # while conserving direction
         if 1.5 + tolerance < math.sqrt(xval**2 + yval**2) and 2.0 + tolerance < math.sqrt(
             xval**2 + yval**2 + zval**2
         ):
-            # check if 3D field is greater than 2T and limit all axis
-            # conserving the direction (really necessary?)
             valid = False
             factor = 2.0 / math.sqrt(xval**2 + yval**2 + zval**2)
             xval = xval * factor
@@ -1492,7 +1488,6 @@ class MercuryITC(VisaDevice):
         val : float
             Temperature setpoint in Kelvin (limited to 0-300K range)
         """
-        # Limit TVTI to 300K
         if val < 0:
             val = 0
         elif val > 300:
@@ -1529,7 +1524,6 @@ class MercuryITC(VisaDevice):
         val : float
             Needle valve opening percentage (0-100%)
         """
-        # Limit NV between 0 and 100%
         if val < 0:
             val = 0
         elif val > 100:

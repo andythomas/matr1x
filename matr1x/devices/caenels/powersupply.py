@@ -196,7 +196,6 @@ class CAENelsEasyDriver(VisaDevice):
             True if fault detected, False otherwise
         """
         status_bin_str = self.fetchStatus()[0]
-        # Convert binary string to integer and check bit 1
         status_int = int(status_bin_str, 2)
         return bool(status_int & 0b10)
 
@@ -210,7 +209,6 @@ class CAENelsEasyDriver(VisaDevice):
             True if output is on, False if output is off
         """
         status_bin_str = self.fetchStatus()[0]
-        # Convert binary string to integer and check bit 0
         status_int = int(status_bin_str, 2)
         return bool(status_int & 0b1)
 

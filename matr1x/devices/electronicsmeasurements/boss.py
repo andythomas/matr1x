@@ -59,9 +59,7 @@ class BOSS(VisaDevice):
             kwargs["cmdpers"] = 30
         super().__init__(interface, **kwargs)
         self.read_very_eager()  # clear leftovers of old communication
-        # set talkback off
         self.query("SB0")
-        # set device to remote
         self.query("SR")
         time.sleep(0.5)
         self.read_very_eager()
@@ -137,7 +135,6 @@ class BOSS(VisaDevice):
         ret = ret.replace("Command>", "")
         return ret
 
-    # high level functions
     def set_local(self):
         """Set device to local mode."""
         self.query("SL")

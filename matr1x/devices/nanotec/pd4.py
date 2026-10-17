@@ -109,7 +109,6 @@ class NanotecPD4(VisaDevice):
         """
         return self.query("#1v")
 
-    # high level functions
     def referenceRun(self, wait=600e3):
         """
         Perform a reference run and set positioning mode to absolute.
@@ -136,7 +135,6 @@ class NanotecPD4(VisaDevice):
         else:
             while self.getMovingStatus() is True:
                 time.sleep(0.1)
-        # store time of last reference run in a string formatted as "YYYY-MM-DD hh:mm:ss"
         timeStamp = time.localtime()
         formattedTime = time.strftime("%Y-%m-%d %H:%M:%S", timeStamp)
         print(formattedTime)  # noqa: T201

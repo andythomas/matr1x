@@ -27,18 +27,11 @@ from matr1x.core.system import System
 from matr1x.devices.dummy import dummy
 
 # ============================
-
-
-# ============================
 # This area contains the required system definition and
 # the optional reimplementation of the set and reset function
 # ============================
 
-# ============================
 
-
-# ============================
-# define system class
 class MeasSystem(System):
     """Dummy measurement system for testing system merging."""
 

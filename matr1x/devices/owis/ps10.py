@@ -86,7 +86,6 @@ class Ps10(VisaDevice):
 
         super().__init__(interface, **kwargs)
 
-        # Calculate steps per degree based on configurable parameters
         self.DMT100_deg = microsteps * steps_per_rev * gear_ratio / angle_conv
 
     @synchronized
@@ -145,10 +144,8 @@ class Ps10(VisaDevice):
             return int(ret)
         except ValueError:
             logger.info("%s.query_int: integer conversion error ('%s', %s)", self.name, msg, ret)
-            # retry query
             return self.query_int(msg, depth + 1)
 
-    # high level functions
     def id(self):
         """
         Get the device version identification.
@@ -197,7 +194,6 @@ class Ps10(VisaDevice):
         mode : str
             Movement mode, must be either "ABSOL" or "RELAT"
         """
-        # first read out was ABSOL
         assert mode == "ABSOL" or mode == "RELAT"
         self.write(mode + "1")
 
@@ -228,7 +224,6 @@ class Ps10(VisaDevice):
         """
         if int(steps) > -100000000 and int(steps) < 100000000:
             self.write(f"PSET1={int(steps):d}")
-            # start movement
             self.write("PGO1")
 
     def moveAngle(self, angle):

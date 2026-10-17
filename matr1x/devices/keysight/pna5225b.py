@@ -322,7 +322,6 @@ class PNA5225b(VisaDevice):
             self.connection.timeout = 1e3 * sweep_time + n_points + 10e3
             self.write("INIT:IMM")
             self.query("*OPC?")
-            # reset timeout to default
             self.connection.timeout = self.timeout
 
     @synchronized

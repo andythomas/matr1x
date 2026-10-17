@@ -22,10 +22,11 @@ from matr1x.control import control_dummy
 from matr1x.core.system import System
 
 # ============================
-
-
+# This area contains the required system definition and
+# the optional reimplementation of the set and reset function
 # ============================
-# define system class
+
+
 class GuiIntegration(System):
     """Dummy system demonstrating integration of a control gui (control_dummy)."""
 
