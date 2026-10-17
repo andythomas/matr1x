@@ -19,6 +19,12 @@ jobs:
       - name: Install package and dependencies
         run: uv sync --locked --all-extras --group docs --no-dev
 
+      # required until 0.18 is released
+      - name: Install great-docs from main branch
+        run: >-
+          uv pip install --reinstall-package great-docs
+          "great-docs[svg] @ git+https://github.com/great-docs/great-docs@main"
+
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
@@ -30,7 +36,7 @@ jobs:
       - name: Build docs
         env:
           QT_QPA_PLATFORM: offscreen
-        run: uv run --locked --group docs --no-dev great-docs build
+        run: uv run --locked --no-sync --group docs --no-dev great-docs build
 
       # The API reference pages are named after griffe canonical paths
       # (``module:Item``). The colon is rejected by upload-artifact (and by
