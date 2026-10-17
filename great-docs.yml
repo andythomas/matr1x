@@ -77,6 +77,10 @@ github_style: icon
 
 announcement: "We are happy to announce the first publicly available version and welcome new users."
 
+mcp:
+  module: matr1x.apps.mcp
+  server_var: mcp
+
 reference:
   # ── System framework ────────────────────────────────────────────────
   - title: System
