@@ -23,7 +23,7 @@ jobs:
       - name: Install great-docs from main branch
         run: >-
           uv pip install --reinstall-package great-docs
-          "great-docs[svg] @ git+https://github.com/great-docs/great-docs@main"
+          "great-docs[svg] @ git+https://github.com/posit-dev/great-docs@main"
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
