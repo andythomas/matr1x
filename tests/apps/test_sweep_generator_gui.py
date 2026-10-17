@@ -47,6 +47,7 @@ def test_sweep_generator_run(qtbot, qapp, repo_root: Path, input_dir: Path, tmp_
     draft and compare sweep
     save and compare sweep
     sweep_params, repeat, up_down, and loop_over are correctly loaded
+    save actions are enabled after loading a file with parameters
     repeat, updown, and loopover widgets are correctly set
     points value can be changed in sweep_table
     window title becomes dirty after change
@@ -150,6 +151,11 @@ def test_sweep_generator_run(qtbot, qapp, repo_root: Path, input_dir: Path, tmp_
     assert test_sweep_file.exists()
 
     main_window.open_file(test_sweep_file)
+    assert main_window.ui.actions.save.isEnabled()
+    assert main_window.ui.actions.save_as.isEnabled()
+    assert main_window.ui.actions.append.isEnabled()
+    assert main_window.ui.actions.append_to.isEnabled()
+    assert main_window.ui.actions.sweep.isEnabled()
     assert main_window.columns.loop_over == [-1, -1]
     assert main_window.columns.up_down == [2, 0]
     assert main_window.columns.repeat == [2, 1]

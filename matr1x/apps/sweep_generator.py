@@ -1632,6 +1632,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             self.grid_widgets[col].repeat.setValue(repeat[col])
         self.last_filename = Path(filename)
         self.update_window_title()
+        self.sweep_available(bool(any(self.columns.parameter)))
         self.generate_datafile()
 
     def new_file(self, reset_systems: bool = False) -> None:
