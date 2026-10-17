@@ -32,6 +32,7 @@ import numpy as np
 import pyqtgraph
 from pyqtgraph.exporters import ImageExporter
 from PySide6.QtCore import (
+    QRectF,
     Qt,
 )
 from PySide6.QtGui import (
@@ -100,7 +101,7 @@ class SimplePlotWidget(QGroupBox):
         desig : list of int
             Designator that stores integers that connect the
             plotted values to some external gui elements.
-            Essentially a simple storage.
+            -1 means no selection. Essentially a simple storage.
         pen : bool or None, optional
             If True, lines will be displayed.
         """
@@ -935,7 +936,9 @@ class SimplePlotWidget(QGroupBox):
         )
 
         # add the first empty plot with
-        initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
+        initial_plot = self.PlotObject(
+            self.gl, self.cb_error, self.l_slider, False, 0, [-1, -1, -1]
+        )
         self.plots: list[self.PlotObject] = [initial_plot]
 
         # Connect X-axis linking signal for automatic linking
@@ -983,7 +986,7 @@ class SimplePlotWidget(QGroupBox):
             self.l_slider,
             False,
             index,
-            [0, 0, 0],
+            [-1, -1, -1],
             pen=self.w_line.isChecked(),
         )
         self.plots.append(new_plot)
@@ -1246,7 +1249,7 @@ class SimplePlotWidget(QGroupBox):
             self.l_slider,
             new_state,
             plotindex,
-            [0, 0, 0],
+            [-1, -1, -1],
             pen=self.w_line.isChecked(),
         )
         self.plots.insert(index, new_plot)
@@ -1338,7 +1341,9 @@ class SimplePlotWidget(QGroupBox):
         for plot in self.plots:
             plot.remove_plot()
         del self.plots
-        initial_plot = self.PlotObject(self.gl, self.cb_error, self.l_slider, False, 0, [0, 0, 0])
+        initial_plot = self.PlotObject(
+            self.gl, self.cb_error, self.l_slider, False, 0, [-1, -1, -1]
+        )
         self.plots = [initial_plot]
 
         # Connect X-axis linking signal for automatic linking
@@ -1450,3 +1455,7 @@ class CustomViewBox(pyqtgraph.ViewBox):
             self.setMouseMode(self.RectMode)
         else:
             pyqtgraph.ViewBox.mouseDragEvent(self, ev, axis)
+
+    def showAxRect(self, ax: QRectF, **kwargs):
+        """Zoom exactly to the selected rectangle, without padding."""
+        super().showAxRect(ax, padding=0, **kwargs)
