@@ -29,6 +29,7 @@ from typing import Any, overload
 
 import numpy as np
 import polars as pl
+from polars.exceptions import NoDataError
 
 from matr1x.core.models import HeaderDict, create_empty_header
 
@@ -564,14 +565,17 @@ def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
         for _ in range(nheader + 1):
             f.readline()
         data_text = f.read()
-    df = pl.read_csv(
-        StringIO(data_text),
-        separator="\t",
-        comment_prefix="#",
-        has_header=False,
-        new_columns=header["columns"],
-        null_values="None",
-    )
+    try:
+        df = pl.read_csv(
+            StringIO(data_text),
+            separator="\t",
+            comment_prefix="#",
+            has_header=False,
+            new_columns=header["columns"],
+            null_values="None",
+        )
+    except NoDataError:  # A header-only file returns an empty frame
+        df = pl.DataFrame(schema=header["columns"])
     return header, df
 
 
