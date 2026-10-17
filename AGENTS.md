@@ -56,6 +56,25 @@ via `monaco-assets` for matrix-script, and a Python 3.10+ backend
 (pydantic, h5py, numpy, polars, pymeasure, pyvisa, ...). `uv` manages
 the environment, lockfile and build (build backend: `uv_build`).
 
+## MCP Server
+
+`matrix-mcp` (`matr1x/apps/mcp.py`) is a stateless MCP
+server. The required packages live in the optional `mcp` extra,
+so sync with `uv sync --extra mcp` (or `--all-extras`) before
+use. Start it with `uv run matrix-mcp`; an MCP client config looks
+like:
+
+```json
+{
+  "mcpServers": {
+    "matr1x": {
+      "command": "uv",
+      "args": ["run", "matrix-mcp"]
+    }
+  }
+}
+```
+
 ## Coding Standards
 
 - Format with `ruff format`, lint with `ruff check`, typecheck with

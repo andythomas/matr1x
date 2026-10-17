@@ -47,6 +47,10 @@ dependencies = [
 
 [project.optional-dependencies]
 elab = ["elabapi_python >= 5.3.0", "jinja2", "urllib3"] # for the electronic notebook
+mcp = [
+    "mcp >= 2.0.0",      # apps.mcp (MCP server)
+    "matplotlib >= 3.6", # apps.mcp (plotting)
+]
 ppms = [
     "MultiPyVu >= 3.6.1", # for matr1x/devices/quantumdesign/ppms,
 ]
@@ -54,6 +58,7 @@ ppms = [
 [project.scripts]
 matrix = "matr1x.apps.cli:main"
 matrix-di = "matr1x.apps.desktop_integration:main"
+matrix-mcp = "matr1x.apps.mcp:main"
 
 [project.gui-scripts]
 matrix-gui = "matr1x.apps.queue:main"
