@@ -1450,21 +1450,21 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
             Saved (True) or cancelled (False)
         """
         if dialog or not self.last_filename:
-            prefilled_file = (
-                self.last_filename if self.last_filename != "" else core_config.usersfolder
+            directory = (
+                self.last_filename.parent if self.last_filename else core_config.usersfolder
             )
             if append:
                 filename = QFileDialog.getOpenFileName(
                     self,
                     "Select file to append to",
-                    str(prefilled_file),
+                    str(directory),
                     f"Sweep 8 files (*{self.extension})",
                 )
             else:
                 filename = QFileDialog.getSaveFileName(
                     self,
                     "Select output file",
-                    str(prefilled_file),
+                    str(directory),
                     f"Sweep 8 files (*{self.extension})",
                 )
             if filename[0] != "":
