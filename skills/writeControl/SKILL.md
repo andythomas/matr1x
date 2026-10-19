@@ -239,7 +239,12 @@ that must report a value `refresh` does not sample.
 #### 2. Serialize every hardware-accessing getter/setter with the locks
 
 For commands that genuinely touch the hardware, your device access is
-only safe if the underlying communication is synchronized:
+only safe if the underlying communication is synchronized. Note that
+in practice the observed failures are **logical** races (e.g. an
+interlock trip interleaving with a `refresh` read, or a script and a
+user issuing SET commands at the same time), not crashes in the
+drivers: most drivers are safe enough at the transport level, and the
+locks below are about keeping compound sequences logically consistent.
 
 - **PyMeasure instruments**: matr1x applies the thread-safety patch
   (`matr1x.core.pymeasure_threading_fix`) to `pymeasure.instruments.
@@ -253,6 +258,17 @@ only safe if the underlying communication is synchronized:
 - **`VisaDevice` family** (`matr1x.devices.visadevice`): `query`,
   `read`, `write` are already wrapped in `@synchronized` (see
   `sharedlock`).
+- **NI-DAQmx** (`nidaqmx.Task`): the driver is thread-safe in
+  practice; concurrent `read()`/`write()` on the same task has not
+  been observed to crash. A shared lock is still recommended so that
+  compound sequences (e.g. an interlock trip vs. a `refresh` read)
+  stay logically consistent, but it is not required to avoid
+  crashes.
+- **`requests`-based web devices** (e.g. the AJA MFC): each HTTP
+  request is atomic on its own, so the transport layer is safe. The
+  realistic risk is logical: a script and a user issuing SET commands
+  at the same time. A lock around the device access keeps such
+  sequences ordered.
 - **Anything else** (custom devices, or compound read-modify-write
   sequences that must not interleave with another thread): protect them
   with a `threading.Lock` (or `RLock`) shared by every accessor, and
@@ -280,7 +296,8 @@ Qt widgets from the SCPI server thread yourself; always go through
 #### Checklist
 
 - [ ] Every device is accessed through a lock (or the built-in
-      PyMeasure/VisaDevice synchronization) from **all** entry points.
+      PyMeasure/VisaDevice/NI-DAQmx/HTTP synchronization) from **all**
+      entry points, so compound sequences stay logically consistent.
 - [ ] `get` commands return buffered `self[...].value` unless there is a
       specific reason to read hardware.
 - [ ] A multi-call atomic sequence uses `atomic_operation()` (PyMeasure)
