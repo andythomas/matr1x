@@ -719,7 +719,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         # initialize common widgets
         self.activityIndicator = []
-        self._pending_updates = {}  # {idx: color}
+        self._pending_updates: dict[int, tuple[str, float | None, float | None]] = {}
         indicator_width = 17
         if len(self.guidicts) * indicator_width > 200:
             indicator_width = int(200 / len(self.guidicts))
@@ -733,7 +733,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             ql.setPalette(palette)
             self.activityIndicator.append(ql)
             guidict.refresh_worker.activity.connect(
-                lambda c, idx=idx: self.change_single_color(c, idx)
+                lambda c, cyc, ref, idx=idx: self.change_single_color(c, idx, cyc, ref)
             )
             guidict.refresh_worker.panic.connect(self.panic)
 
@@ -1092,7 +1092,13 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._local_server = None
 
     @AutoSlot
-    def change_single_color(self, color: str, idx: int) -> None:
+    def change_single_color(
+        self,
+        color: str,
+        idx: int,
+        cycle_time_ms: float | None = None,
+        refresh_time_ms: float | None = None,
+    ) -> None:
         """
         Change the background color of a single activity indicator.
 
@@ -1102,8 +1108,12 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             The color to set as background as in QColor(color).
         idx : int
             The index of the activity indicator to change.
+        cycle_time_ms : float or None, optional
+            The duration of the last full refresh cycle in milliseconds.
+        refresh_time_ms : float or None, optional
+            The duration of the last refresh call in milliseconds.
         """
-        self._pending_updates[idx] = color
+        self._pending_updates[idx] = (color, cycle_time_ms, refresh_time_ms)
 
     @AutoSlot
     def change_color(self, color: str) -> None:
@@ -1116,7 +1126,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             The color to set as background as in QColor(color).
         """
         for idx, ql in enumerate(self.activityIndicator):
-            self._pending_updates[idx] = color
+            self._pending_updates[idx] = (color, None, None)
 
     def _process_updates(self):
         """Process all pending updates."""
@@ -1128,12 +1138,23 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._pending_updates.clear()
 
         # Apply all updates
-        for idx, color in updates.items():
+        for idx, (color, cycle_time_ms, refresh_time_ms) in updates.items():
             if idx < len(self.activityIndicator):
                 label = self.activityIndicator[idx]
                 palette = label.palette()
                 palette.setColor(label.backgroundRole(), QColor(color))
                 label.setPalette(palette)
+                if (
+                    cycle_time_ms is not None
+                    and refresh_time_ms is not None
+                    and cycle_time_ms >= 0
+                    and refresh_time_ms >= 0
+                ):
+                    label.setToolTip(
+                        f"Cycle/refresh: {cycle_time_ms:.1f}/{refresh_time_ms:.1f} ms"
+                    )
+                else:
+                    label.setToolTip("")
 
     @AutoSlot
     def deactivate_gui(self, flag: bool) -> None:

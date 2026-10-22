@@ -22,6 +22,7 @@ import logging
 import re
 import sys
 import threading
+import time
 from collections.abc import Callable
 from enum import IntEnum
 from operator import attrgetter
@@ -1588,15 +1589,16 @@ class _Worker(QObject):
     Attributes
     ----------
     activity : Signal
-        Signal to indicate an iteration of the refresh timer.
+        Signal indicating a refresh iteration and its cycle/refresh
+        durations in milliseconds.
     panic : Signal
         Signal to indicate a panic state.
     sig_error : Signal
         Signal to report errors.
     """
 
-    # activity signal to indicate an iteration of the refresh timer
-    activity = Signal(str)
+    # activity signal to indicate an iteration and cycle/refresh durations in ms
+    activity = Signal(str, float, float)
     panic = Signal(bool, str)
     sig_error = Signal(type, Exception, str)
 
@@ -1606,6 +1608,7 @@ class _Worker(QObject):
         self.interval: int = interval  # in milliseconds
         self.guidict: GuiDict = parent
         self._timer: QTimer = QTimer()  # fake definition
+        self._last_cycle_end: float = 0.0
 
     @catchEmitError
     @AutoSlot
@@ -1616,7 +1619,8 @@ class _Worker(QObject):
         counter = itertools.count(1)
         self._timer.timeout.connect(lambda: self._target(next(counter)))
         # start refresh immediately and then again after the timer timeout
-        self.target(0)
+        self._last_cycle_end = time.perf_counter()
+        self._run_target(0)
         # copy values from readout to set fields upon first run
         self.guidict._dispatcher.copy_requested.emit()
         self._timer.start()
@@ -1625,7 +1629,18 @@ class _Worker(QObject):
     def stop(self) -> None:
         """Stop the worker's refresh loop."""
         self._timer.stop()
-        self.activity.emit("lightgray")
+        self.activity.emit("lightgray", -1.0, -1.0)
+
+    def _run_target(self, count: int) -> None:
+        """Execute target, measure cycle/refresh times, and emit activity."""
+        start = time.perf_counter()
+        self.target(count)
+        end = time.perf_counter()
+        refresh_ms = (end - start) * 1000
+        cycle_ms = (end - self._last_cycle_end) * 1000
+        self._last_cycle_end = end
+        color = "green" if count % 2 else "lightgreen"
+        self.activity.emit(color, cycle_ms, refresh_ms)
 
     @catchEmitError
     def _target(self, count: int) -> None:
@@ -1637,8 +1652,4 @@ class _Worker(QObject):
         count : int
             The current iteration count.
         """
-        if count % 2:
-            self.activity.emit("green")
-        else:
-            self.activity.emit("lightgreen")
-        self.target(count)
+        self._run_target(count)
