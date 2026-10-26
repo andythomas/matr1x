@@ -33,34 +33,18 @@ In case there are any errors in the last two steps, please inspect the newest fi
 ## Workspace
 
 If the user has a folder with their own system files, control GUIs, and
-device drivers (or wants to create one), set it up as a matr1x workspace:
+device drivers (or wants to create one), set it up as a matr1x
+workspace with the `matrix-workspace` command, which is installed in
+the pkg-root environment:
 
-1. Register the folder in `~/.matr1x.toml` under a new section named after
-   the folder, using the absolute path of the folder:
+    uv run matrix-workspace init <folder> --editable --matr1x <pkg-root>
 
-   ```toml
-   [mylab]
-   systems_directory = "/home/user/labs/mylab"
-   ```
-
-   If the section already exists, update it instead of adding a duplicate.
-
-2. Create or update an `AGENTS.md` file in the folder, adjusting the
-   following content to the actual section name and paths:
-
-   ```markdown
-   # matr1x workspace
-
-   This folder contains my matr1x system files, control GUIs, and device
-   drivers. It is registered in `~/.matr1x.toml` under the section
-   `[mylab]`.
-
-   ## Environment
-
-   - matr1x installation (pkg-root): `/home/user/matr1x`
-   - Run Python from this folder with the installation's environment:
-     `uv run --project /home/user/matr1x python <script>`
-   - Package layout and coding conventions: `/home/user/matr1x/AGENTS.md`
-   - Task-specific procedures: the `matr1x-*` skills in
-     `/home/user/matr1x/skills/` (or installed globally).
-   ```
+The command creates the virtual environment, the `AGENTS.md` file, and
+the `skills/` folder in the workspace, and registers the folder in
+`~/.matr1x.toml`.
+Use `--project` if the user wants the workspace to be a uv project
+with a lock file, and a repeatable `--extra <name>` for additional
+extras.
+If the user does not want an editable install, omit `--editable`;
+matr1x is then installed from PyPI into the workspace.
+Running `init` again in an initialized folder is refused.

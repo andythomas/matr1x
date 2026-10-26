@@ -16,9 +16,9 @@ work on, e.g. your matr1x installation or the folder containing your
 system and control files, and describe the task in plain language.
 
 If you have existing files to be used with matr1x, have the
-agent set up the folder as a workspace first (see the `matr1x-install`
-skill below) so that it knows where your installation lives and how
-to run your code.
+agent set up the folder as a workspace first (see the workspace
+section below) so that it knows where your installation lives and
+how to run your code.
 
 When started in a matr1x repository, the agent reads the `AGENTS.md`
 file in the repository root. It contains the project layout, the coding
@@ -41,6 +41,43 @@ it. Think of it as a skilled assistant, not an unsupervised worker.
 Also, be aware that the agent requires permissions to write files and
 run commands, at least within the workspace. Please apply the same
 precautions you would for any tool with access to your system.
+
+## Workspace
+
+A workspace is a folder with your own system files, control GUIs, and
+device drivers, prepared for use with matr1x and coding agents.
+The `matrix-workspace init` command creates it in one step:
+
+- a virtual environment `.venv` with matr1x installed,
+- an `AGENTS.md` file that tells an agent about the environment,
+- a `skills/` folder with the matr1x agent skills,
+- a registration in `~/.matr1x.toml` so that matr1x finds your files.
+
+Run it in the folder you want to use, e.g.
+
+    uv run --with 'matr1x-measurements' matrix-workspace init
+
+The form above works in an empty folder without matr1x installed yet:
+`uv` fetches the package into a temporary environment for the command
+itself. If matr1x is already installed in your current environment,
+simply run `matrix-workspace init`.
+
+By default, the workspace is a plain folder and matr1x is installed
+from PyPI. Two independent options change that:
+
+- `--project` makes the workspace a uv project: `init` writes a
+  `pyproject.toml` and a lock file, so that `uv run` manages the
+  environment and your setup is reproducible.
+- `--editable` installs matr1x editable from a local checkout instead
+  of PyPI, so that changes in the checkout are picked up directly.
+  The checkout is expected at `../matr1x` next to the workspace or
+  can be given with `--matr1x <path>`.
+  Note that with `--project`, the lock file then refers to the
+  checkout by its absolute path.
+
+Additional extras of the package can be installed with a repeatable
+`--extra <name>` option, e.g. `--extra elab`.
+Running `init` again in an initialized folder is refused.
 
 ## Skill overview
 
