@@ -46,7 +46,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-elab = ["elabapi_python >= 5.3.0", "jinja2", "urllib3"] # for the electronic notebook
+elab = ["elabapi_python >= 5.3.0", "jinja2", "urllib3>=2.8.0"] # for the electronic notebook
 mcp = [
     "mcp >= 2.0.0",      # apps.mcp (MCP server)
     "matplotlib >= 3.6", # apps.mcp (plotting)
@@ -245,7 +245,15 @@ override-dependencies = [
     # has cp314 wheels for all platforms. (A marker-tagged override would drop
     # grimp from non-macOS installs entirely.)
     "grimp<3.16",
-    "tornado>=6.5.8", # GHSA-8423-8fgw-73vq, GHSA-wwv5-g3v4-889x, CVE-2026-82397
+    "tornado>=6.5.9", # GHSA-8423-8fgw-73vq, GHSA-wwv5-g3v4-889x, CVE-2026-82397, GHSA-3hv7-mjh2-fv65, GHSA-c2m8-h5v5-343r, GHSA-chx6-46f5-w4vp
+    "cairosvg>=2.9.1", # CVE-2026-107378
+    "certifi>=2026.10.19", # GHSA-6q48-6c7w-9gw2
+    "jupyter-server>=2.21.0", # GHSA-c3mw-737p-c7g2
+    "jupyterlab>=4.6.4", # CVE-2026-102830, CVE-2026-102831, CVE-2026-102832, CVE-2026-102904
+    "nbconvert>=7.17.2", # CVE-2026-114140
+    "notebook>=7.6.3", # CVE-2026-102831, CVE-2026-102832
+    # Pillow 13 needs Python >= 3.11; the project still supports 3.10.
+    "pillow>=13.0.0 ; python_version >= '3.11'", # 44 CVEs fixed in 13.0.0 (e.g. CVE-2026-112398, CVE-2026-112900)
 ]
 
 [tool.uv.dependency-groups]
