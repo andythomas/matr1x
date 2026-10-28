@@ -254,6 +254,7 @@ override-dependencies = [
     "notebook>=7.6.3", # CVE-2026-102831, CVE-2026-102832
     # Pillow 13 needs Python >= 3.11; the project still supports 3.10.
     "pillow>=13.0.0 ; python_version >= '3.11'", # 44 CVEs fixed in 13.0.0 (e.g. CVE-2026-112398, CVE-2026-112900)
+    "pillow>=12.3.0 ; python_version < '3.11'", # best available on 3.10
 ]
 
 [tool.uv.dependency-groups]
