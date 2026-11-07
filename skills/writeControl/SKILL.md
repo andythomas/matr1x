@@ -277,6 +277,16 @@ locks below are about keeping compound sequences logically consistent.
   `unpanic` handlers; a lock that only guards the setter does not
   protect against the refresh thread.
 
+  **Panic must serialize access too, and stop anything already
+  running.** `panic()`/`unpanic()` run on the GUI thread, but the SCPI
+  set functions and `refresh()` run on the server/worker threads, so a
+  lock alone does not drain a set that is already in flight. Ensure
+  that once `panic()` returns, no user- or script-issued set procedure
+  continues (including any in-flight `atomic_operation()` or
+  read-modify-write sequence, and the refresh worker). Guard against
+  re-panic/re-unpanic double-firing, which can otherwise retrigger the
+  very trip that caused the panic.
+
 #### 3. Keep the refresh worker out of the GUI event loop
 
 `refresh()` runs on its own worker thread, so it must **never touch
@@ -305,6 +315,8 @@ Qt widgets from the SCPI server thread yourself; always go through
 - [ ] `refresh` sets only `self[...].value`, never widgets.
 - [ ] Device attributes that are read by `refresh` and written by a
       `set` use the same lock on both sides.
+- [ ] `panic()` is safe: no set procedure keeps running after it
+      returns, and re-panic/unpanic cannot double-fire.
 
 ---
 
@@ -426,3 +438,7 @@ Once the offscreen startup is clean, start the control visibly via its
 and let the user interact with it: click buttons, toggle panels, trigger
 panic. This catches runtime errors that never appear at startup. The control
 is only finished after the user has exercised it without errors.
+
+Also verify the panic ordering deliberately, while looping/repeating a
+compound set: trip panic mid-sequence, then unpanic, and confirm no half-run
+procedure keeps writing and that panicking again does not double-fire.
