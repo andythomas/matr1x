@@ -239,7 +239,12 @@ that must report a value `refresh` does not sample.
 #### 2. Serialize every hardware-accessing getter/setter with the locks
 
 For commands that genuinely touch the hardware, your device access is
-only safe if the underlying communication is synchronized:
+only safe if the underlying communication is synchronized. Note that
+in practice the observed failures are **logical** races (e.g. an
+interlock trip interleaving with a `refresh` read, or a script and a
+user issuing SET commands at the same time), not crashes in the
+drivers: most drivers are safe enough at the transport level, and the
+locks below are about keeping compound sequences logically consistent.
 
 - **PyMeasure instruments**: matr1x applies the thread-safety patch
   (`matr1x.core.pymeasure_threading_fix`) to `pymeasure.instruments.
@@ -253,6 +258,17 @@ only safe if the underlying communication is synchronized:
 - **`VisaDevice` family** (`matr1x.devices.visadevice`): `query`,
   `read`, `write` are already wrapped in `@synchronized` (see
   `sharedlock`).
+- **NI-DAQmx** (`nidaqmx.Task`): the driver is thread-safe in
+  practice; concurrent `read()`/`write()` on the same task has not
+  been observed to crash. A shared lock is still recommended so that
+  compound sequences (e.g. an interlock trip vs. a `refresh` read)
+  stay logically consistent, but it is not required to avoid
+  crashes.
+- **`requests`-based web devices** (e.g. the AJA MFC): each HTTP
+  request is atomic on its own, so the transport layer is safe. The
+  realistic risk is logical: a script and a user issuing SET commands
+  at the same time. A lock around the device access keeps such
+  sequences ordered.
 - **Anything else** (custom devices, or compound read-modify-write
   sequences that must not interleave with another thread): protect them
   with a `threading.Lock` (or `RLock`) shared by every accessor, and
@@ -260,6 +276,16 @@ only safe if the underlying communication is synchronized:
   in *every* access path, including `refresh` and the `panic`/
   `unpanic` handlers; a lock that only guards the setter does not
   protect against the refresh thread.
+
+  **Panic must serialize access too, and stop anything already
+  running.** `panic()`/`unpanic()` run on the GUI thread, but the SCPI
+  set functions and `refresh()` run on the server/worker threads, so a
+  lock alone does not drain a set that is already in flight. Ensure
+  that once `panic()` returns, no user- or script-issued set procedure
+  continues (including any in-flight `atomic_operation()` or
+  read-modify-write sequence, and the refresh worker). Guard against
+  re-panic/re-unpanic double-firing, which can otherwise retrigger the
+  very trip that caused the panic.
 
 #### 3. Keep the refresh worker out of the GUI event loop
 
@@ -280,7 +306,8 @@ Qt widgets from the SCPI server thread yourself; always go through
 #### Checklist
 
 - [ ] Every device is accessed through a lock (or the built-in
-      PyMeasure/VisaDevice synchronization) from **all** entry points.
+      PyMeasure/VisaDevice/NI-DAQmx/HTTP synchronization) from **all**
+      entry points, so compound sequences stay logically consistent.
 - [ ] `get` commands return buffered `self[...].value` unless there is a
       specific reason to read hardware.
 - [ ] A multi-call atomic sequence uses `atomic_operation()` (PyMeasure)
@@ -288,6 +315,8 @@ Qt widgets from the SCPI server thread yourself; always go through
 - [ ] `refresh` sets only `self[...].value`, never widgets.
 - [ ] Device attributes that are read by `refresh` and written by a
       `set` use the same lock on both sides.
+- [ ] `panic()` is safe: no set procedure keeps running after it
+      returns, and re-panic/unpanic cannot double-fire.
 
 ---
 
@@ -409,3 +438,7 @@ Once the offscreen startup is clean, start the control visibly via its
 and let the user interact with it: click buttons, toggle panels, trigger
 panic. This catches runtime errors that never appear at startup. The control
 is only finished after the user has exercised it without errors.
+
+Also verify the panic ordering deliberately, while looping/repeating a
+compound set: trip panic mid-sequence, then unpanic, and confirm no half-run
+procedure keeps writing and that panicking again does not double-fire.
