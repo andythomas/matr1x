@@ -152,6 +152,41 @@ def test_init_editable(
     assert skill.read_text() == "checkout skill"
 
 
+def test_init_editable_extras_resync(
+    tmp_path: Path, home: Path, fake_uv: list, checkout: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep extras in the editable resync command of AGENTS.md."""
+    workspace_dir = tmp_path / "mylab"
+    assert (
+        run_workspace(
+            monkeypatch,
+            "init",
+            str(workspace_dir),
+            "--editable",
+            "--matr1x",
+            str(checkout),
+            "--extra",
+            "elab",
+        )
+        == 0
+    )
+    agents = (workspace_dir / "AGENTS.md").read_text()
+    assert f"uv pip install -e {checkout}[elab]" in agents
+
+
+def test_valid_version() -> None:
+    """Accept only released X.Y.Z version strings."""
+    assert workspace._valid_version("8.5.1")
+    assert not workspace._valid_version("8.5.1.dev0")
+    assert not workspace._valid_version("8.5")
+
+
+def test_fetch_skills_rejects_unreleased_version(tmp_path: Path) -> None:
+    """Fail early when the version is not a released one."""
+    with pytest.raises(workspace.WorkspaceError, match="does not look like a released"):
+        workspace.fetch_skills("8.5.1.dev0", tmp_path / "skills")
+
+
 def test_init_editable_default_checkout(
     tmp_path: Path, home: Path, fake_uv: list, monkeypatch: pytest.MonkeyPatch
 ) -> None:

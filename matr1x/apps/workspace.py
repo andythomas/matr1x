@@ -143,8 +143,18 @@ def create_environment(
         _run(["uv", "pip", "install", *pip_install_args(checkout, extras)], workspace)
 
 
+def _valid_version(version: str) -> bool:
+    """Check whether a version string has the shape of a released tag."""
+    return bool(re.fullmatch(r"\d+\.\d+\.\d+", version))
+
+
 def fetch_skills(version: str, destination: Path) -> None:
     """Download the skills of a released matr1x version from GitHub."""
+    if not _valid_version(version):
+        raise WorkspaceError(
+            f"matr1x {version} does not look like a released version; "
+            "no matching release archive to download skills from."
+        )
     url = f"{REPOSITORY_URL}/archive/refs/tags/v{version}.tar.gz"
     with tempfile.TemporaryDirectory() as tmp:
         archive = Path(tmp) / "matr1x.tar.gz"
@@ -177,10 +187,20 @@ def install_skills(workspace: Path, checkout: Path | None) -> None:
         fetch_skills(version, destination)
 
 
-def write_agents_md(workspace: Path, section: str, project: bool, checkout: Path | None) -> None:
+def write_agents_md(
+    workspace: Path,
+    section: str,
+    project: bool,
+    checkout: Path | None,
+    extras: list[str],
+) -> None:
     """Write the AGENTS.md describing the workspace environment."""
+    extras_suffix = f"[{','.join(extras)}]" if extras else ""
     if checkout is not None:
-        resync = "uv sync" if project else f"uv pip install -e {checkout}"
+        if project:
+            resync = "uv sync"
+        else:
+            resync = f"uv pip install -e {checkout}{extras_suffix}"
         source = (
             f"- matr1x is installed editable from `{checkout}`:\n"
             f"  - Coding conventions: `{checkout}/AGENTS.md`\n"
@@ -273,7 +293,7 @@ def init_workspace(
         write_project_file(workspace, section, checkout, extras)
     create_environment(workspace, project, checkout, extras)
     install_skills(workspace, checkout)
-    write_agents_md(workspace, section, project, checkout)
+    write_agents_md(workspace, section, project, checkout, extras)
     register_section(workspace, section)
     print(f"Initialized matr1x workspace at {workspace}")  # noqa: T201
     print(  # noqa: T201
