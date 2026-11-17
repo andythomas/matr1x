@@ -76,7 +76,7 @@ from PyPI. Two independent options change that:
   checkout by its absolute path.
 
 Additional extras of the package can be installed with a repeatable
-`--extra <name>` option, e.g. `--extra elab`.
+`--extra <name>` option, e.g. `--extra elab` (elab, mcp, ppms).
 Running `init` again in an initialized folder is refused.
 
 ## Skill overview
@@ -93,8 +93,7 @@ You can also request a skill explicitly, e.g. "use the
 
 Skills can be installed for a single project or system-wide (per user).
 The latter makes them available outside of matr1x repositories as
-well, which the `matr1x-install` skill needs: in an empty directory
-there is no `AGENTS.md` that could point the agent to the skill.
+well.
 
 Note that the `AGENTS.md` file already contains instructions on how to
 find and when to use a skill.
@@ -104,25 +103,6 @@ internal reasoning, which is often hidden or collapsible in the dialog.
 Please refer to the dedicated [skill page](https://andythomas.github.io/matr1x/skills.html)
 for installation instructions and a detailed description of each skill.
 The sections below explain how to use the individual skills.
-
-## Skill: matr1x-install
-
-This skill installs the complete package into an empty directory:
-it sets up the dependencies, clones the repository, creates the
-configuration, and performs the desktop integration.
-On request, it also sets up a folder with your own system files and
-control GUIs as a workspace, so that an agent can work in it directly.
-As explained above, it is meant to be installed in the global skill
-directory, so that it also works outside of a matr1x repository.
-Since that directory may hold skills from other sources as well, the
-skill is named `matr1x-install` to stay clearly identifiable.
-To obtain the skill without matr1x being installed yet, see the
-[installation](installation.md) chapter.
-
-To use it, change into the target directory and instruct the agent,
-e.g. "Please install matr1x as described in the matr1x-install skill."
-If anything fails, the agent checks the newest files in `~/logs`
-for the underlying cause and attempts to fix the issue on its own.
 
 ## Skill: matr1x-migration
 
