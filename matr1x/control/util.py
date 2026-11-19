@@ -35,6 +35,7 @@ from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.utils import getaddresses
 from pathlib import Path
 from subprocess import PIPE, Popen
 from typing import TYPE_CHECKING, Any
@@ -169,6 +170,7 @@ def sendNotificationEmail(
     # a check for valid email adresses should be added here!
     if address == "":
         return
+    recipients = [mailbox for _, mailbox in getaddresses([address]) if mailbox]
     msg = MIMEMultipart()
     msg["To"] = address
     msg["Subject"] = subject
@@ -192,7 +194,7 @@ def sendNotificationEmail(
         ):
             with smtplib.SMTP_SSL(conf.smtp_server, conf.smtp_port, context=context) as server:
                 server.login(conf.smtp_user, conf.password)
-                server.send_message(msg, from_addr=conf.fromemail, to_addrs=address)
+                server.send_message(msg, from_addr=conf.fromemail, to_addrs=recipients)
         elif os.name == "posix":
             p = Popen(["sendmail", "-t"], stdin=PIPE)
             p.communicate(msg.as_bytes())
