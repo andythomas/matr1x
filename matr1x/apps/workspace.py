@@ -37,6 +37,7 @@ else:
 
 DISTRIBUTION_NAME = "matr1x-measurements"
 REPOSITORY_URL = "https://github.com/andythomas/matr1x"
+RAW_REPOSITORY_URL = "https://raw.githubusercontent.com/andythomas/matr1x"
 USER_GUIDE_URL = "https://andythomas.github.io/matr1x/"
 
 
@@ -128,6 +129,42 @@ def write_project_file(
         }
     with (workspace / "pyproject.toml").open("wb") as file:
         tomli_w.dump(project, file)
+
+
+def seed_lock_file(workspace: Path, checkout: Path | None) -> None:
+    """Copy the matr1x lock file to seed the workspace lock file.
+
+    uv re-validates the copied file and re-locks whatever is stale, but
+    keeps the copied versions for everything else, so the workspace
+    environment stays close to the matr1x environment it came from.
+    """
+    destination = workspace / "uv.lock"
+    if checkout is not None:
+        source = checkout / "uv.lock"
+        if not source.is_file():
+            print(  # noqa: T201
+                f"warning: no uv.lock in {checkout}; locking from scratch",
+                file=sys.stderr,
+            )
+            return
+        shutil.copyfile(source, destination)
+        return
+    version = importlib.metadata.version(DISTRIBUTION_NAME)
+    if not _valid_version(version):
+        print(  # noqa: T201
+            f"warning: matr1x {version} is not a released version; locking from scratch",
+            file=sys.stderr,
+        )
+        return
+    url = f"{RAW_REPOSITORY_URL}/v{version}/uv.lock"
+    try:
+        with urllib.request.urlopen(url) as response:
+            destination.write_bytes(response.read())
+    except urllib.error.URLError as error:
+        print(  # noqa: T201
+            f"warning: could not download {url}: {error}; locking from scratch",
+            file=sys.stderr,
+        )
 
 
 def create_environment(
@@ -291,6 +328,7 @@ def init_workspace(
     section = sanitize_name(workspace.name)
     if project:
         write_project_file(workspace, section, checkout, extras)
+        seed_lock_file(workspace, checkout)
     create_environment(workspace, project, checkout, extras)
     install_skills(workspace, checkout)
     write_agents_md(workspace, section, project, checkout, extras)

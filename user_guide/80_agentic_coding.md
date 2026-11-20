@@ -67,7 +67,10 @@ from PyPI. Two independent options change that:
 
 - `--project` makes the workspace a uv project: `init` writes a
   `pyproject.toml` and a lock file, so that `uv run` manages the
-  environment and your setup is reproducible.
+  environment and your setup is reproducible. The lock file is seeded
+  from the lock file of the matr1x checkout (or, without `--editable`,
+  of the installed release on GitHub), so that both environments use
+  the same package versions.
 - `--editable` installs matr1x editable from a local checkout instead
   of PyPI, so that changes in the checkout are picked up directly.
   The checkout is expected at `../matr1x` next to the workspace or
