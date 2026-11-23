@@ -16,9 +16,9 @@ work on, e.g. your matr1x installation or the folder containing your
 system and control files, and describe the task in plain language.
 
 If you have existing files to be used with matr1x, have the
-agent set up the folder as a workspace first (see the `matr1x-install`
-skill below) so that it knows where your installation lives and how
-to run your code.
+agent set up the folder as a workspace first (see the workspace
+section below) so that it knows where your installation lives and
+how to run your code.
 
 When started in a matr1x repository, the agent reads the `AGENTS.md`
 file in the repository root. It contains the project layout, the coding
@@ -42,6 +42,46 @@ Also, be aware that the agent requires permissions to write files and
 run commands, at least within the workspace. Please apply the same
 precautions you would for any tool with access to your system.
 
+## Workspace
+
+A workspace is a folder with your own system files, control GUIs, and
+device drivers, prepared for use with matr1x and coding agents.
+The `matrix-workspace init` command creates it in one step:
+
+- a virtual environment `.venv` with matr1x installed,
+- an `AGENTS.md` file that tells an agent about the environment,
+- a `skills/` folder with the matr1x agent skills,
+- a registration in `~/.matr1x.toml` so that matr1x finds your files.
+
+Run it in the folder you want to use, e.g.
+
+    uv run --with 'matr1x-measurements' matrix-workspace init
+
+The form above works in an empty folder without matr1x installed yet:
+`uv` fetches the package into a temporary environment for the command
+itself. If matr1x is already installed in your current environment,
+simply run `matrix-workspace init`.
+
+By default, the workspace is a plain folder and matr1x is installed
+from PyPI. Two independent options change that:
+
+- `--project` makes the workspace a uv project: `init` writes a
+  `pyproject.toml` and a lock file, so that `uv run` manages the
+  environment and your setup is reproducible. The lock file is seeded
+  from the lock file of the matr1x checkout (or, without `--editable`,
+  of the installed release on GitHub), so that both environments use
+  the same package versions.
+- `--editable` installs matr1x editable from a local checkout instead
+  of PyPI, so that changes in the checkout are picked up directly.
+  The checkout is expected at `../matr1x` next to the workspace or
+  can be given with `--matr1x <path>`.
+  Note that with `--project`, the lock file then refers to the
+  checkout by its absolute path.
+
+Additional extras of the package can be installed with a repeatable
+`--extra <name>` option, e.g. `--extra elab` (elab, mcp, ppms).
+Running `init` again in an initialized folder is refused.
+
 ## Skill overview
 
 A skill is a set of instructions that teaches the agent how to perform
@@ -56,8 +96,7 @@ You can also request a skill explicitly, e.g. "use the
 
 Skills can be installed for a single project or system-wide (per user).
 The latter makes them available outside of matr1x repositories as
-well, which the `matr1x-install` skill needs: in an empty directory
-there is no `AGENTS.md` that could point the agent to the skill.
+well.
 
 Note that the `AGENTS.md` file already contains instructions on how to
 find and when to use a skill.
@@ -67,25 +106,6 @@ internal reasoning, which is often hidden or collapsible in the dialog.
 Please refer to the dedicated [skill page](https://andythomas.github.io/matr1x/skills.html)
 for installation instructions and a detailed description of each skill.
 The sections below explain how to use the individual skills.
-
-## Skill: matr1x-install
-
-This skill installs the complete package into an empty directory:
-it sets up the dependencies, clones the repository, creates the
-configuration, and performs the desktop integration.
-On request, it also sets up a folder with your own system files and
-control GUIs as a workspace, so that an agent can work in it directly.
-As explained above, it is meant to be installed in the global skill
-directory, so that it also works outside of a matr1x repository.
-Since that directory may hold skills from other sources as well, the
-skill is named `matr1x-install` to stay clearly identifiable.
-To obtain the skill without matr1x being installed yet, see the
-[installation](installation.md) chapter.
-
-To use it, change into the target directory and instruct the agent,
-e.g. "Please install matr1x as described in the matr1x-install skill."
-If anything fails, the agent checks the newest files in `~/logs`
-for the underlying cause and attempts to fix the issue on its own.
 
 ## Skill: matr1x-migration
 

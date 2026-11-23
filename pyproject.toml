@@ -59,6 +59,7 @@ ppms = [
 matrix = "matr1x.apps.cli:main"
 matrix-di = "matr1x.apps.desktop_integration:main"
 matrix-mcp = "matr1x.apps.mcp:main"
+matrix-workspace = "matr1x.apps.workspace:main"
 
 [project.gui-scripts]
 matrix-gui = "matr1x.apps.queue:main"
