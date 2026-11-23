@@ -48,4 +48,4 @@ Then, manual control and general observation of the desired devices can be perfo
 
 ## Requirements
 
-A Windows, Linux or Mac OS X computer with a Python installation (3.10 - 3.14) is successfully tested to run the software.
+A Windows, Linux or Mac OS X computer with a Python installation (3.11 - 3.14, 3.15 Mac) is successfully tested to run the software.

@@ -24,16 +24,12 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import tomllib
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 import tomli_w
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 DISTRIBUTION_NAME = "matr1x-measurements"
 REPOSITORY_URL = "https://github.com/andythomas/matr1x"

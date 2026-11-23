@@ -31,7 +31,7 @@ import time
 import traceback
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import matr1x.core.config as core_config
 from matr1x.core.error_handling import Error, InternalInvariantError
@@ -57,7 +57,7 @@ _RELATIVE_TIME_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
 
 def _local_now() -> datetime:
     """Return the current time in the host's local timezone."""
-    return datetime.now(timezone.utc).astimezone()
+    return datetime.now(UTC).astimezone()
 
 
 def _parse_local_time(value: str, fmt: str) -> datetime:

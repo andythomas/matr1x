@@ -3,7 +3,7 @@ name = "matr1x-measurements"
 version = "8.6.0"
 description = "Python package for data acquisition and instrument control"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11.5" # soupsieve >= 3 (CVE-2026-126190/-191/-193 fixes) needs 3.11.5
 license = "GPL-3.0-or-later"
 license-files = ["LICENSE.txt"]
 classifiers = [
@@ -16,7 +16,6 @@ classifiers = [
     "Operating System :: MacOS",
 ]
 dependencies = [
-    "tomli ; python_version < '3.11'",              # core.config (tomllib fallback)
     "tomli-w",                                      # core.config
     "pydantic >= 2.0",                              # core config schema and models
     "h5py >= 3.6.0",                                # core (HDF5 data handling)
@@ -27,7 +26,10 @@ dependencies = [
     "polars >= 1.0, != 2.0.0",                      # core.eval
     "psutil >= 5.9.0",                              # control
     "pyqtgraph >= 0.12.3",                          # gui plotting
-    "PySide6 >= 6.4.0",                             # gui
+    # PySide6 6.12.0 crashes on Linux (none_dealloc, refcount corruption in
+    # the Qt GUI tests); the 6.11 series is stable. Drop the cap when a fixed
+    # 6.12.x is released.
+    "PySide6 >= 6.4.0, < 6.12",                     # gui
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'",  # gui
     "pygit2 >= 1.16",                               # core.util, devices.git
     "pygit2 >= 1.19; python_version >= '3.14'",     # core.util, devices.git (Py 3.14+)
@@ -35,7 +37,7 @@ dependencies = [
     "urwid > 2.0",                                  # TUI (apps.cli)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
     "monaco-assets == 0.7.1",                        # gui.editor (matrix-script)
-    "ruff ~= 0.16.0",                                  # gui.editor (run as subprocess)
+    "ruff ~= 0.17.0",                                  # gui.editor (run as subprocess)
     "ty == 0.0.63",                                 # gui.editor (run as subprocess)
     "pymeasure >= 0.16.0",                          # core and device drivers
     "pyserial",                                     # device drivers
@@ -46,7 +48,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-elab = ["elabapi_python >= 5.3.0", "jinja2", "urllib3>=2.8.0"] # for the electronic notebook
+elab = ["elabapi_python >= 5.3.0, <6", "jinja2", "urllib3>=2.8.0"] # for the electronic notebook
 mcp = [
     "mcp >= 2.0.0",      # apps.mcp (MCP server)
     "matplotlib >= 3.6", # apps.mcp (plotting)
@@ -232,7 +234,7 @@ dev = [
     "pytest-env>=1.1.5",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
-    "complexipy>=6.2.0",
+    "complexipy>=6.2.0,<7",
     "py-yaml12>=0.2.0", # tests.test_public_api (parses great-docs.yml, YAML 1.2)
 ]
 
@@ -241,25 +243,13 @@ docs = [
 ]
 
 [tool.uv]
+exclude-newer = "2 days"
 override-dependencies = [
     # grimp 3.16 has no cp314 macOS wheel (Rust build fails in CI-less envs); 3.15
     # has cp314 wheels for all platforms. (A marker-tagged override would drop
     # grimp from non-macOS installs entirely.)
     "grimp<3.16",
-    "tornado>=6.5.9", # GHSA-8423-8fgw-73vq, GHSA-wwv5-g3v4-889x, CVE-2026-82397, GHSA-3hv7-mjh2-fv65, GHSA-c2m8-h5v5-343r, GHSA-chx6-46f5-w4vp
-    "cairosvg>=2.9.1", # CVE-2026-107378
-    "certifi>=2026.10.19", # GHSA-6q48-6c7w-9gw2
-    "jupyter-server>=2.21.0", # GHSA-c3mw-737p-c7g2
-    "jupyterlab>=4.6.4", # CVE-2026-102830, CVE-2026-102831, CVE-2026-102832, CVE-2026-102904
-    "nbconvert>=7.17.2", # CVE-2026-114140
-    "notebook>=7.6.3", # CVE-2026-102831, CVE-2026-102832
-    # Pillow 13 needs Python >= 3.11; the project still supports 3.10.
-    "pillow>=13.0.0 ; python_version >= '3.11'", # 44 CVEs fixed in 13.0.0 (e.g. CVE-2026-112398, CVE-2026-112900)
-    "pillow>=12.3.0 ; python_version < '3.11'", # best available on 3.10
 ]
-
-[tool.uv.dependency-groups]
-docs = { requires-python = ">=3.11" }
 
 [tool.complexipy]
 paths = ["matr1x", "tests"]

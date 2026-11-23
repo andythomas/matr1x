@@ -114,7 +114,7 @@ def get_package_path(package_name: str) -> Path | None:
 
 def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool = False) -> str:
     """Format a POSIX timestamp in the local timezone."""
-    text = datetime.datetime.fromtimestamp(value, datetime.timezone.utc).astimezone().strftime(fmt)
+    text = datetime.datetime.fromtimestamp(value, datetime.UTC).astimezone().strftime(fmt)
     return text.rstrip("0") if trim_trailing_zeros else text
 
 
