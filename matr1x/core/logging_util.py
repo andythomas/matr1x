@@ -17,7 +17,7 @@
 
 import logging
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 __all__ = ["WeekRotatingFileHandler"]
@@ -46,7 +46,7 @@ class WeekRotatingFileHandler(logging.FileHandler):
     @staticmethod
     def _current_iso_week() -> tuple[int, int]:
         """Return the current ISO year and week in the local timezone."""
-        iso_year, iso_week, _ = datetime.now(tz=timezone.utc).astimezone().isocalendar()
+        iso_year, iso_week, _ = datetime.now(tz=UTC).astimezone().isocalendar()
         return iso_year, iso_week
 
     def __init__(self, logfolder: str | Path, prefix: str = "matr1x") -> None:

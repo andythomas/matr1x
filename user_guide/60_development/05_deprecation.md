@@ -4,6 +4,12 @@ Software packages evolve over time and our package is no exception.
 There will be APIs, configuratons and other things that will be deprecated in the future.
 In the next sections, we will explain the lifecycle.
 
+## Python Versions
+
+The currently supported Python versions are also supported by our
+software package. End of life Python versions are removed without
+further notice.
+
 ## The Deprecation Lifecycle
 
 When a feature is replaced, it progresses through three distinct phases across releases.

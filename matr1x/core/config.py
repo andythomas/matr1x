@@ -30,7 +30,7 @@ Key features:
 """
 
 import logging
-import sys
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -45,11 +45,6 @@ from matr1x.core.util import (
     get_package_path,
     resolve_pkgroot_path,
 )
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 __all__ = [
     "config",
