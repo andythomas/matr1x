@@ -46,8 +46,15 @@ Please note that the notiications overwrite each other and inform the correspond
     ignored and triggers a warning for two releases; the warning check itself
     is removed in `>=8.8.0`.
 
+## Removed in the current and previous `development` versions
 
-## Removed in the current `development` version
+::: {.panel-tabset}
+
+### Current
+
+-- None (yet) --
+
+### 8.5.x
 
 | Item                 | Deprecation |           Remedy           |
 | :------------------- | :---------: | :------------------------: |
@@ -55,3 +62,5 @@ Please note that the notiications overwrite each other and inform the correspond
 | SR830 lock in driver |    8.0.1    | use `pymeasure` equivalent |
 | `sys` use in systems |    8.0.1    |     rename to `system`     |
 | `loadh5matrix`       |    8.1.0    |      use `loadmatrix`      |
+
+:::
