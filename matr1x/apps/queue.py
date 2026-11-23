@@ -1,0 +1,890 @@
+# This file is part of a software collection for data acquisition (matr1x).
+# Copyright (C) 2006-2026 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""Provide a graphical user interface for matrix measurements."""
+
+import logging
+import os
+import re
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeyEvent, QKeySequence
+from PySide6.QtNetwork import QLocalServer, QLocalSocket
+from PySide6.QtWidgets import (
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMenu,
+    QMenuBar,
+    QMessageBox,
+    QProgressBar,
+    QVBoxLayout,
+    QWidget,
+)
+
+import matr1x
+import matr1x.core.config as core_config
+from matr1x.apps.post_install import (
+    check_desktop_integration,
+    post_installation,
+    remove_desktop_integration,
+)
+from matr1x.core.error_handling import Error, InternalInvariantError, install_error_handler
+from matr1x.core.models import (
+    Datafile,
+    Envelope,
+    ErrorMessage,
+    Header,
+    MeasuredValues,
+    Message,
+    SetValues,
+    SystemInfo,
+    Telemetry,
+)
+from matr1x.core.system import get_system_info
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
+from matr1x.gui.app import AboutBox, MApplication
+from matr1x.gui.error_dialog import install_qt_error_dialog
+from matr1x.gui.helpers import (
+    create_matr1x_quit_action,
+    create_matrix_settings_action,
+    detect_shortcut,
+    get_matrix_icon,
+    open_matrix_toml,
+)
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.meta_viewer import ConfigEditWidget
+from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
+from matr1x.gui.shared import (
+    ContentDockWidget,
+    MeasurementExitCode,
+    MeasurementItem,
+    MeasurementTable,
+    MeasurementThread,
+    MeasurementUI,
+    MetaDataDialog,
+    MMainWindow,
+    MToolBar,
+    Notifier,
+    NotifierMessage,
+    SaferQSettings,
+    check_config,
+)
+
+logger = logging.getLogger(Path(__file__).name)
+
+if sys.platform == "win32":
+    try:
+        from ctypes import windll
+
+        myappid = "python.matr1x.matrix-gui.version"
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except ImportError:
+        pass
+
+
+class LabelWithSignal(QLabel):
+    """A QLabel that emits a signal if the text changes."""
+
+    textChanged = Signal(str)
+
+    def setText(self, a0: str) -> None:
+        """
+        Set label text and emit signal.
+
+        Parameters
+        ----------
+        a0 : str
+            The new label text.
+        """
+        super().setText(a0)
+        self.textChanged.emit(a0)
+
+
+class QueueListWidget(QListWidget):
+    """A widget that stores the parameters for each row."""
+
+    changed: Signal = Signal()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setDragDropMode(QListWidget.DragDropMode.InternalMove)
+        self.setAlternatingRowColors(True)
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_context_menu)
+        self.active: bool = False
+
+    def show_context_menu(self, pos: QPoint):
+        """Allow to change output and delete items."""
+        item = self.itemAt(pos)
+        if not item:
+            return
+        row = self.row(item)
+        self.active = True
+        try:
+            menu = QMenu(self)
+            change_output = menu.addAction("Change Output")
+            change_metadata = menu.addAction("Change Metadata")
+            change_config = menu.addAction("Change Config")
+            menu.addSeparator()
+            remove = menu.addAction("Remove")
+            action = menu.exec(self.mapToGlobal(pos))  # ty: ignore[invalid-argument-type]
+            if action == remove:
+                self.takeItem(row)
+            elif action == change_output:
+                self.change_output(row)
+            elif action == change_metadata:
+                self.change_metadata(row)
+            elif action == change_config:
+                self.change_config(row)
+        finally:
+            self.active = False
+
+    def change_config(self, row: int) -> None:
+        """Change the config of the item."""
+        parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        if parameters.system_info is None:
+            raise InternalInvariantError("Queued measurement should include system information.")
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Edit Device Config")
+        editor = ConfigEditWidget(popup=True)
+        editor.set_systemfile(parameters.system_info.configurable_sections)
+        editor.set_full_system_list(parameters.systems)
+        editor.set_system_info(parameters.system_info)
+        editor.update_data()
+        editor.apply_config_dict(parameters.config)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(editor)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        save_button = buttons.button(QDialogButtonBox.StandardButton.Save)
+
+        def update_save_button_state(*_args) -> None:
+            config_validation = editor.validate_config()
+            if isinstance(config_validation, Error):
+                save_button.setEnabled(False)
+                save_button.setToolTip(
+                    "Fix the invalid configuration entries before saving:\n\n"
+                    + config_validation.error
+                )
+                return
+            save_button.setEnabled(True)
+            save_button.setToolTip("Save device config.")
+
+        def save_config() -> None:
+            update_save_button_state()
+            if not save_button.isEnabled():
+                return
+            dialog.accept()
+
+        buttons.accepted.connect(save_config)
+        buttons.rejected.connect(dialog.reject)
+        editor.model.dataChanged.connect(update_save_button_state)
+        editor.model.validationChanged.connect(update_save_button_state)
+        editor.model.modelReset.connect(update_save_button_state)
+        update_save_button_state()
+        layout.addWidget(buttons)
+        if dialog.exec():
+            parameters.config = editor.get_config_dict()
+            self.item(row).setData(Qt.ItemDataRole.UserRole, parameters)
+            self.item(row).setToolTip(parameters.tooltip)
+
+    def change_metadata(self, row: int) -> None:
+        """Change the metadata of the item."""
+        parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        dialog = MetaDataDialog(popup=True)
+        dialog.set_metadata(parameters.metadata)
+        if dialog.exec():
+            parameters.metadata.update(dialog.metadata)
+            self.item(row).setData(Qt.ItemDataRole.UserRole, parameters)
+            self.item(row).setToolTip(parameters.tooltip)
+
+    def change_output(self, row: int) -> None:
+        """Change the output file location."""
+        parameters = self.item(row).data(Qt.ItemDataRole.UserRole)
+        folder = Path(parameters.input_file).with_suffix(".ma8")
+        filename = QFileDialog.getSaveFileName(
+            self,
+            "Select ma file",
+            str(folder),
+            "Output files (*.ma8)",
+            options=QFileDialog.Option.DontConfirmOverwrite,  # this is often ignored
+            # and native dialog is not an option
+        )
+        if filename[0] != "":
+            parameters.output_file = filename[0]
+            self.item(row).setData(Qt.ItemDataRole.UserRole, parameters)
+            self.item(row).setText(parameters.list_entry)
+            self.item(row).setToolTip(parameters.tooltip)
+
+    def add_parameters(self, parameters: MeasurementItem) -> None:
+        """Add a set of parameters."""
+        item = QListWidgetItem(parameters.list_entry)
+        item.setData(Qt.ItemDataRole.UserRole, parameters)
+        item.setToolTip(parameters.tooltip)
+        self.addItem(item)
+
+    def addItem(self, item: QListWidgetItem | str) -> None:
+        """Add an item to the list widget."""
+        super().addItem(item)
+        self.changed.emit()
+
+    def takeItem(self, row: int) -> QListWidgetItem:
+        """Delete the item."""
+        item = super().takeItem(row)
+        self.changed.emit()
+        return item
+
+    def parameters(self, row: int) -> MeasurementItem:
+        """Get the parameters for a matrix run of the given row."""
+        item = self.item(row)
+        return item.data(Qt.ItemDataRole.UserRole)
+
+    def keyPressEvent(self, a0: QKeyEvent) -> None:
+        """Allow to modify systems list with keyboard shortcuts."""
+        if detect_shortcut(a0, QKeySequence(QKeySequence.StandardKey.Delete)) or detect_shortcut(
+            a0, QKeySequence(Qt.Key.Key_Backspace)
+        ):
+            self.remove_measurement()
+        super().keyPressEvent(a0)
+
+    def remove_measurement(self) -> None:
+        """Remove selected or last item from measurement list."""
+        selected = self.selectedItems()
+        if selected:
+            self.takeItem(self.row(selected[0]))
+        elif self.count():
+            self.takeItem(self.count() - 1)
+
+
+@dataclass(frozen=True)
+class ActionGroup:
+    """Actions to be utilized in the GUI."""
+
+    preview: QAction
+    matrix_settings: QAction
+    config: QAction
+    sweep: QAction
+    queue: QAction
+    start: QAction
+    pause: QAction
+    abort: QAction
+    finish: QAction
+    kill: QAction
+    show_log: QAction
+    load: QAction
+    quit: QAction
+    post_install: QAction
+    remove_desktop_integration: QAction
+
+
+@dataclass(frozen=True)
+class WidgetGroup:
+    """UI widgets to be utilized in the GUI."""
+
+    meas_list: QueueListWidget
+    config_editor: ConfigEditWidget
+    dockable_metadata: ContentDockWidget
+    meta_view: MetaDataDialog
+    input_file: LabelWithSignal
+    current_file: QLabel
+    progress: QLabel
+    progressbar: QProgressBar
+    table: MeasurementTable
+    central_widget: QWidget
+    current_measurement: QLineEdit
+    about_box: AboutBox
+    measurement_thread: MeasurementThread
+    measurement_ui: MeasurementUI
+    notifier: Notifier
+
+
+class UIBuilder:
+    """Create the GUI elements."""
+
+    def __init__(self) -> None:
+        self.widgets: WidgetGroup = self._create_widgets()
+        self.actions: ActionGroup = self._create_actions()
+        self.toolbar: MToolBar = self._create_toolbar()
+        self._create_gui()
+        self.menubar = self._create_menubar()
+
+    def _create_widgets(self) -> WidgetGroup:
+        """Create all UI widgets of this application."""
+        meas_list = QueueListWidget()
+        input_file = LabelWithSignal()
+        current_file = QLabel()
+        meta_view = MetaDataDialog()
+        dockable_metadata = ContentDockWidget(
+            "Metadata",
+            "dockable_metadata",
+            "SP_FileDialogListView",
+            "Ctrl+2",
+            meta_view,
+            areas=(Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea),
+        )
+        table = MeasurementTable()
+        width = (table.verticalHeader().width() + table.horizontalHeader().length()) * 1.04
+        table.setFixedWidth(int(width))
+        progress = QLabel("Measurement idle.")
+        progressbar = QProgressBar()
+        central_widget = QWidget()
+        current_measurement = QLineEdit()
+        current_measurement.setReadOnly(True)
+        return WidgetGroup(
+            meas_list=meas_list,
+            config_editor=ConfigEditWidget(),
+            dockable_metadata=dockable_metadata,
+            meta_view=meta_view,
+            input_file=input_file,
+            current_file=current_file,
+            progressbar=progressbar,
+            progress=progress,
+            table=table,
+            central_widget=central_widget,
+            current_measurement=current_measurement,
+            about_box=AboutBox(
+                "Matrix GUI",
+                get_matrix_icon("matr1x-matrix-gui.png"),
+                matr1x,
+                core_config.datetimefmt,
+            ),
+            measurement_thread=MeasurementThread(),
+            measurement_ui=MeasurementUI(),
+            notifier=Notifier(logger),
+        )
+
+    def _create_gui(self) -> None:
+        """Create and set up all GUI layouts."""
+        measurement = QVBoxLayout()
+        measurement.addWidget(self.widgets.table)
+        measurement.addWidget(self.widgets.progress)
+        measurement.addWidget(self.widgets.progressbar)
+        queue_n_current_measurement = QVBoxLayout()
+        queue_n_current_measurement.addWidget(self.widgets.current_measurement)
+        queue_n_current_measurement.addWidget(self.widgets.meas_list, 1)
+        queue_n_measurement = QHBoxLayout()
+        queue_n_measurement.setContentsMargins(0, 0, 0, 0)
+        queue_n_measurement.addLayout(queue_n_current_measurement, 1)
+        queue_n_measurement.addLayout(measurement, 0)
+        measurements_container = QWidget()
+        measurements_container.setLayout(queue_n_measurement)
+        central_layout = QVBoxLayout()
+        central_layout.addWidget(self.widgets.notifier)
+        input_line = QHBoxLayout()
+        input_line.addWidget(QLabel("Input: "))
+        input_line.addWidget(self.widgets.input_file)
+        input_line.addStretch()
+        central_layout.addLayout(input_line)
+        central_layout.addWidget(QLabel("Queue"))
+        central_layout.addWidget(measurements_container)
+        current_line = QHBoxLayout()
+        current_line.addWidget(QLabel("Current file: "))
+        current_line.addWidget(self.widgets.current_file)
+        current_line.addStretch()
+        central_layout.addLayout(current_line)
+        self.widgets.central_widget.setLayout(central_layout)
+
+    def _create_actions(self) -> ActionGroup:
+        """Create all QActions of this application."""
+        load = QAction(get_matrix_icon("SP_DialogOpenButton"), "Open")
+        load.setShortcut(QKeySequence.StandardKey.Open)
+        preview = QAction(
+            get_matrix_icon("matr1x-matrix-preview.png", QColor("RoyalBlue")), "Preview"
+        )
+        preview.setEnabled(False)
+        sweep = QAction(
+            get_matrix_icon("matr1x-sweep-generator.png", QColor("RoyalBlue")), "Generator"
+        )
+        queue = QAction(get_matrix_icon("CHAR_+"), "Queue")
+        queue.setToolTip("Queue the measurement.")
+        queue.setEnabled(False)
+        return ActionGroup(
+            preview=preview,
+            matrix_settings=create_matrix_settings_action(),
+            config=self.widgets.config_editor.action,
+            sweep=sweep,
+            queue=queue,
+            start=self.widgets.measurement_ui.start,
+            pause=self.widgets.measurement_ui.pause,
+            abort=self.widgets.measurement_ui.abort,
+            finish=self.widgets.measurement_ui.finish,
+            kill=self.widgets.measurement_ui.kill,
+            show_log=LogWindowMixin.create_show_log_action(),
+            load=load,
+            quit=create_matr1x_quit_action(),
+            post_install=LogWindowMixin.create_post_install_action(),
+            remove_desktop_integration=LogWindowMixin.create_remove_desktop_integration_action(),
+        )
+
+    def _create_toolbar(self) -> MToolBar:
+        """Create the Toolbar."""
+        toolbar = MToolBar("Toolbar")
+        toolbar.addAction(self.actions.load)
+        toolbar.addAction(self.actions.sweep)
+        toolbar.addSeparator()
+        toolbar.addWidget(toolbar.empty)
+        toolbar.addAction(self.actions.queue)
+        self.widgets.measurement_ui.add_to_toolbar(toolbar)
+        toolbar.addWidget(toolbar.empty)
+        toolbar.addAction(self.actions.preview)
+        toolbar.addWidget(toolbar.spacer)
+        toolbar.addAction(self.widgets.dockable_metadata.action)
+        toolbar.addAction(self.actions.config)
+        return toolbar
+
+    def _create_menubar(self) -> QMenuBar:
+        """Create the menubar."""
+        menubar = QMenuBar()
+        file_menu = menubar.addMenu("&File")
+        file_menu.addAction(self.actions.load)
+        file_menu.addAction(self.actions.sweep)
+        file_menu.addSeparator()
+        file_menu.addAction(self.actions.quit)  # This gets auto-moved on a Mac
+        control_menu = menubar.addMenu("&Control")
+        control_menu.addAction(self.actions.queue)
+        self.widgets.measurement_ui.add_to_menu(control_menu)
+        control_menu.addSeparator()
+        control_menu.addAction(self.actions.preview)
+        view_menu = menubar.addMenu("&View")
+        view_menu.addAction(self.toolbar.action)
+        view_menu.addAction(self.widgets.dockable_metadata.action)
+        view_menu.addAction(self.actions.config)
+        view_menu.addSeparator()
+        view_menu.addAction(self.actions.matrix_settings)
+        help_menu = menubar.addMenu("&Help")
+        LogWindowMixin.add_common_help_actions(help_menu, self.actions)
+        help_menu.addAction(self.widgets.about_box.action)
+        return menubar
+
+
+class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
+    """Runs the logical code."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.settings = SaferQSettings("matr1x", "gui")
+        self.log_window = LoggingWindow(parent=self)
+        self.log_window.hide()
+        logger.info("matrix-gui starting")
+        self.setWindowTitle("Matrix GUI")
+        self.setWindowIcon(get_matrix_icon("matr1x-matrix-gui.png"))
+        self.ui = UIBuilder()
+        self.setMenuBar(self.ui.menubar)
+        self.addToolBar(self.ui.toolbar)
+        self.install_metadata_config_docks(
+            self.ui.widgets.dockable_metadata,
+            self.ui.widgets.config_editor,
+        )
+        self.setCentralWidget(self.ui.widgets.central_widget)
+        check_config(core_config.config, self.ui.widgets.notifier)
+        self._sg_proc: subprocess.Popen[bytes] | None = None
+        self._input_server_name = f"matr1x-matrix-gui-{os.getpid()}"
+        self._input_server = QLocalServer(self)
+        QLocalServer.removeServer(self._input_server_name)
+        if not self._input_server.listen(self._input_server_name):
+            logger.warning(
+                "Could not bind local input server: %s",
+                self._input_server.errorString(),
+            )
+        else:
+            self._input_server.newConnection.connect(self._on_input_connection)
+        self.running = False
+        self.measurement_failed = False
+        self.sys_meta_data: dict[str, Any] = {}
+        self._create_connections()
+        self.setAcceptDrops(True)
+        self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
+        self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
+        check_desktop_integration()
+
+    def _create_connections(self) -> None:
+        """Connect actions and widgets with application logic."""
+        self.ui.actions.preview.triggered.connect(self.open_preview)
+        self.ui.actions.matrix_settings.triggered.connect(open_matrix_toml)
+        self.ui.actions.sweep.triggered.connect(self.start_sweep_generator)
+        self.ui.actions.queue.triggered.connect(self.queue_measurement)
+        self.ui.actions.start.triggered.connect(self.run_matrix)
+        self.ui.widgets.config_editor.model.dataChanged.connect(self.update_queue_action_state)
+        self.ui.widgets.config_editor.model.validationChanged.connect(
+            self.update_queue_action_state
+        )
+        self.ui.widgets.config_editor.model.modelReset.connect(self.update_queue_action_state)
+        self.ui.actions.post_install.triggered.connect(post_installation)
+        self.ui.actions.remove_desktop_integration.triggered.connect(remove_desktop_integration)
+        self.ui.actions.show_log.triggered.connect(self.toggle_log_window)
+        self.log_window.visibility_changed.connect(
+            lambda visible: self._on_log_window_visibility_changed(visible, self.ui.actions)
+        )
+        self._on_log_window_visibility_changed(self.log_window.isVisible(), self.ui.actions)
+        self.ui.actions.load.triggered.connect(self.show_input_dialog)
+        self.ui.actions.quit.triggered.connect(self.close)
+        self.ui.widgets.input_file.textChanged.connect(self.parse_system_from_inputfile)
+        self.ui.widgets.measurement_ui.connect_to_thread(self.ui.widgets.measurement_thread)
+        self.ui.widgets.measurement_thread.data_received.connect(self.process_data)
+        self.ui.widgets.measurement_thread.finished.connect(self.process_finished)
+        self.ui.widgets.meas_list.changed.connect(self.measurement_list_changed)
+
+    def update_queue_action_state(self, *_args) -> None:
+        """Enable Queue only with an input file and a valid configuration."""
+        input_file = self.ui.widgets.input_file.text()
+        if not input_file or not Path(input_file).exists():
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip("Select an existing input file before queueing.")
+            return
+
+        if self.ui.widgets.config_editor.system_info is None:
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip("A valid system must be loaded before queueing.")
+            return
+
+        # Sweep files are expected to contain validated system information at this point.
+        config_validation = self.ui.widgets.config_editor.validate_config()
+        if isinstance(config_validation, Error):
+            self.ui.widgets.config_editor.show_for_validation_errors()
+            self.ui.actions.queue.setEnabled(False)
+            self.ui.actions.queue.setToolTip(
+                "Fix the invalid configuration entries before queueing:\n\n"
+                + config_validation.error
+            )
+            return
+
+        self.ui.actions.queue.setEnabled(True)
+        self.ui.actions.queue.setToolTip("Queue the measurement.")
+
+    @AutoSlot
+    def process_data(self, env: Envelope) -> None:
+        """Process the data from the measurement thread."""
+        data = env.payload
+        if isinstance(data, Message):
+            logger.info(data.message)
+        elif isinstance(data, Datafile):
+            self.ui.widgets.current_file.setText(data.datafile)
+            self.ui.actions.preview.setEnabled(True)
+        elif isinstance(data, Telemetry):
+            self.ui.widgets.progressbar.setMaximum(data.points)
+            self.ui.widgets.progressbar.setValue(data.point)
+            if data.remaining is not None:
+                self.ui.widgets.progress.setText(str(data))
+        elif isinstance(data, (SetValues, MeasuredValues, Header)):
+            self.ui.widgets.table.apply(data)
+        elif isinstance(data, ErrorMessage):
+            logger.error(data.error)
+            self.measurement_failed = True
+
+    def measurement_list_changed(self) -> None:
+        """Update the data order when the measurement list is changed."""
+        if not self.running:
+            self.ui.actions.start.setEnabled(self.ui.widgets.meas_list.count() > 0)
+
+    def closeEvent(self, a0: QCloseEvent) -> None:
+        """Close app properly."""
+        if self.running:
+            QMessageBox.warning(
+                QWidget(),
+                "Measurement running!",
+                """Please wait for the measurement to finish.""",
+            )
+            a0.ignore()
+            return
+        self._input_server.close()
+        while self.ui.widgets.meas_list.count() > 0:
+            self.ui.widgets.meas_list.remove_measurement()
+        self.save_window_state()
+        self.cleanup_log_window()
+        a0.accept()
+
+    def save_window_state(self) -> None:
+        """Save application configuration until next startup."""
+        self.save_layout_state(self.settings)
+        self.save_log_window_state(self.settings)
+
+    def restore_window_state(self) -> None:
+        """Restore application configuration from the previous use."""
+        self.restore_layout_state(self.settings)
+        self.restore_log_window_state(self.settings)
+
+    def show_input_dialog(self) -> None:
+        """Open a QFileDialog with filter for input files."""
+        folder = self.ui.widgets.input_file.text() or core_config.usersfolder
+        # remove old pattern with next major update
+        filename = QFileDialog.getOpenFileName(
+            self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
+        )
+        if filename[0] != "":
+            self.ui.widgets.input_file.setText(filename[0])
+
+    def start_sweep_generator(self) -> None:
+        """Launch the sweep generator as a separate process."""
+        if self._sg_proc is not None and self._sg_proc.poll() is None:
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage("A sweep generator is already running.", level=logging.INFO)
+            )
+            return
+        input_file = Path(self.ui.widgets.input_file.text())
+        file_arg = f"file=r'{input_file}', " if input_file.is_file() else ""
+        cmd = [
+            sys.executable,
+            "-c",
+            (
+                "from matr1x.apps import sweep_generator; "
+                f"sweep_generator.main({file_arg}notify='{self._input_server_name}')"
+            ),
+        ]
+        self._sg_proc = subprocess.Popen(cmd, creationflags=SUBPROCESS_CREATION_FLAGS)
+
+    def _on_input_connection(self) -> None:
+        """Handle a new connection from the sweep generator."""
+        socket = self._input_server.nextPendingConnection()
+        socket.readyRead.connect(lambda: self._on_input_data(socket))
+
+    def _on_input_data(self, socket: QLocalSocket) -> None:
+        """Update the input file from a filename sent by the sweep generator."""
+        data = bytes(socket.readAll().data()).decode().strip()
+        if data and Path(data).suffix == ".sw8":
+            self.ui.widgets.input_file.setText(data)
+        # Close the fd synchronously so a late readable (EOF) notification
+        # cannot reach the socket after it has been deleted.
+        socket.close()
+        socket.deleteLater()
+
+    def _systemfile_from_inputfile(self, input_file_path: str) -> list[str] | None:
+        """Read the system file list declared in an input-file header."""
+        input_path = Path(input_file_path)
+        if not input_path.exists():
+            return None
+        try:
+            with Path(input_file_path).open("r") as f:
+                for line in f:
+                    system_pattern = r"^# [Ss]ystem filename : (.+)"
+                    if match := re.match(system_pattern, line.strip()):
+                        return match.group(1).split(",")
+                    if line.strip() and not line.strip().startswith("#"):
+                        QMessageBox.warning(
+                            self, "System file error!", "No system specified in input file."
+                        )
+                        return None
+        except OSError as e:
+            QMessageBox.warning(self, "Input file error!", f"Input file cannot be parsed: {e}.")
+            return None
+        QMessageBox.warning(self, "System file error!", "No system specified in input file.")
+        return None
+
+    def _get_inputfile_system_info(self, systemfile: list[str]) -> SystemInfo | None:
+        """Retrieve system information and report configuration validation errors."""
+        system_info = get_system_info(systemfile)
+        if isinstance(system_info, Error):
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(system_info.error, level=logging.WARNING)
+            )
+            return None
+
+        system_info = system_info.value
+        if system_info.config_validation_errors:
+            logger.warning(
+                "System configuration validation failed; use the device config editor "
+                "to correct these entries:\n%s",
+                "".join(system_info.config_validation_errors),
+            )
+        return system_info
+
+    def _update_config_editor(self, systemfile: list[str], system_info: SystemInfo | None) -> None:
+        """Refresh the configuration editor when its systems have changed."""
+        config_editor = self.ui.widgets.config_editor
+        configurable = system_info.configurable_sections if system_info else []
+        config_editor.set_systemfile(configurable)
+        config_editor.set_full_system_list(systemfile)
+        config_editor.set_system_info(system_info)
+        config_editor.update_data()
+
+    def parse_system_from_inputfile(self, input_file_path: str) -> None:
+        """Parse the system from an input file."""
+        if not input_file_path:
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
+            return
+
+        systemfile = self._systemfile_from_inputfile(input_file_path)
+        if systemfile is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
+            return
+
+        system_info = self._get_inputfile_system_info(systemfile)
+        if system_info is None:
+            self.ui.widgets.input_file.blockSignals(True)
+            self.ui.widgets.input_file.setText("")
+            self.ui.widgets.input_file.blockSignals(False)
+            self.sys_meta_data = {}
+            self._update_config_editor([], None)
+            self.update_queue_action_state()
+            return
+
+        self.sys_meta_data = system_info.dcdata
+        core_config.reload_config()
+        self._update_config_editor(systemfile, system_info)
+        self.update_queue_action_state()
+
+    def queue_measurement(self) -> None:
+        """Queue a measurement into the measurement menu."""
+        inputFile = self.ui.widgets.input_file.text()
+        if not Path(inputFile).exists():
+            QMessageBox.warning(self, "Input file error!", "Input file does not exist.")
+            return
+        config_validation = self.ui.widgets.config_editor.validate_config()
+        if isinstance(config_validation, Error):
+            self.ui.widgets.config_editor.show_for_validation_errors()
+            self.update_queue_action_state()
+            return
+        self.sys_meta_data.update(self.ui.widgets.meta_view.metadata)
+        # create parameter set for measurement, make sure to copy the meta data
+        if not self.ui.widgets.config_editor.system_info:
+            raise InternalInvariantError("System info should not be None at this point.")
+        parameters = MeasurementItem(
+            kind="sweep",
+            input_file=inputFile,
+            output_file="",
+            metadata=self.sys_meta_data.copy(),
+            config=self.ui.widgets.config_editor.get_config_dict(),
+            systems=self.ui.widgets.config_editor.full_system_list.copy(),
+            system_info=self.ui.widgets.config_editor.system_info.model_copy(deep=True),
+        )
+        self.ui.widgets.meas_list.add_parameters(parameters)
+        if not self.running:
+            self.ui.actions.start.setEnabled(True)
+
+    def run_matrix(self) -> None:
+        """Start running the queued measurements."""
+        self.running = True
+        self.ui.actions.preview.setEnabled(False)
+        self.ui.actions.start.setEnabled(False)
+        self.ui.widgets.progress.setText("Measurement started.")
+        self.run_next_measurement()
+
+    def run_next_measurement(self) -> None:
+        """Run the next queued measurement."""
+        if self.ui.widgets.meas_list.active:
+            self.ui.widgets.progress.setText("Waiting for queue edit to finish.")
+            QTimer.singleShot(200, self.run_next_measurement)
+            return
+        self.ui.widgets.measurement_thread.set_parameters(self.ui.widgets.meas_list.parameters(0))
+        self.ui.widgets.current_measurement.setText(
+            self.ui.widgets.meas_list.parameters(0).list_entry
+        )
+        self.ui.widgets.current_measurement.setToolTip(
+            self.ui.widgets.meas_list.parameters(0).tooltip
+        )
+        self.ui.widgets.meas_list.takeItem(0)
+        self.measurement_failed = False
+        self.ui.widgets.measurement_thread.start()
+        self.ui.actions.pause.setEnabled(True)
+        self.ui.actions.abort.setEnabled(True)
+        self.ui.actions.finish.setEnabled(True)
+        self.ui.actions.kill.setEnabled(True)
+
+    def process_finished(self) -> None:
+        """
+        Properly finish a mesurement.
+
+        Called when the current measurement is finished, checks whether
+        there are further measurements in the queue and runs them in
+        case. If the measurement ended with an error, an error is shown
+        and the queue is stopped.
+        """
+        self.ui.widgets.progressbar.setValue(0)
+        self.ui.widgets.table.reset()
+        self.ui.widgets.current_measurement.setText("")
+        self.ui.actions.pause.setEnabled(False)
+        self.ui.actions.pause.setChecked(False)
+        self.ui.actions.abort.setEnabled(False)
+        self.ui.actions.finish.setEnabled(False)
+        self.ui.actions.kill.setEnabled(False)
+        if self.ui.widgets.measurement_thread.killed:
+            self.ui.widgets.progress.setText("Measurement killed.")
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    "The measurement was killed. The queue was stopped. The devices may"
+                    " be in an unknown state; reset them before continuing.",
+                    level=logging.WARNING,
+                )
+            )
+            self.running = False
+            self.ui.actions.start.setEnabled(self.ui.widgets.meas_list.count() > 0)
+            return
+        exit_code = self.ui.widgets.measurement_thread.exit_code
+        if self.measurement_failed or exit_code == MeasurementExitCode.ERROR:
+            self.ui.widgets.progress.setText("Measurement failed.")
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    "The measurement ended with an error. The queue was stopped."
+                    " See the log for details.",
+                    level=logging.ERROR,
+                )
+            )
+            self.running = False
+            if self.ui.widgets.meas_list.count() > 0:
+                self.ui.actions.start.setEnabled(True)
+            else:
+                self.ui.actions.start.setEnabled(False)
+            return
+        self.ui.widgets.progress.setText("Measurement idle.")
+        if self.ui.widgets.meas_list.count() > 0 and self.running is True:
+            self.run_next_measurement()
+        else:
+            self.ui.actions.start.setEnabled(False)
+            self.running = False
+
+    def open_preview(self) -> None:
+        """Spawn a preview for the (running) measurement."""
+        output = Path(self.ui.widgets.current_file.text())
+        if not output.exists():
+            QMessageBox.warning(self, "Preview error!", f"File does not exist ({output})")
+        else:
+            preview = [
+                sys.executable,
+                "-c",
+                f"from matr1x.apps import preview; preview.main(file=r'{output}')",
+            ]
+            subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
+
+
+def main() -> None:
+    """Set the basic GUI parameters and run."""
+    install_error_handler()
+    install_qt_error_dialog()
+    app = MApplication(sys.argv)
+    app.setDesktopFileName("matrix-gui")
+    ex = MainWindow()
+    ex.show()
+    ex.restore_window_state()
+    ret = app.exec()
+    logger.info("matrix-gui exiting")
+    sys.exit(ret)

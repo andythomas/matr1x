@@ -16,8 +16,10 @@
 """
 Git repository interface module for the matr1x data acquisition system.
 
-This module provides classes for interacting with Git repositories.
+Provides classes for interacting with Git repositories.
 """
+
+from typing import ClassVar
 
 import pygit2
 
@@ -26,8 +28,8 @@ class gitDevice:
     """
     Interface to Git repositories.
 
-    A class that provides methods to interact with a Git repository using
-    the pygit2 library.
+    A class that provides methods to interact with a Git repository
+    using the pygit2 library.
 
     Parameters
     ----------
@@ -44,7 +46,7 @@ class gitDevice:
         Dictionary mapping parameter names to method names.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "remote": "get_remote_url",
         "branch": "get_branch_name",
         "hash": "get_commit_hash",
@@ -71,7 +73,7 @@ class gitDevice:
             self.repo = pygit2.Repository(self.repo_path)
         except Exception as e:
             print(f"Exception occurred: {e}")  # noqa: T201
-            raise e
+            raise
 
     def get_commit_hash(self):
         """
@@ -110,7 +112,8 @@ class gitDevice:
         Returns
         -------
         str or None
-            The URL of the first remote, or None if no remotes are configured.
+            The URL of the first remote, or None if no
+            remotes are configured.
         """
         remotes = self.repo.remotes
         if remotes:
@@ -136,8 +139,9 @@ class gitDevice:
         Returns
         -------
         dict
-            A dictionary with keys representing different status categories
-            (staged, modified, untracked, etc.) and values as lists of file paths.
+            A dictionary with keys representing different
+            status categories (staged, modified, untracked,
+            etc.) and values as lists of file paths.
         """
         status = self.repo.status()
         status_output = {
@@ -153,11 +157,11 @@ class gitDevice:
         }
 
         for filepath, flags in status.items():
-            if flags & pygit2.GIT_STATUS_INDEX_NEW:
-                status_output["staged"].append(filepath)
-            elif flags & pygit2.GIT_STATUS_INDEX_MODIFIED:
-                status_output["staged"].append(filepath)
-            elif flags & pygit2.GIT_STATUS_INDEX_DELETED:
+            if (
+                flags & pygit2.GIT_STATUS_INDEX_NEW
+                or flags & pygit2.GIT_STATUS_INDEX_MODIFIED
+                or flags & pygit2.GIT_STATUS_INDEX_DELETED
+            ):
                 status_output["staged"].append(filepath)
             elif flags & pygit2.GIT_STATUS_WT_MODIFIED:
                 status_output["modified"].append(filepath)

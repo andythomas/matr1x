@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Provide a base class for creating control GUIs for data acquisition systems.
+Base class for creating control GUIs for data acquisition systems.
 
-This module includes functionality for:
+Includes functionality for:
 - Setting up a GUI with collapsible sections
 - Managing multiple GuiDict objects for different parts of the interface
 - Handling device connections and communication
@@ -24,11 +24,12 @@ This module includes functionality for:
 - Creating a local SCPI TCP server for remote control
 - Error handling and GUI state management
 
-The ControlWindow class serves as a foundation for building specific control interfaces
-for various data acquisition setups.
+The ControlWindow class serves as a foundation for building specific
+control interfaces for various data acquisition setups.
 """
 
 import ast
+import keyword
 import logging
 import numbers
 import os
@@ -36,12 +37,14 @@ import pickle
 import sys
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
+from typing import Any
 
 from PySide6.QtCore import QByteArray, QPoint, QSize, Qt, QTimer, Signal
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QIcon, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -57,20 +60,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-import matr1x
-from matr1x import logfolder, output_extension, scpi_tcpserver, system
-from matr1x.control.util import GuiDict, catchEmitError
-from matr1x.gui_util import (
-    AutoSlot,
-    LoggingWindow,
-    LogWindowMixin,
-    MApplication,
-    check_config,
-    get_matrix_icon,
-    open_matrix_toml,
-)
-from matr1x.scripts.shared_classes import SaferQSettings
-from matr1x.util import Command, Get, StreamToLogger
+import matr1x.core.config as core_config
+from matr1x.control.gui_dict import GuiDict, catchEmitError
+from matr1x.core import scpi_tcpserver, system
+from matr1x.core.commands import Command, Get
+from matr1x.core.pymeasure_threading_fix import apply_pymeasure_threading_fix
+from matr1x.core.util import StreamToLogger
+from matr1x.gui.app import MApplication
+from matr1x.gui.helpers import get_matrix_icon, open_matrix_toml
+from matr1x.gui.logging import LoggingWindow
+from matr1x.gui.mixins import AutoSlot, LogWindowMixin
+from matr1x.gui.shared import Notifier, SaferQSettings, check_config
+
+apply_pymeasure_threading_fix()
 
 logger = logging.getLogger(__name__)
 printlogger = logging.getLogger(__name__ + "_stdio")
@@ -121,6 +123,7 @@ class WidgetGroup:
     recorder_file_label: QLabel
     recorder_led: QLabel
     central_widget: QWidget
+    notifier: Notifier
 
 
 class UIBuilder:
@@ -160,6 +163,7 @@ class UIBuilder:
             recorder_file_label=label,
             recorder_led=led,
             central_widget=central_widget,
+            notifier=Notifier(logger),
         )
 
     def _create_actions(self) -> ActionGroup:
@@ -252,117 +256,15 @@ class UIBuilder:
         line.addWidget(self.widgets.recorder_file_label)
         line.addStretch()
         layout.addLayout(line)
+        layout.addWidget(self.widgets.notifier)
         self.widgets.central_widget.setLayout(layout)
-
-
-class EnableAction(QAction):
-    """
-    A QAction subclass that automatically updates its icon based on checked state.
-
-    This action is designed for enable/disable functionality and automatically
-    updates its icon color when the checked state changes.
-
-    Parameters
-    ----------
-    text: str
-        The text of the action.
-    parent: ControlWindow
-        The parent of the action.
-    """
-
-    def __init__(self, text: str, parent: "ControlWindow"):
-        super().__init__(text, parent)
-        self.setCheckable(True)
-        self.setIconText("Enable")
-        self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
-        self.controlwindow: ControlWindow = parent
-        self.toggled.connect(self._update_icon)
-
-    def _update_icon(self, checked: bool):
-        """
-        Update the icon based on checked state.
-
-        Parameters
-        ----------
-        checked: bool
-            The action is checked (True) or not (False).
-        """
-        if checked:
-            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
-        else:
-            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
-        self.controlwindow.check_enables()
-
-    def setChecked(self, a0: bool):
-        """
-        Override setChecked to ensure icon is updated.
-
-        Parameters
-        ----------
-        a0: bool
-            Set the checked (True) or unchecked (False).
-        """
-        super().setChecked(a0)
-        self._update_icon(a0)
-
-
-class FullInfoAction(QAction):
-    """
-    A QAction subclass that automatically updates its icon based on checked state.
-
-    This action is designed for full info/less info functionality and automatically
-    updates its icon (+ or -) when the checked state changes.
-
-
-    Parameters
-    ----------
-    text: str
-        The text of the action.
-    parent: ControlWindow
-        The parent of the action.
-    """
-
-    def __init__(self, text: str, parent: "ControlWindow"):
-        super().__init__(text, parent)
-        self.setCheckable(True)
-        self.setIconText("Full info")
-        self.setIcon(get_matrix_icon("CHAR_+"))
-        self.controlwindow: ControlWindow = parent
-        self.toggled.connect(self._update_icon)
-
-    def _update_icon(self, checked: bool):
-        """
-        Update the icon based on checked state.
-
-        Parameters
-        ----------
-        checked: bool
-            The action is checked (True) or not (False).
-        """
-        if checked:
-            self.setIcon(get_matrix_icon("CHAR_-"))
-        else:
-            self.setIcon(get_matrix_icon("CHAR_+"))
-        self.controlwindow.check_full_infos()
-
-    def setChecked(self, a0: bool):
-        """
-        Override setChecked to ensure icon is updated.
-
-        Parameters
-        ----------
-        a0: bool
-            Set the checked (True) or unchecked (False).
-        """
-        super().setChecked(a0)
-        self._update_icon(a0)
 
 
 class ControlWindow(LogWindowMixin, QMainWindow):
     """
     Base class for control GUIs.
 
-    This class prepares a lot of things behind the scenes for use in typical
+    Prepares a lot of things behind the scenes for use in typical
     control GUIs.
 
     Parameters
@@ -370,18 +272,22 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     name : str
         Identifier string of the control GUI.
     guidicts : GuiDict or GuiDict subclass, or a list or tuple of those
-        GuiDict object(s) which build the basis of the controlGUI.
+        GuiDict object(s) which build the basis of the
+        controlGUI. Their Systems must have unique names that
+        are valid, non-keyword Python identifiers.
     extra_cmds : dict, optional
-        Dictionary of commands offered for the measurement system. Commands from
-        the GuiDict object are merged together with this list.
+        Dictionary of commands offered for the measurement
+        system. Commands from the GuiDict object are merged
+        together with this list.
     parent : QWidget, optional
         Qt parent widget.
     package : str, optional
         Package name used in the generated log files.
     logging : bool or int, optional
-        Flag to enable logging on startup of the control GUI. If a numerical
-        value is given, the integer part of it will be used as interval (in
-        seconds) for the logging function.
+        Flag to enable logging on startup of the control GUI. If
+        a numerical value is given, the integer part of it will
+        be used as interval (in seconds) for the logging
+        function.
     port : int, optional
         TCP port number for the control GUI SCPI server socket.
     """
@@ -416,16 +322,18 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self.log_window.hide()
         logger.info("Control window '%s' starting", name)
         self.setWindowTitle(name)
-        icondir = Path(__file__).parent.parent / "scripts" / "icons"
-        self.setWindowIcon(QIcon(str(icondir / "matr1x-control.png")))
+        self.setWindowIcon(get_matrix_icon("matr1x-control.png"))
         self.settings = SaferQSettings(package, name)
         # initialize parameters
         self.running = False
         self.logging = False
-        filename = f"{package}.{name}_{time.strftime(matr1x.datetimefmt)}{output_extension}"
+        filename = (
+            f"{package}.{name}_{time.strftime(core_config.datetimefmt)}"
+            f"{core_config.output_extension}"
+        )
         if os.name == "nt":
             filename = filename.replace(":", "")  # Windows does not like : in filenames
-        self.logfile: Path = Path(logfolder) / filename
+        self.logfile: Path = Path(core_config.logfolder) / filename
         self._log_stop_event = threading.Event()
         self._log_interval_updated = threading.Event()
         self._log_stopped_event = threading.Event()
@@ -443,8 +351,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         self._server_disabled_by_panic = False
         self._port = port
         # initialize data logging system
-        self.S_log = system.System()
-        self.S_log.__name__ = f"{package}.{name}_control_logging_system"
+        self.S_log = system.System(name=f"{package}.{name}_control_logging_system")
         self.ui = UIBuilder()
         self.setMenuBar(self.ui.menus.menu)
         self.setCentralWidget(self.ui.widgets.central_widget)
@@ -453,7 +360,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.addDockWidget(Qt.DockWidgetArea.TopDockWidgetArea, content)
         self.create_connections()
         self.statusloggingUI()
-        check_config(matr1x.config)
+        check_config(core_config.config, self.ui.widgets.notifier)
         self._restore_gui_settings()
         sys.stdout = StreamToLogger(printlogger, logging_package.INFO)
         sys.stderr = StreamToLogger(errorlogger, logging_package.ERROR)
@@ -482,13 +389,47 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             if not isinstance(logging, bool) and isinstance(logging, numbers.Number):
                 self.log_interval_changed.emit(logging)
 
-    def _harmonize_guidicts(self, guidicts) -> None:
+    @staticmethod
+    def _validate_guidict(guidict: Any, system_owners: dict[str, str]) -> GuiDict:
+        """Instantiate and validate a single GuiDict."""
+        if isinstance(guidict, type) and issubclass(guidict, GuiDict):
+            guidict = guidict()
+        if not isinstance(guidict, GuiDict):
+            raise TypeError(
+                "ControlWindow guidicts must be GuiDict instances or GuiDict subclasses, "
+                f"got {type(guidict).__name__}."
+            )
+        if not isinstance(guidict.S, system.System):
+            raise TypeError(
+                f"GuiDict {type(guidict).__name__}.S must be a System instance, "
+                f"got {type(guidict.S).__name__}."
+            )
+        system_name = guidict.S.name
+        if system_name is None or not system_name.isidentifier() or keyword.iskeyword(system_name):
+            raise ValueError(
+                f"GuiDict {type(guidict).__name__}.S must have a name that is a "
+                "valid Python identifier and not a Python keyword."
+            )
+        if previous_owner := system_owners.get(system_name):
+            raise ValueError(
+                f"GuiDict {type(guidict).__name__}.S uses duplicate System name "
+                f"{system_name!r}, which is already used by GuiDict {previous_owner}. "
+                "Every GuiDict in a ControlWindow must use a unique System name."
+            )
+        system_owners[system_name] = type(guidict).__name__
+        return guidict
+
+    def _harmonize_guidicts(
+        self,
+        guidicts: GuiDict | type[GuiDict] | Sequence[GuiDict | type[GuiDict]] | None,
+    ) -> None:
         """
         Normalize GuiDict inputs and attach them to this control window.
 
-        `guidicts` may contain already-created GuiDict instances or GuiDict
-        subclasses, which are instantiated here. Legacy plain dictionaries and
-        non-var data entries are intentionally not converted anymore.
+        `guidicts` may contain already-created GuiDict instances
+        or GuiDict subclasses, which are instantiated here.
+        Legacy plain dictionaries and non-var data entries are
+        intentionally not converted anymore.
         """
         if guidicts is None:
             raw_guidicts = []
@@ -498,14 +439,9 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             raw_guidicts = [guidicts]
 
         self.guidicts = []
-        for guidict in raw_guidicts:
-            if isinstance(guidict, type) and issubclass(guidict, GuiDict):
-                guidict = guidict()
-            if not isinstance(guidict, GuiDict):
-                raise TypeError(
-                    "ControlWindow guidicts must be GuiDict instances or GuiDict subclasses, "
-                    f"got {type(guidict).__name__}."
-                )
+        system_owners: dict[str, str] = {}
+        for item in raw_guidicts:
+            guidict = self._validate_guidict(item, system_owners)
             guidict.refresh_worker.sig_error.connect(self.handleError)
             guidict.parent = self
             self.guidicts.append(guidict)
@@ -514,15 +450,15 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Restore previously saved GUI settings from persistent storage.
 
-        This method restores various GUI elements to their previous states,
+        Restores various GUI elements to their previous states,
         including:
         - GuiDict state and features
         - Window geometry (size, position)
         - Window state (layout of docks and toolbars)
         - Visibility of the status box
 
-        The settings are loaded from QSettings storage that was initialized
-        during the class construction.
+        The settings are loaded from QSettings storage that was
+        initialized during the class construction.
         """
         # restore settings of GuiDicts
         for g in self.guidicts:
@@ -714,9 +650,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.guidict_view[i].setCheckable(True)
             self.guidict_view[i].setChecked(True)
             self.guidict_view[i].triggered.connect(
-                lambda checked=self.guidict_view[i].isChecked(), index=i: self.toggle_visible(
-                    checked, index
-                )
+                lambda checked, index=i: self.toggle_visible(checked, index)
             )
             self.ui.menus.view.addAction(self.guidict_view[i])
 
@@ -780,7 +714,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Set up status and logging user interface.
 
-        This method creates and configures the widgets for status display
+        Creates and configures the widgets for status display
         and logging controls.
         """
         # initialize common widgets
@@ -892,13 +826,14 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             for key in guidict:
                 variable = guidict[key]
                 # make sure it is a loggable widget
-                if len(variable.widgets) > 2 and variable.log is not None:
-                    if variable.widgets[-1].checkState() == Qt.CheckState.Checked:
-                        # make sure check state is True and if so add to
-                        # logged parameters
-                        self.S_log.add_param(
-                            f"dict{i}/{key}", "", getter=lambda v=variable: v.value
-                        )
+                if (
+                    len(variable.widgets) > 2
+                    and variable.log is not None
+                    and variable.widgets[-1].checkState() == Qt.CheckState.Checked
+                ):
+                    # make sure check state is True and if so add to
+                    # logged parameters
+                    self.S_log.add_param(f"dict{i}/{key}", "", getter=lambda v=variable: v.value)
         if len(self.S_log.parameters) == 1:
             QMessageBox.warning(
                 None,
@@ -917,7 +852,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self.S_log.dcdata["Description"] = "Graphical interface logging data"
             self.S_log.dcdata["Type"] = "miscellaneous"
             # update date to reflect logging start time instead of GUI start time
-            self.S_log.dcdata["date"] = time.strftime(matr1x.datetimefmt, time.localtime())
+            self.S_log.dcdata["date"] = time.strftime(core_config.datetimefmt, time.localtime())
             self.S_log.set(output_file=self.logfile)
             # write new datafile header
             msg, outputfile = self.S_log.init_datafile("matrix script generated")
@@ -947,7 +882,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     def select_datafile(self) -> None:
         """Allow selecting a file for the data recorder."""
         filename = QFileDialog.getSaveFileName(
-            self, "Select data file", str(logfolder), f"data recorder files (*{output_extension})"
+            self,
+            "Select data file",
+            str(core_config.logfolder),
+            f"data recorder files (*{core_config.output_extension})",
         )[0]
 
         # If no file was selected, keep the current logfile
@@ -963,7 +901,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
 
         # Update the logfile
         self.logfile = Path(filename)
-        self.logfile = self.logfile.with_suffix(output_extension)
+        self.logfile = self.logfile.with_suffix(core_config.output_extension)
         self.ui.widgets.recorder_file_label.setText(
             f"Datafile: {self.logfile.name}. Interval: {self._log_interval}s"
         )
@@ -1032,7 +970,8 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         Parameters
         ----------
         timeout : float, optional
-            Maximum wait time in seconds for the logging thread to terminate.
+            Maximum wait time in seconds for the logging
+            thread to terminate.
         """
         self._log_stop_event.set()
         thread = self._log_thread
@@ -1050,9 +989,10 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Initialize GuiDicts and align them with their dock visibility.
 
-        The setup runs on the GUI thread and ensures that only visible guidicts
-        are started. Optionally, a delayed log start is scheduled to give all
-        guidicts time to populate their values.
+        The setup runs on the GUI thread and ensures that only
+        visible guidicts are started. Optionally, a delayed log
+        start is scheduled to give all guidicts time to populate
+        their values.
         """
         max_period = 1
         for guidict in self.guidicts:
@@ -1096,7 +1036,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         extra_gui_dict.set_cmd_funcs(window_obj=self, system=self.S)
         self.cmd_list = extra_gui_dict.cmds
         for guidict in self.guidicts:
-            for name in guidict.cmds.keys():
+            for name in guidict.cmds:
                 if name in self.cmd_list:
                     raise ValueError(
                         f"command {name} from {guidict} is already present."
@@ -1119,7 +1059,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
     ):
         """Stop GuiDict workers, close devices, and stop the logging thread."""
         if exc_type is not None:
-            logger.exception("Unhandled exception in context manager")
+            logger.error("Unhandled exception in context manager")
 
         self.stopServer()
         if self.running is True:
@@ -1134,7 +1074,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Start the local TCP server with the driver functions specified in cmds.
 
-        This method initializes and starts a SCPI TCP server using the
+        Initializes and starts a SCPI TCP server using the
         command list defined in the class.
         """
         self._local_server = scpi_tcpserver.SCPI_TCP_Server(self.cmd_list, port=self._port)
@@ -1200,13 +1140,14 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Disable all GUI elements.
 
-        This method is typically called after an error occurs to prevent further
+        Is typically called after an error occurs to prevent further
         interaction with the GUI.
 
         Parameters
         ----------
         flag : bool
-            If True, disables the GUI elements. If False, no action is taken.
+            If True, disables the GUI elements. If False, no
+            action is taken.
         """
         if flag:
             if self.logging:
@@ -1239,7 +1180,7 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         """
         Save current window and dock geometry.
 
-        This method saves the current size, position, and state of the
+        Saves the current size, position, and state of the
         window, as well as the visibility of the status box and toolbar
         visibility state. These settings will be reloaded upon restart
         of the Control GUI.
@@ -1259,14 +1200,13 @@ class ControlWindow(LogWindowMixin, QMainWindow):
         a0 : QCloseEvent
             The close event.
         """
-        # Save window and dock states
+        logger.info("Control window '%s' closed by user", self.windowTitle())
         self.save_window_state()
         for g in self.guidicts:
             g.dock.saveCurrentState()
 
         self.cleanup_log_window()
 
-        # Accept the close event
         super().closeEvent(a0)
 
     @AutoSlot
@@ -1307,9 +1247,114 @@ class ControlWindow(LogWindowMixin, QMainWindow):
             self,
             f"Error in {pointer}",
             f"""The following error was raised in {pointer}:
-{repr(exc_value)}
+{exc_value!r}
 Please investigate the error and eventually restart the graphical user interface""",
         )
         ret = qApp.exec()
         if ret != -1:
             sys.exit(ret + 1)
+
+
+class EnableAction(QAction):
+    """
+    QAction subclass that updates its icon with the checked state.
+
+    This action is designed for enable/disable functionality and
+    automatically updates its icon color when the checked state
+    changes.
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
+    """
+
+    def __init__(self, text: str, parent: ControlWindow):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Enable")
+        self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """
+        Update the icon based on checked state.
+
+        Parameters
+        ----------
+        checked: bool
+            The action is checked (True) or not (False).
+        """
+        if checked:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("forestgreen")))
+        else:
+            self.setIcon(get_matrix_icon("CUSTOM_Power", color=QColor("gray")))
+        self.controlwindow.check_enables()
+
+    def setChecked(self, a0: bool):
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
+        super().setChecked(a0)
+        self._update_icon(a0)
+
+
+class FullInfoAction(QAction):
+    """
+    QAction subclass that updates its icon with the checked state.
+
+    This action is designed for full info/less info functionality
+    and automatically updates its icon (+ or -) when the checked
+    state changes.
+
+
+    Parameters
+    ----------
+    text: str
+        The text of the action.
+    parent: ControlWindow
+        The parent of the action.
+    """
+
+    def __init__(self, text: str, parent: ControlWindow):
+        super().__init__(text, parent)
+        self.setCheckable(True)
+        self.setIconText("Full info")
+        self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow: ControlWindow = parent
+        self.toggled.connect(self._update_icon)
+
+    def _update_icon(self, checked: bool):
+        """
+        Update the icon based on checked state.
+
+        Parameters
+        ----------
+        checked: bool
+            The action is checked (True) or not (False).
+        """
+        if checked:
+            self.setIcon(get_matrix_icon("CHAR_-"))
+        else:
+            self.setIcon(get_matrix_icon("CHAR_+"))
+        self.controlwindow.check_full_infos()
+
+    def setChecked(self, a0: bool):
+        """
+        Override setChecked to ensure icon is updated.
+
+        Parameters
+        ----------
+        a0: bool
+            Set the checked (True) or unchecked (False).
+        """
+        super().setChecked(a0)
+        self._update_icon(a0)

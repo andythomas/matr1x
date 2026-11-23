@@ -36,8 +36,8 @@ This skill migrates legacy patterns in matr1x files:
 **Raw list values** inside a dict:
 ```python
 cmds = {
-    ":key": [dtype, setfunc, setargs, getfunc, getargs],              # length 5
-    ":key": [dtype, setfunc, setargs, getfunc, getargs, polling_cmd], # length 6
+    ":key": [dtype, setfunc, setargs, getfunc, getargs],  # length 5
+    ":key": [dtype, setfunc, setargs, getfunc, getargs, polling_cmd],  # length 6
 }
 ```
 
@@ -63,11 +63,11 @@ Optional keyword arguments — **only include if non-empty / not `None`**:
 from matr1x.util import Command
 
 cmds = {
-    ":temp":   [float, "setTemp", (), "getTemp", ()],
-    ":field":  [float, None, (), "getField", ()],
-    ":press":  [float, "setPress", (1,), None, (), ":pressrd"],
-    ":v2":     [float, ("dummy", "p2"), None, "V2", None, ":v2rd"],
-    ":info":   Command.from_deprecated_list([str, None, None, "getInfo", None]),
+    ":temp": [float, "setTemp", (), "getTemp", ()],
+    ":field": [float, None, (), "getField", ()],
+    ":press": [float, "setPress", (1,), None, (), ":pressrd"],
+    ":v2": [float, ("dummy", "p2"), None, "V2", None, ":v2rd"],
+    ":info": Command.from_deprecated_list([str, None, None, "getInfo", None]),
 }
 ```
 
@@ -76,11 +76,11 @@ cmds = {
 from matr1x.util import Command, Get, Set
 
 cmds = {
-    ":temp":   Command(float, "setTemp", "getTemp"),
-    ":field":  Get(float, "getField"),
-    ":press":  Set(float, "setPress", setargs=(1,), polling_cmd=":pressrd"),
-    ":v2":     Command(float, ("dummy", "p2"), "V2", polling_cmd=":v2rd"),
-    ":info":   Get(str, "getInfo"),
+    ":temp": Command(float, "setTemp", "getTemp"),
+    ":field": Get(float, "getField"),
+    ":press": Set(float, "setPress", setargs=(1,), polling_cmd=":pressrd"),
+    ":v2": Command(float, ("dummy", "p2"), "V2", polling_cmd=":v2rd"),
+    ":info": Get(str, "getInfo"),
 }
 ```
 

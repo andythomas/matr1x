@@ -14,9 +14,9 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-Module for controlling Cryogenic power supplies over VISA interface.
+Driver for Cryogenic power supplies over the VISA interface.
 
-This module provides classes to interact with Cryogenic power supplies,
+Provides classes to interact with Cryogenic power supplies,
 including standard and bipolar models.
 """
 
@@ -24,6 +24,7 @@ import logging
 import math
 import re
 import time
+from typing import ClassVar
 
 import pyvisa.errors
 from wrapt import synchronized
@@ -37,7 +38,7 @@ class CryogenicPS(VisaDevice):
     """
     Control interface for Cryogenic Power Supply.
 
-    This class provides methods to control and monitor a Cryogenic Power Supply
+    Provides methods to control and monitor a Cryogenic Power Supply
     using VISA communication.
 
     Parameters
@@ -63,7 +64,7 @@ class CryogenicPS(VisaDevice):
         Tesla per Ampere conversion factor
     """
 
-    config_params = {"TeslePerAmpere": "tpa"}
+    config_params: ClassVar[dict[str, str]] = {"TeslePerAmpere": "tpa"}
     re_output = re.compile(r"OUTPUT: ([0-9\.\-]+) TESLA AT ([0-9\.\-]+) VOLTS")
     re_holding = re.compile(r"HOLDING ON [A-Z]+ AT ([0-9\.\-]+) TESLA")
     re_ramping = re.compile(r"RAMPING FROM [0-9\.\-]+ TO ([0-9\.\-]+) TESLA AT")
@@ -179,8 +180,8 @@ class CryogenicPS(VisaDevice):
             up = self.getUpdate()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info("getStatus: '%s: %s'", type(e).__name__, e)
-            logger.info("getStatus: retrying to get update (%d)", depth)
+            logger.info("getStatus: retrying after %s (depth=%d)", type(e).__name__, depth)
+            logger.debug("getStatus: failed, retrying", exc_info=e)
             return self.getStatus(depth + 1)
 
         try:
@@ -190,7 +191,7 @@ class CryogenicPS(VisaDevice):
             rate = self._as2tmin(float(up[up.find("RAMP RATE:") :].split()[2]))
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
-        except Exception as e:
+        except (IndexError, TypeError, ValueError) as e:
             # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)
@@ -220,8 +221,8 @@ class CryogenicPS(VisaDevice):
             ret = self.query("G O")
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info("getOutput: '%s: %s'", type(e).__name__, e)
-            logger.info("getOutput: retrying to get update (%d)", depth)
+            logger.info("getOutput: retrying after %s (depth=%d)", type(e).__name__, depth)
+            logger.debug("getOutput: failed, retrying", exc_info=e)
             return self.getOutput(depth + 1)
 
         match = self.re_output.findall(ret)
@@ -291,8 +292,8 @@ class CryogenicPS(VisaDevice):
             ret += self.read_very_eager()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # since we are desperate we ignore all other Exceptions as well
-            logger.info("get_ramp_status: '%s: %s'", type(e).__name__, e)
-            logger.info("get_ramp_status: retrying to get update (%d)", depth)
+            logger.info("get_ramp_status: retrying after %s (depth=%d)", type(e).__name__, depth)
+            logger.debug("get_ramp_status: failed, retrying", exc_info=e)
             return self.get_ramp_status(depth + 1)
 
         mhold = self.re_holding.findall(ret)
@@ -391,8 +392,9 @@ class CryogenicBipolarPS(VisaDevice):
     """
     Control interface for Cryogenic Bipolar Power Supply.
 
-    This class provides methods to control and monitor a Cryogenic Bipolar Power
-    Supply using VISA communication. It supports both positive and negative fields.
+    Provides methods to control and monitor a Cryogenic Bipolar
+    Power Supply using VISA communication. It supports both positive
+    and negative fields.
 
     Parameters
     ----------
@@ -413,7 +415,7 @@ class CryogenicBipolarPS(VisaDevice):
         Tesla per Ampere conversion factor
     """
 
-    config_params = {"TeslePerAmpere": "tpa"}
+    config_params: ClassVar[dict[str, str]] = {"TeslePerAmpere": "tpa"}
     re_output = re.compile(r"OUTPUT: ([0-9\.\-]+) TESLA AT ([0-9\.\-]+) VOLTS")
     re_holding = re.compile(r"HOLDING ON [A-Z]+ AT ([0-9\.\-]+) TESLA")
     re_ramping = re.compile(r"RAMPING FROM [0-9\.\-]+ TO ([0-9\.\-]+) TESLA AT")
@@ -455,7 +457,7 @@ class CryogenicBipolarPS(VisaDevice):
         """
         Read from device without blocking IO.
 
-        This method sets a short timeout and reads as much data as available
+        Sets a short timeout and reads as much data as available
         without blocking.
 
         Returns
@@ -529,8 +531,8 @@ class CryogenicBipolarPS(VisaDevice):
             up = self.getUpdate()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info("getStatus: '%s: %s'", type(e).__name__, e)
-            logger.info("getStatus: retrying to get update (%d)", depth)
+            logger.info("getStatus: retrying after %s (depth=%d)", type(e).__name__, depth)
+            logger.debug("getStatus: failed, retrying", exc_info=e)
             return self.getStatus(depth + 1)
 
         try:
@@ -540,7 +542,7 @@ class CryogenicBipolarPS(VisaDevice):
             rate = self._as2tmin(float(up[up.find("RAMP RATE:") :].split()[2]))
             voltage = float(match[1])
             status = up[up.find("RAMP STATUS:") :].split()[2]
-        except Exception as e:
+        except (IndexError, TypeError, ValueError) as e:
             # log incident and retry
             logger.info("getStatus: '%s: %s'", type(e).__name__, e)
             logger.info("getStatus: retrying to analyze update (%d)", depth)
@@ -570,8 +572,8 @@ class CryogenicBipolarPS(VisaDevice):
             ret = self.query("G O")
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # log incident and retry
-            logger.info("getOutput: '%s: %s'", type(e).__name__, e)
-            logger.info("getOutput: retrying to get update (%d)", depth)
+            logger.info("getOutput: retrying after %s (depth=%d)", type(e).__name__, depth)
+            logger.debug("getOutput: failed, retrying", exc_info=e)
             return self.getOutput(depth + 1)
 
         match = self.re_output.findall(ret)
@@ -637,8 +639,8 @@ class CryogenicBipolarPS(VisaDevice):
             ret += self.read_very_eager()
         except Exception as e:  # (pyvisa.errors.VisaIOError, UnicodeDecodeError)
             # since we are desperate we ignore all other Exceptions as well
-            logger.info("get_ramp_status: '%s: %s'", type(e).__name__, e)
-            logger.info("get_ramp_status: retrying to get update (%d)", depth)
+            logger.info("get_ramp_status: retrying after %s (depth=%d)", type(e).__name__, depth)
+            logger.debug("get_ramp_status: failed, retrying", exc_info=e)
             return self.get_ramp_status(depth + 1)
 
         mhold = self.re_holding.findall(ret)
@@ -691,7 +693,8 @@ class CryogenicBipolarPS(VisaDevice):
         """
         Set the output field using MID value as setpoint.
 
-        Automatically sets the direction (+ or -) based on the sign of the value.
+        Automatically sets the direction (+ or -) based on the
+        sign of the value.
 
         Parameters
         ----------

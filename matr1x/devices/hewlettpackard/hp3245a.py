@@ -16,7 +16,7 @@
 """
 HP3245A AC function generator interface module.
 
-This module provides a class for controlling the HP3245A AC function
+Provides a class for controlling the HP3245A AC function
 generator.
 """
 
@@ -27,7 +27,7 @@ class HP3245A(VisaDevice):
     """
     HP3245A AC function generator.
 
-    Typically connected via GPIB::<address>::INSTR
+    Typically connected via `GPIB::<address>::INSTR`
 
     Parameters
     ----------
@@ -45,8 +45,6 @@ class HP3245A(VisaDevice):
     config_params : dict
         Configuration parameters for the device.
     """
-
-    config_params = {}
 
     def __init__(self, interface, **kwargs):
         """

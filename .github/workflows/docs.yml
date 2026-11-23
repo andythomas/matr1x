@@ -11,21 +11,62 @@ jobs:
         with:
           fetch-depth: 0 # Full history for accurate page timestamps
 
-      - uses: actions/setup-python@v6
+      - uses: ./.github/actions/setup-uv
         with:
-          python-version: "3.11"
+          python-version: "3.13"
+          activate-environment: true
 
       - name: Install package and dependencies
-        run: |
-          python -m pip install uv
-          uv sync
-          uv pip install great-docs
+        run: uv sync --locked --all-extras --group docs --no-dev
+
+      # required until 0.18 is released
+      - name: Install great-docs from main branch
+        run: >-
+          uv pip install --reinstall-package great-docs
+          "great-docs[svg] @ git+https://github.com/posit-dev/great-docs@main"
 
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
+      - name: Install Qt system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libgbm1 libxkbcommon0 libnss3 libnspr4 libasound2t64
+
       - name: Build docs
-        run: uv run great-docs build
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: uv run --locked --no-sync --group docs --no-dev great-docs build
+
+      # The API reference pages are named after griffe canonical paths
+      # (``module:Item``). The colon is rejected by upload-artifact (and by
+      # NTFS on download), so rename ``:`` to ``.`` and rewrite the links.
+      - name: Sanitize reference page names
+        run: |
+          python - <<'EOF'
+          import pathlib
+
+          site = pathlib.Path("great-docs/_site")
+          old_names = sorted(
+              (p.name for p in site.rglob("*") if p.is_file() and ":" in p.name),
+              key=len,
+              reverse=True,
+          )
+          for old in old_names:
+              new = old.replace(":", ".")
+              for f in site.rglob("*"):
+                  if not f.is_file():
+                      continue
+                  try:
+                      text = f.read_text(encoding="utf-8")
+                  except (UnicodeDecodeError, OSError):
+                      continue
+                  if old in text:
+                      f.write_text(text.replace(old, new), encoding="utf-8")
+              for f in site.rglob(old):
+                  if f.is_file():
+                      f.rename(f.with_name(new))
+          EOF
 
       - name: Save docs artifact
         uses: actions/upload-artifact@v7

@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with Oxford Instruments devices."""
+"""Oxford Instruments device drivers."""
 
 from .ilm200 import ILM200
 from .ips120 import IPS120_switchheater

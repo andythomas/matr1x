@@ -13,6 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for Danfysik devices."""
+"""Danfysik device drivers."""
 
 from .danfysik9x00 import Danfysik9100, Danfysik9700

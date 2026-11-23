@@ -13,18 +13,22 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module with device drivers for a PI stepper motor controller."""
+"""Driver for a PI stepper motor controller."""
+
+import logging
 
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
+
+logger = logging.getLogger(__name__)
 
 
 class MercuryC663(VisaDevice):
     """
     Driver for PI stepper motor @ Rote Zora.
 
-    This class provides control for the PI stepper motor with ItemID of
+    Provides control for the PI stepper motor with ItemID of
     the axis used for communication being 1.
     """
 
@@ -51,7 +55,7 @@ class MercuryC663(VisaDevice):
         try:  # first read attempt after opening usually fails
             self.getMotorState()
         except Exception:  # catch all possible Errors here
-            pass
+            logger.debug("Initial motor-state query failed", exc_info=True)
 
     @synchronized
     def getMotorState(self):
@@ -122,8 +126,8 @@ class MercuryC663(VisaDevice):
         """
         Move to angle relative to current position.
 
-        The sum of the provided angle and the last commanded target position
-        is set as the new target position.
+        The sum of the provided angle and the last commanded
+        target position is set as the new target position.
 
         Parameters
         ----------

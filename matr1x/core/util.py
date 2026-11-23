@@ -1,0 +1,749 @@
+# This file is part of a software collection for data acquisition (matr1x).
+# Copyright (C) 2006-2026 matr1x developers
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+"""
+Utility functions for the matr1x data acquisition software.
+
+Includes functions for file handling, script generation,
+sweep calculations, and various helper functions for data processing and
+system configuration.
+"""
+
+import datetime
+import importlib.util
+import logging
+import math
+import os
+import subprocess
+import sys
+import textwrap
+from collections.abc import Iterable, Iterator, Sequence
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path, PureWindowsPath
+from tempfile import TemporaryDirectory
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, Literal, Protocol, TypeVar
+
+import pygit2
+
+from matr1x.core.error_handling import Error, Result, Success
+
+# conditional import for type checkers
+if TYPE_CHECKING:
+    from _typeshed import SupportsWrite
+
+    _T_contra = TypeVar("_T_contra", contravariant=True)
+
+    class SupportsWriteAndFlush(SupportsWrite[_T_contra], Protocol[_T_contra]):
+        """Provide a type for a stream that have write and flush methods."""
+
+        def flush(self) -> None:
+            """Add flush to the existing write."""
+            ...
+
+
+# default separator
+default_separator = "\t"
+
+SUBPROCESS_CREATION_FLAGS = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+
+_USER_SCRIPT_START_MARKER = "# ==== BEGIN USER SCRIPT AREA ===="
+_USER_SCRIPT_END_MARKER = "# ==== END USER SCRIPT AREA ===="
+_USER_SCRIPT_INSERTION_POINT = "    # USER_SCRIPT_INSERTION_POINT"
+
+
+def resolve_config_path(config: Any, path: str) -> Any:
+    """
+    Resolve a dot-notation path to a value from the config object.
+
+    If any part of the path is missing, an empty dictionary is returned.
+
+    Parameters
+    ----------
+    config : Any
+        The configuration object (typically a Pydantic model).
+    path : str
+        The configuration path (e.g., 'matr1x.devices.visadevice').
+
+    Returns
+    -------
+    Any
+        The value at the specified path, or an empty dictionary
+        if not found.
+    """
+    current = config
+    for sec in path.split("."):
+        try:
+            current = getattr(current, sec)
+        except (AttributeError, TypeError):
+            return {}
+    return current
+
+
+def get_package_path(package_name: str) -> Path | None:
+    """
+    Determine the path of a Python package.
+
+    Parameters
+    ----------
+    package_name : str
+        Name of the package.
+
+    Returns
+    -------
+    str or None
+        Path to the package if found, None otherwise.
+    """
+    spec = importlib.util.find_spec(package_name)
+    if spec and spec.origin:
+        return Path(spec.origin).parent
+    return None
+
+
+def _format_local_timestamp(value: float, fmt: str, *, trim_trailing_zeros: bool = False) -> str:
+    """Format a POSIX timestamp in the local timezone."""
+    text = datetime.datetime.fromtimestamp(value, datetime.timezone.utc).astimezone().strftime(fmt)
+    return text.rstrip("0") if trim_trailing_zeros else text
+
+
+def _get_package_version(module: ModuleType) -> str:
+    """Return the version of the given module."""
+    if hasattr(module, "__version__"):
+        return module.__version__
+    try:
+        return version(module.__name__)
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def get_install_info(
+    imported_package: ModuleType,
+) -> tuple[str, str, str, Literal["not available"] | int]:
+    """
+    Receive git infos about the installed version.
+
+    Parameters
+    ----------
+    imported_package: ModuleType
+        Any module (package) that was already imported.
+
+    Returns
+    -------
+    installed_version: str,
+    commit_branch: str,
+    commit_short_sha: str,
+    commit_time: str or int
+        The version and commit info(s) of the package.
+    """
+    commit_branch = "not available"
+    commit_time = "not available"
+    commit_short_sha = "not available"
+    try:
+        repo = pygit2.Repository(imported_package.__file__)
+        commit_branch = repo.head.shorthand
+        last_commit = repo[repo.head.target]
+        commit_short_sha = str(last_commit.id)[:7]
+        commit_time = last_commit.author.time
+        if commit_branch == "HEAD":
+            # Attempt to find the remote branch
+            for ref_name in repo.references:
+                ref = repo.lookup_reference(ref_name)
+                if ref.target == repo.head.target and ref_name.startswith("refs/remotes/"):
+                    commit_branch = ref.shorthand
+                    break
+    except pygit2.GitError:
+        pass
+    installed_version = _get_package_version(imported_package)
+    return (installed_version, commit_branch, commit_short_sha, commit_time)
+
+
+def resolve_pkgroot_path(path: str | Path, package_path: Path | None) -> Path:
+    """Resolve a path that starts with the ``<pkgroot>`` placeholder."""
+    placeholder = "<pkgroot>"
+    parts = PureWindowsPath(path).parts
+
+    if parts and parts[0] == placeholder and package_path is not None:
+        return package_path.joinpath(*parts[1:])
+
+    return Path(path).expanduser()
+
+
+def create_temp_dir_with_symlinks(
+    names: Sequence[str], targets: Sequence[str | Path]
+) -> TemporaryDirectory[str]:
+    """
+    Create temporary directory with symlinks.
+
+    Works similarly on all major platforms,
+    but uses different ways to achieve this.
+
+    Parameters
+    ----------
+    names : Sequence[str]
+        Names of the symlinks.
+    targets : Sequence[str | Path]
+        Target folders for the links.
+
+    Returns
+    -------
+    TemporaryDirectory
+        Temporary directory instance.
+    """
+    # Create a temporary directory
+    temp_dir = TemporaryDirectory(prefix="systemdir-links-")
+    temp_path = Path(temp_dir.name)
+
+    # Create symbolic links in the temporary directory
+    for name, target in zip(names, targets):
+        target_path = Path(target)
+
+        if not target_path.is_dir():
+            raise ValueError(f"The target {target_path} is not a directory.")
+
+        link_path = temp_path / name
+
+        if os.name == "nt":
+            subprocess.check_call(
+                ["cmd", "/c", "mklink", "/J", str(link_path), str(target_path)],
+                stdout=subprocess.DEVNULL,
+                creationflags=SUBPROCESS_CREATION_FLAGS,
+            )
+        else:
+            link_path.symlink_to(target_path)
+
+    # Return the temporary directory object
+    return temp_dir
+
+
+def module_from_path(filename: Path) -> ModuleType:
+    """
+    Create a module from a file path.
+
+    Parameters
+    ----------
+    filename : Path
+        Path to the file.
+
+    Returns
+    -------
+    module
+        Imported module.
+    """
+    filename = Path(filename).absolute()
+    # create module specification from file and open
+    spec = importlib.util.spec_from_file_location("dummyname", filename)
+    if spec is None:
+        raise ImportError(f"Could not load spec for file '{filename}'")
+    module = importlib.util.module_from_spec(spec)
+    loader = spec.loader
+    if loader is None:
+        raise ImportError(f"Could not import {filename}.")
+    loader.exec_module(module)
+    return module
+
+
+def get_importable_module_name(filename_str: str | Path) -> str | None:
+    """
+    Return the module name for a package, else None.
+
+    It returns the deepest matching entry.
+
+    Parameters
+    ----------
+    filename_str : str or Path
+        Path to a Python file or package directory.
+
+    Returns
+    -------
+    str or None
+        The dotted module name if the path is importable, else None.
+    """
+    path = Path(filename_str).resolve()
+    if path.is_file() and path.suffix == ".py":
+        module_path = path.with_suffix("")
+    elif path.is_dir() and (path / "__init__.py").is_file():
+        module_path = path
+    else:
+        return None
+    matches = []
+    for base in map(Path, sys.path):
+        try:
+            rel = module_path.relative_to(base.resolve())
+            matches.append((len(base.parts), rel))
+        except ValueError:
+            pass
+    if not matches:
+        return None
+    _, relative = max(matches, key=lambda x: x[0])
+    module_name = ".".join(relative.parts)
+    return module_name if importlib.util.find_spec(module_name) else None
+
+
+def get_formatted_line(
+    vlist: Iterable[Any], prefix: str = "", appendix: str = "", column_width: int = 10
+) -> str:
+    """
+    Output a formatted line with data values.
+
+    Parameters
+    ----------
+    vlist : iterable
+        List of values to format.
+    prefix : str, optional
+        Prefix for the line. Default is "".
+    appendix : str, optional
+        Appendix for the line. Default is "".
+    column_width : int, optional
+        Width of each column. Default is 10.
+    """
+    entry_string = f"{{:>{column_width}}}  "
+    outstr = f"{prefix:>6}"
+    for v in vlist:
+        if isinstance(v, str) and len(v) > column_width:
+            vstr = v[-column_width:]
+        elif isinstance(v, str):
+            vstr = v
+        elif v is None:
+            vstr = ""
+        elif isinstance(v, float):
+            vstr = f"{v:8.6g}"
+        elif isinstance(v, int):
+            vstr = f"{v:d}"
+        else:
+            # unknown datatype, continue without error
+            vstr = "???"
+        outstr += entry_string.format(vstr)
+    outstr += f"{appendix}"
+    return outstr
+
+
+def generate_script_prefix_suffix() -> tuple[str, str]:
+    """
+    Define the prefix and suffix of the script used in matrix_script.
+
+    Returns
+    -------
+    tuple
+        A tuple containing two strings:
+        - prefix : str Prefix of a script that can be directly
+          executed and allows use of the custom matrix_script
+          syntax. Ends with try statement, so use script has to
+          be indented by 4 spaces.
+        - suffix : str Corresponding suffix of the script,
+          finishes the try statement.
+    """
+    template_path = Path(__file__).parent / "_matrix_script_template.py"
+
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template file not found: {template_path}")
+
+    with template_path.open(encoding="utf-8") as f:
+        template_content = f.read()
+
+    # Find the markers
+    start_marker_pos = template_content.find(_USER_SCRIPT_START_MARKER)
+    end_marker_pos = template_content.find(_USER_SCRIPT_END_MARKER)
+    insertion_point_pos = template_content.find(_USER_SCRIPT_INSERTION_POINT)
+
+    if start_marker_pos == -1:
+        raise ValueError(f"Start marker '{_USER_SCRIPT_START_MARKER}' not found in template")
+    if end_marker_pos == -1:
+        raise ValueError(f"End marker '{_USER_SCRIPT_END_MARKER}' not found in template")
+    if insertion_point_pos == -1:
+        raise ValueError(f"Insertion point '{_USER_SCRIPT_INSERTION_POINT}' not found in template")
+
+    # Split the template at the insertion point
+    prefix = template_content[:insertion_point_pos]
+    suffix = template_content[insertion_point_pos + len(_USER_SCRIPT_INSERTION_POINT) :]
+
+    return prefix, suffix
+
+
+def get_user_script_line_range(script: str) -> tuple[int, int]:
+    """
+    Return the inclusive generated-source line range containing user code.
+
+    Parameters
+    ----------
+    script : str
+        Script produced by `generate_script`.
+
+    Returns
+    -------
+    tuple[int, int]
+        First and last line belonging to the user-script insertion area.
+
+    Raises
+    ------
+    ValueError
+        If the generated-script boundary markers are missing or
+        out of order.
+    """
+    lines = script.splitlines()
+    start_lines = [
+        line_number
+        for line_number, line in enumerate(lines, start=1)
+        if line.strip() == _USER_SCRIPT_START_MARKER
+    ]
+    end_lines = [
+        line_number
+        for line_number, line in enumerate(lines, start=1)
+        if line.strip() == _USER_SCRIPT_END_MARKER
+    ]
+
+    if not start_lines:
+        raise ValueError(
+            f"Start marker '{_USER_SCRIPT_START_MARKER}' not found in generated script"
+        )
+    if not end_lines:
+        raise ValueError(f"End marker '{_USER_SCRIPT_END_MARKER}' not found in generated script")
+
+    first_line = start_lines[0] + 1
+    last_line = end_lines[-1] - 1
+    if first_line > last_line:
+        raise ValueError("User-script boundary markers are out of order")
+
+    return first_line, last_line
+
+
+def get_script_prefix_offset() -> int:
+    """
+    Get the number of lines in the script prefix.
+
+    This centralizes the calculation of the script offset that is
+    used in multiple places throughout the codebase for line number
+    adjustment.
+
+    Returns
+    -------
+    int
+        Number of lines in the script prefix (n_pref)
+    """
+    prefix, _ = generate_script_prefix_suffix()
+    return len(prefix.splitlines())
+
+
+def generate_script(user_script: str) -> str:
+    """
+    Define the general part of the script used in matrix_script.
+
+    Parameters
+    ----------
+    user_script : str
+        Custom user script that is typically provided by
+        matrix_script, which is supposed to be executed.
+
+    Returns
+    -------
+    str
+        Script that can be directly executed and allows use of
+        the custom matrix_script syntax. Returned script must be
+        run in the context of the matrix_script_process.
+    """
+    # define basic part of script, imports relevant commands
+    prefix, suffix = generate_script_prefix_suffix()
+    if user_script and not user_script.endswith("\n"):
+        user_script += "\n"
+    return prefix + textwrap.indent(user_script, "    ") + suffix
+
+
+def generate_col_index(index: int) -> str:
+    """
+    Generate column indices for matrix/sweep generator.
+
+    Generate column indices using the format "a" -> "z" -> "aa" ->
+    "az" -> "ba" -> etc. Currently can handle 701 columns and is
+    easily extendable.
+
+    Parameters
+    ----------
+    index : int
+        The index for which to generate the column label.
+
+    Returns
+    -------
+    str
+        The generated column label.
+
+    Raises
+    ------
+    ValueError
+        If the index is out of range (>701).
+    """
+    if index < 26:
+        letter = chr(index + 97)
+    elif index < 702:
+        letter = chr(index // 26 + 96) + chr(index % 26 + 97)
+    else:
+        raise ValueError("index out of range, talk to the developer")
+    return letter
+
+
+def construct_query_string(query_dict: dict, depth: int = 2) -> str:
+    """
+    Prepare the query string for the file header from system.query.
+
+    Format is specified as:
+    ## dev1
+    ### key1 : value1
+    ### key2 : value2
+    ## dev2 ... and so on
+
+    Parameters
+    ----------
+    query_dict : dict
+        Dictionary containing the query results.
+    depth : int, optional
+        Current depth in the nested dictionary structure, by default 2.
+
+    Returns
+    -------
+    str
+        Formatted query string.
+    """
+    ret = ""
+    for k, v in query_dict.items():
+        if isinstance(v, dict):
+            ret += "#" * depth + f" {k}\n"
+            ret += construct_query_string(v, depth + 1)
+        else:
+            if isinstance(v, str):
+                # ignore carriage returns (would break the datafile!)
+                v = v.replace("\r", "\n")
+                v = v.replace("\n", "\n" + "#" * (depth + 1) + " ")
+                v = v.replace(
+                    "\\n", "\n" + "#" * (depth + 1) + " "
+                )  # make newlines appear as extra lines
+                v = v.replace('"', r"\"")
+                ret += "#" * depth + f' {k} : "{v}"\n'
+            else:
+                ret += "#" * depth + f" {k} : {v}\n"
+    return ret
+
+
+def init_ascii_header(file_handle, columns, units, separator):
+    """
+    Initialize the header of the measurement file using the given telemetry.
+
+    Parameters
+    ----------
+    file_handle : file
+        File that the header should be written to.
+    columns : list
+        Column names written into the header.
+    units : list
+        Column units to be written into the header.
+    separator : str
+        Separator to use between columns.
+    """
+    file_handle.write(separator.join(columns) + "\n")
+    file_handle.write(separator.join(units) + "\n")
+
+
+def flatten(iterable: Iterable[Any], types: tuple[type[Any], ...] | None = None) -> Iterator[Any]:
+    """
+    Recursively flatten an iterable to have only one dimension.
+
+    Parameters
+    ----------
+    iterable : iterable
+        The iterable to be flattened.
+    types : tuple, optional
+        Types to be considered for flattening, by default
+        (tuple, list, ndarray).
+
+    Yields
+    ------
+    Any
+        Elements from the flattened iterable.
+    """
+    if types is None:
+        from numpy import ndarray
+
+        types = (tuple, list, ndarray)
+
+    for el in iterable:
+        if isinstance(el, types) and not isinstance(el, (str, bytes)):
+            yield from flatten(el, types=types)
+        else:
+            yield el
+
+
+# utility functions
+def get_pt100_temp(res: float) -> float:
+    """
+    Calculate the Pt100 equivalent temperature using Wikipedia coefficients.
+
+    Parameters
+    ----------
+    res : float
+        Resistance value of the Pt100 sensor in ohms.
+
+    Returns
+    -------
+    float
+        Equivalent temperature in degrees Celsius.
+    """
+    a = 3.9083e-3
+    b = -5.775e-7
+    r0 = 100
+    return (-a * r0 + math.sqrt((a * r0) ** 2 - 4 * b * r0 * (r0 - res))) / (2 * b * r0)
+
+
+def run_python_cmdline(
+    cmd: list[str],
+    stdin: str | None = None,
+    timeout: float | None = 10,
+) -> Result[subprocess.CompletedProcess[str], Exception | str]:
+    """
+    Run a python command line and return the result.
+
+    It utilizes subprocess.run to execute the command, captures its
+    output and avoids the creation of a new console window on Windows.
+
+    Parameters
+    ----------
+    cmd : list[str]
+        The "command" to be placed after the python binary,
+        e.g. ["-m", "ruff", "check"].
+    stdin: str or None, optional
+        The string to utilize as stdin
+    timeout: float, optional
+        An optional timeout value
+
+    Returns
+    -------
+    Result
+        Either a string with the output, a string with the error from
+        the commandline or the exception in case of an subprocess.run
+        error.
+    """
+    python_exec = Path(sys.executable)
+    if sys.platform == "win32" and python_exec.name == "pythonw.exe":
+        python_exec = python_exec.parent / "python.exe"
+    cmd = [str(python_exec)] + cmd
+
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            input=stdin,
+            creationflags=SUBPROCESS_CREATION_FLAGS,
+            check=False,
+        )
+        if result.returncode != 0:
+            return Error(result.stderr or result.stdout)
+        return Success(result)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return Error(e)
+
+
+def matrix_cmdline(*args: str) -> list[str]:
+    """
+    Generate a command line that runs matrix in a subprocess.
+
+    The matrix module is executed directly with the current Python
+    interpreter, so the subprocess is guaranteed to use the same
+    environment.
+
+    Parameters
+    ----------
+    *args : str
+        Command line arguments for matrix (without the binary name).
+
+    Returns
+    -------
+    list[str]
+        Command to pass to ``subprocess.Popen`` or ``subprocess.run``.
+    """
+    argv = ["matrix", *args]
+    cmd = f"import sys\nsys.argv = {argv!r}\nfrom matr1x.apps.cli import main\nmain()"
+    return [sys.executable, "-c", cmd]
+
+
+class StreamToLogger:
+    """
+    Helper to pipe streams into a logger.
+
+    Parameters
+    ----------
+    logger: logging.Logger
+        The logger to use.
+    level: int
+        The utilized log-level.
+    """
+
+    def __init__(self, logger: logging.Logger, level: int):
+        self.logger: logging.Logger = logger
+        self.level: int = level
+        self._buffer: str = ""
+
+    def write(self, message: str):
+        """
+        Write a log message considering new lines.
+
+        Parameters
+        ----------
+        message: str
+            The message to log.
+        """
+        if not message:
+            return
+        self._buffer += message
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            line = line.rstrip()
+            if line:
+                self.logger.log(self.level, line)
+
+    def flush(self):
+        """Flush the buffer."""
+        if self._buffer:
+            self.logger.log(self.level, self._buffer.rstrip())
+            self._buffer = ""
+
+
+def log_multiline(logger: logging.Logger, message: str, level=logging.INFO):
+    """Log a multi-line message to the given logger."""
+    for line in message.splitlines():
+        logger.log(level, line)
+
+
+def shorten_error(error: str, hint: str | None = None) -> str:
+    """
+    Shorten a multi-line error to its last non-empty line.
+
+    For a traceback this is the exception type and message. The full
+    error should remain available in the log and/or terminal output.
+
+    Parameters
+    ----------
+    error : str
+        The full error text, e.g. a traceback.
+    hint : str, optional
+        A suffix appended to the shortened text, e.g. a reference to
+        where the full error can be found.
+
+    Returns
+    -------
+    str
+        The shortened error text.
+    """
+    lines = [line for line in error.splitlines() if line.strip()]
+    if len(lines) <= 1:
+        return lines[0] if lines else error
+    return f"{lines[-1]}{hint}" if hint else lines[-1]

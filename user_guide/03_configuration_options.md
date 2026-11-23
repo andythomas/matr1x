@@ -43,7 +43,7 @@ Systems in the last given `systems_directory` path will be shown initially where
 be loaded.
 
 ```toml
-[matr1x.scripts.matrix-script]
+[matr1x.apps.matrix_script]
 # location where matrix-script scripts are executed (files from this folder can be imported in scripts)
 # by default ("") this is the folder were matrix-script is started. The special value "<script-location>"
 # can be used to change to the script file location.
@@ -52,8 +52,13 @@ script_path= ""
 store_script_in_datafile = false
 ```
 
+The legacy section name `[matr1x.scripts.matrix-script]` is still accepted but
+[deprecated](60_development/05_deprecation.md). A deprecation warning is shown
+when it is used. Rename it to `[matr1x.apps.matrix_script]` (see the migration
+skill `migration-v8.6iii`).
+
 ```toml
-[matr1x.scripts.matrix-script.shortcuts]
+[matr1x.apps.matrix_script.shortcuts]
 # The shortcut that is displayed for the toggle line comment menu item.
 line_comment_display = "Ctrl+/"
 # The shortcut that is used for the toggle line comment menu item.
@@ -72,14 +77,18 @@ visadebug = false
 ```
 
 Some systems also define optional parameters which can be configured via the same
-`~/.matr1x.toml`. An example is found in `system_dummy_feature.py` which adds four options.
+`~/.matr1x.toml`. An example is found in `system_dummy_feature.py`:
 
 ```toml
 [matr1x.systems.system_dummy_feature]
-setting1 = "CURR"
-setting2 = false
-setting3 = 36.232
-setting4 = "~/.matr1x.toml"
+measurement_mode = "CURR"
+output_enabled = false
+reference_value = 36.232
+config_file = "~/.matr1x.toml"
+averaging_count = 10
+settling_time = 0.5
+dev1_address = "TCPIP::localhost::10008::SOCKET"
+dev2_address = "TCPIP::localhost::10009::SOCKET"
 ```
 
 ### Configuring systems via Pydantic models
@@ -92,13 +101,20 @@ experience.
 The definition of default values for the options and the access to them is performed as shown in
 the following example from `system_dummy_feature.py`.
 
-{{< include "matr1x/systems/system_dummy_feature.py" lines="16-76" >}}
+{{< include "matr1x/systems/system_dummy_feature.py" lines="16-78" >}}
 
 Descriptions provided in `Field(description="...")` are automatically shown as **tooltips** in the GUI configuration editor.
 
+If an invalid device configuration prevents matrix-gui from queueing a sweep or matrix-script
+from starting a script, the device configuration editor is brought forward automatically. The
+validation details are also recorded as a warning, without automatically opening the separate log
+viewer. Missing required settings and settings with schema defaults remain available in the editor
+even when constructing the complete configuration fails. Matrix-script also preserves compatible
+unsaved values already entered in the editor when the selected system list changes.
+
 #### Supported GUI Hints and Types:
 
-The basic use is to provide a type hint and a Field definition. To simplify configuration definitions, `matr1x.models` provides several helper types and a `GuiField` wrapper:
+The basic use is to provide a type hint and a Field definition. To simplify configuration definitions, `matr1x.core.models` provides several helper types and a `GuiField` wrapper:
 
 | Hint/Type               | Description                                                    | Editor element                                       |
 | ----------------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
@@ -110,15 +126,18 @@ The basic use is to provide a type hint and a Field definition. To simplify conf
 | `SciFloat`=`Field`      | Alias for `float` with scientific notation enabled in the GUI. | LineEdit                                             |
 | `FilePath`=`Field`      | Alias for `str` that triggers a file selection dialog.         | Read-only LineEdit + Button with file dialog popup   |
 | `FolderPath`=`Field`    | Alias for `str` that triggers a folder selection dialog.       | Read-only LineEdit + Button with folder dialog popup |
+| `VisaResource`=`Field`  | Alias for any valid VISA resource.                             | Editable ComboBox                                    |
+| `SerialVisaResource`=`Field` | Alias for an `ASRL ... INSTR` VISA resource.              | Editable ComboBox                                    |
+| `GPIBVisaResource`=`Field` | Alias for a `GPIB ... INSTR` VISA resource.                 | Editable ComboBox                                    |
+| `TCPIPSocketVisaResource`=`Field` | Alias for a `TCPIP ... SOCKET` VISA resource with a valid port. | Editable ComboBox                         |
+| `LocalTCPIPSocketVisaResource`=`Field` | Alias for a local TCP/IP socket resource.       | Editable ComboBox                                    |
+
+The VISA resource editors show discovered PyVISA resources that match the declared type. The fields remain editable, and incompatible addresses are rejected immediately. `LocalTCPIPSocketVisaResource` accepts `localhost` and IPv4 loopback addresses such as `127.0.0.1`; it is used by the dummy feature system.
 
 If a config setting contains sensitive information (e.g., a password or API key) that should not be stored in measurement data files, it should be specified in the `sensitive_keys` argument of `load_config`. This automatically moves these keys to `self.sensitive_config` and excludes them from metadata.
 
 ```python
-        self.load_config(
-            MyConfig,
-            "matr1x.systems.my_system",
-            sensitive_keys=["password", "api_key"]
-        )
+self.load_config(MyConfig, "matr1x.systems.my_system", sensitive_keys=["password", "api_key"])
 ```
 
 An implementation example for this can be found in the `system_elabftw.py` system.
@@ -135,7 +154,8 @@ elabFTW integration is enabled; all other options can be changed from their defa
 # Use the server base URL. The /api/v2 suffix is added automatically.
 host = "https://elab.example.com"
 api_key = "your-secure-api-key"
-# Team ID used for category and status lookup. The default team is 0.
+# Team ID used for category, status, and write-group lookup.
+# It is required when write_groups is not empty.
 teamid = 0
 
 # Enable elabFTW integration. If false, no entry is created.
@@ -154,6 +174,13 @@ category = ""
 create_resource = false
 # Category for newly generated resources. This category must exist in ElabFTW.
 resource_category = "Transport device"
+
+# Parse #hashtags from the first line of the description metadata as experiment tags. Default is true.
+parse_hashtags = true
+
+# Team groups to grant write permissions on created items and experiments.
+# Groups are also granted read permission. Use a TOML array of group names.
+write_groups = ["ThinFilmGrowth"]
 
 # Template for generating titles for the ElabFTW entry.
 # Uses Jinja2 syntax to construct a title from the metadata and filename
@@ -195,6 +222,10 @@ body_template = """
 """
 ```
 
+When resource creation is enabled and the measurement identifier creates a new resource, a
+resource named by the `relation` metadata field is also linked directly from the new resource
+when it can be resolved or created.
+
 ## Setting up sending email notifications
 
 Some control GUIs or measurement scripts can send email notifications.
@@ -219,7 +250,5 @@ default config during installation since this would overwrite your changes.
 On posix platforms (Linux/Mac OS) the sending of emails falls back to using `sendmail` which needs
 to be configured accordingly. This is only attempting in case of incomplete configuration and the
 `sendmail` command needs to be accessible via `PATH`.
-
-```
 
 ```

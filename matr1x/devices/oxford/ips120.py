@@ -13,10 +13,11 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Oxford Instruments IPS120 power supplies and related devices."""
+"""Driver for Oxford Instruments IPS120 power supplies and related devices."""
 
 import math
 import time
+from typing import ClassVar
 
 from pyvisa import constants
 from wrapt import synchronized
@@ -25,9 +26,9 @@ from .isobus import IsobusDevice
 
 
 class IPS120_switchheater(IsobusDevice):
-    """Driver for IPS120 with switch heater control for persistent mode operations."""
+    """IPS120 driver with switch heater control for persistent mode."""
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "Rate": "getMagneticFieldRate",
         "MagnetStatus": "getMagnetStatus",
         "SwitchHeater": "getSwitchHeater",
@@ -59,7 +60,8 @@ class IPS120_switchheater(IsobusDevice):
         max_rate : float, optional
             Maximum allowed field ramp rate in T/min (default: 0.5)
         switch_wait_time : float, optional
-            Wait time in seconds after switching heater state (default: 5)
+            Wait time in seconds after switching heater
+            state (default: 5)
         **kwargs : dict
             Additional arguments passed to the IsobusDevice constructor
         """
@@ -96,7 +98,8 @@ class IPS120_switchheater(IsobusDevice):
         sec : float
             Sleep duration in seconds
         msg : str, optional
-            Status message template with '{}' placeholder for remaining time
+            Status message template with '{}' placeholder
+            for remaining time
         interval : float, optional
             Update interval for status message in seconds (default: 0.5)
         """
@@ -124,7 +127,8 @@ class IPS120_switchheater(IsobusDevice):
 
         Notes
         -----
-        Automatically checks that the value is within the configured field limits.
+        Automatically checks that the value is within the
+        configured field limits.
         """
         # check xval <= fieldlimits
         if self.fieldlimits[1] < xval:
@@ -148,7 +152,8 @@ class IPS120_switchheater(IsobusDevice):
         Returns
         -------
         float or tuple
-            Current field value in Tesla, or a tuple of (current, setpoint) if setp=True
+            Current field value in Tesla, or a tuple of
+            (current, setpoint) if setp=True
         """
         if self.legacy:
             fval = self.query_float("R7") / 1000
@@ -167,7 +172,8 @@ class IPS120_switchheater(IsobusDevice):
         Returns
         -------
         float or None
-            Persistent field value in Tesla, or None if switch heater is on
+            Persistent field value in Tesla, or None if
+            switch heater is on
 
         Notes
         -----
@@ -253,8 +259,9 @@ class IPS120_switchheater(IsobusDevice):
 
         Notes
         -----
-        This method sets the field, turns off the switch heater, and then
-        ramps the power supply to zero while keeping the field trapped in the magnet.
+        Sets the field, turns off the switch heater, and then
+        ramps the power supply to zero while keeping the field
+        trapped in the magnet.
         """
         self.setMagneticFieldNonPersistent(field, block=True)
         # wait to be certain all field is gone
@@ -296,7 +303,8 @@ class IPS120_switchheater(IsobusDevice):
         Returns
         -------
         float or tuple
-            Current ramp rate in T/min, or (current, setpoint) if setp=True
+            Current ramp rate in T/min, or (current,
+            setpoint) if setp=True
         """
         if self.legacy:
             val = self.query_float("R9") / 1000

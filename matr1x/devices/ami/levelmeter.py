@@ -1,5 +1,5 @@
 # This file is part of a software collection for data aquisition (matr1x).
-# Copyright (C) 2024 matr1x developers
+# Copyright (C) 2006-2026 matr1x developers
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,8 +20,6 @@ from matr1x.devices.visadevice import VisaDevice
 
 class AMI1700(VisaDevice):
     """AMI 1700 Level Meter."""
-
-    config_params = {}
 
     def __init__(self, interface, **kwargs):
         """

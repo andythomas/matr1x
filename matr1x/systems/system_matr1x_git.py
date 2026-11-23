@@ -19,9 +19,9 @@ Define a system which adds information about the matr1x code.
 This adds code changes and git reference to the data file header.
 """
 
+from matr1x.core.system import System
+from matr1x.core.util import get_package_path
 from matr1x.devices.git import gitDevice
-from matr1x.system import System
-from matr1x.util import get_package_path
 
 
 # ============================

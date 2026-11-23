@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with Oxford Instruments devices via Isobus protocol."""
+"""Driver for Oxford Instruments devices via the Isobus protocol."""
 
 import logging
 import time
@@ -32,7 +32,7 @@ class IsobusDevice(VisaDevice):
     """
     Base class for Oxford Instruments devices using the ISOBUS protocol.
 
-    This class extends VisaDevice to handle the specific communication
+    Extends VisaDevice to handle the specific communication
     requirements of Oxford Instruments devices connected via ISOBUS.
     """
 
@@ -92,7 +92,8 @@ class IsobusDevice(VisaDevice):
         """
         Send a query to the device and get the response with error handling.
 
-        Includes automatic retries with progressive delay for error recovery.
+        Includes automatic retries with progressive delay for
+        error recovery.
 
         Parameters
         ----------
@@ -199,7 +200,8 @@ class IsobusDevice(VisaDevice):
         index : int or slice
             Index specification for extracting value from query result:
             - int: single character index (e.g., 3, 4, 8)
-            - slice: slice object for substring extraction (e.g., slice(7, 9))
+            - slice: slice object for substring extraction
+              (e.g., slice(7, 9))
         default_value : Any, optional
             Default value to return if extraction fails (default: None).
         conversion_func : Callable[[str], Any], optional
@@ -208,7 +210,8 @@ class IsobusDevice(VisaDevice):
         Returns
         -------
         Any
-            The extracted and converted value, or default_value if extraction fails.
+            The extracted and converted value, or
+            default_value if extraction fails.
         """
         for depth in range(max_depth):
             ret: str = self.query("X", depth)

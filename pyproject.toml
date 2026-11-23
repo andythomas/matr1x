@@ -4,10 +4,10 @@ version = "8.5.1"
 description = "Python package for data acquisition and instrument control"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "GPL-3.0-or-later" }
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE.txt"]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering",
     "Intended Audience :: Science/Research",
@@ -16,49 +16,56 @@ classifiers = [
     "Operating System :: MacOS",
 ]
 dependencies = [
-    "tomli ; python_version < '3.11'",               # imported in matr1x
-    "tomli-w",                                       # imported in matr1x
-    "pydantic >= 2.0",                               # imported in matr1x
-    "h5py >= 2.7.0",                                 # imported via util,
-    "numpy",                                         # imported via util
-    "pyobjc ; platform_system == 'Darwin'",          # imported via util
-    "decorator >= 5.2.1",                            # imported via util
-    "pandas >= 1.0.0",                               # imported via eval,
-    "psutil",                                        # imported via control/util
-    "pyqtgraph >= 0.11.0",                           # needed for GUI apps
-    "PySide6",                                       # needed for GUI apps
-    "PySide6 >= 6.5.0 ; platform_system == 'Windows'", # needed for GUI apps
-    "pygit2 >= 1.16",                                # needed for GUI apps
-    "pygit2 >= 1.19; python_version >= '3.14'",      # needed for GUI apps Py 3.14+
-    "wrapt>2.0",                                     # needed for GUI apps
-    "urwid>2.0",                                     # needed for GUI apps
-    "script2bundle >= 0.3.0 ; platform_system == 'Darwin'", # needed for GUI apps for desktop integration
-    "monaco-assets >= 0.5.1",                        # needed for matrix script
-    "ruff == 0.15.22",                               # needed for matrix script
-    "ty == 0.0.63",                                  # needed for matrix script
-    "pymeasure >= 0.16.0",                           # shared by several device drivers
-    "pyserial",                                      # shared by several device drivers
-    "pyvisa",                                        # shared by several device drivers
-    "pyvisa-py",                                     # shared by several device drivers
-    "zeroconf",                                      # needed by pyvisa-py resource discovery
-    "minimalmodbus",                                 # shared by several device drivers
+    "tomli ; python_version < '3.11'",              # core.config (tomllib fallback)
+    "tomli-w",                                      # core.config
+    "pydantic >= 2.0",                              # core config schema and models
+    "h5py >= 3.6.0",                                # core (HDF5 data handling)
+    "numpy >= 1.21.2",                              # core
+    "pyobjc-framework-Cocoa >= 8.0 ; platform_system == 'Darwin'",  # gui.app (macOS integration)
+    "decorator >= 5.2.1",                           # control.gui_dict
+    # polars 2.0.0 bug, fix pending in pola-rs/polars#29811
+    "polars >= 1.0, != 2.0.0",                      # core.eval
+    "psutil >= 5.9.0",                              # control
+    "pyqtgraph >= 0.12.3",                          # gui plotting
+    "PySide6 >= 6.4.0",                             # gui
+    "PySide6 >= 6.5.0 ; platform_system == 'Windows'",  # gui
+    "pygit2 >= 1.16",                               # core.util, devices.git
+    "pygit2 >= 1.19; python_version >= '3.14'",     # core.util, devices.git (Py 3.14+)
+    "wrapt > 2.0",                                  # devices
+    "urwid > 2.0",                                  # TUI (apps.cli)
+    "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
+    "monaco-assets == 0.7.1",                        # gui.editor (matrix-script)
+    "ruff ~= 0.16.0",                                  # gui.editor (run as subprocess)
+    "ty == 0.0.63",                                 # gui.editor (run as subprocess)
+    "pymeasure >= 0.16.0",                          # core and device drivers
+    "pyserial",                                     # device drivers
+    "pyvisa >= 1.12.0",                             # devices (VisaDevice and drivers)
+    "pyvisa-py >= 0.5.3",                           # pyvisa backend
+    "zeroconf >= 0.36.8",                           # pyvisa-py resource discovery
+    "minimalmodbus",                                # device drivers
 ]
 
 [project.optional-dependencies]
-elab = ["elabapi_python >= 5.3.0", "jinja2"] # for the electronic notebook
+elab = ["elabapi_python >= 5.3.0", "jinja2", "urllib3>=2.8.0"] # for the electronic notebook
+mcp = [
+    "mcp >= 2.0.0",      # apps.mcp (MCP server)
+    "matplotlib >= 3.6", # apps.mcp (plotting)
+]
 ppms = [
     "MultiPyVu >= 3.6.1", # for matr1x/devices/quantumdesign/ppms,
 ]
 
 [project.scripts]
-matrix = "matr1x.scripts.matrix:main"
-matrix-di = "matr1x.scripts.matrix_di:main"
+matrix = "matr1x.apps.cli:main"
+matrix-di = "matr1x.apps.desktop_integration:main"
+matrix-mcp = "matr1x.apps.mcp:main"
+matrix-workspace = "matr1x.apps.workspace:main"
 
 [project.gui-scripts]
-matrix-gui = "matr1x.scripts.matrix_gui:main"
-sweep-generator = "matr1x.scripts.sweep_generator:main"
-matrix-script = "matr1x.scripts.matrix_script:main"
-matrix-preview = "matr1x.scripts.matrix_preview:main"
+matrix-gui = "matr1x.apps.queue:main"
+sweep-generator = "matr1x.apps.sweep_generator:main"
+matrix-script = "matr1x.apps.script:main"
+matrix-preview = "matr1x.apps.preview:main"
 control-dummy = "matr1x.control.control_dummy:main"
 
 [project.urls]
@@ -66,11 +73,13 @@ Homepage = "https://github.com/andythomas/matr1x"
 Documentation = "https://andythomas.github.io/matr1x/"
 
 [build-system]
-requires = ["flit_core >=3.6,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["uv_build>=0.12.0,<0.13"]
+build-backend = "uv_build"
 
-[tool.flit.module]
-name = "matr1x"
+[tool.uv.build-backend]
+module-name = "matr1x"
+module-root = ""
+source-exclude = [".gitignore"]
 
 [tool.pytest.ini_options]
 addopts = "--capture=tee-sys --show-capture=all"
@@ -82,13 +91,11 @@ env = [
     "QT_QUICK_BACKEND=software",
 ]
 
-[tool.pyrefly]
-project-includes = [
-    "matr1x"
-]
-
 [tool.ty.src]
-include = ["matr1x"]
+include = [
+    "matr1x",
+    "tests"
+]
 
 [tool.ruff]
 line-length = 99       # max per pep8
@@ -97,19 +104,9 @@ line-length = 99       # max per pep8
 extend-select = [
     'D',        # pydocstyle (docstring formatting)
     'A',        # flake8 builtins (Python builtins being used as variables or parameters.)
-    'I',        # isort (sort imports)
-    'PLW0602',  # unassigned global variable
     'W505',     # doc line too long
     'E501',     # line too long
-    'UP',       # use most modern code allowed by lowest python version
-    'PTH',      # use modern pathlib methods if possible
-    'LOG',      # look for correct logging
-    'G',        # look for correct log formatting
-    'INP001',   # provide __init__ for packages
-    'PIE',      # use flake8-pie rules (unnecessary code pieces)
-    'PYI',      # use flake8-pyi rules (type hinting helpers)
     'SIM300',   # use human readable comparisons (yoda condition)
-    'RUF100',   # no not allow unused noqa
     'T201',     # do not use print statements
     'NPY',      # find numpy legace code
     'ISC',      # concatenate strings consistently
@@ -118,7 +115,10 @@ extend-select = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"] # 'unsused import' has to be suppressed here
-"tests/**" = ["INP001", "T201"] # tests do not need '__init__', print is fine
+"tests/**" = ["T201"] # tests may use print statements
+# the template imports the script API to bind it into the user-script
+# namespace
+"matr1x/core/_matrix_script_template.py" = ["F401"]
 
 [tool.ruff.lint.pycodestyle]
 max-line-length = 100
@@ -132,7 +132,7 @@ version_toml = [
     "pyproject.toml:project.version"
 ]
 branch = "main"
-build_command = "pip install flit && flit build --no-use-vcs"
+build_command = "pip install uv && uv lock --offline && git add -- uv.lock && uv build --no-sources"
 
 [tool.semantic_release.changelog]
 exclude_commit_patterns = [
@@ -146,13 +146,94 @@ exclude_commit_patterns = [
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
 
+[tool.importlinter]
+root_package = "matr1x"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "matr1x is free of import cycles"
+type = "acyclic_siblings"
+ancestors = [
+    "matr1x",
+]
+
+[[tool.importlinter.contracts]]
+name = "core must not import the matr1x root"
+type = "forbidden"
+source_modules = [
+    "matr1x.core",
+]
+forbidden_modules = [
+    "matr1x",
+]
+
+[[tool.importlinter.contracts]]
+name = "layering: apps > systems > control > gui > devices > core"
+type = "layers"
+layers = [
+    "matr1x.apps",
+    "matr1x.systems",
+    "matr1x.control",
+    "matr1x.gui",
+    "matr1x.devices",
+    "matr1x.core",
+]
+
+[[tool.importlinter.contracts]]
+name = "entry points are independent"
+type = "independence"
+modules = [
+    "matr1x.apps.cli",
+    "matr1x.apps.queue",
+    "matr1x.apps.script",
+    "matr1x.apps.preview",
+    "matr1x.apps.desktop_integration",
+    "matr1x.apps.sweep_generator",
+]
+
+[[tool.importlinter.contracts]]
+name = "core and devices must not import Qt"
+type = "forbidden"
+source_modules = [
+    "matr1x.core",
+    "matr1x.devices",
+]
+forbidden_modules = [
+    "PySide6",
+    "pyqtgraph",
+    "urwid",
+    "monaco_assets",
+]
+ignore_imports = [
+    # Lakeshore control GUI has external consumers; keep it in devices for now.
+    "matr1x.devices.lakeshore.control -> PySide6",
+]
+
+[[tool.importlinter.contracts]]
+name = "device packages are independent"
+type = "independence"
+modules = [
+    # The wildcard picks up all current and future vendor packages
+    # automatically; no list to keep in sync.
+    "matr1x.devices.*",
+]
+ignore_imports = [
+    # Shared device base modules (not vendor packages) may be imported
+    # from any device module.
+    "matr1x.devices.** -> matr1x.devices.modbusdevice",
+    "matr1x.devices.** -> matr1x.devices.scpi_dev",
+    "matr1x.devices.** -> matr1x.devices.visadevice",
+]
+
 [dependency-groups]
 dev = [
+    "import-linter",
     "pytest>=8.4.1",
     "pytest-env>=1.1.5",
     "pytest-qt>=4.5.0",
     "pytest-timeout>=2.4.0",
     "complexipy>=6.2.0",
+    "py-yaml12>=0.2.0", # tests.test_public_api (parses great-docs.yml, YAML 1.2)
 ]
 
 docs = [
@@ -160,13 +241,28 @@ docs = [
 ]
 
 [tool.uv]
-override-dependencies = []
+override-dependencies = [
+    # grimp 3.16 has no cp314 macOS wheel (Rust build fails in CI-less envs); 3.15
+    # has cp314 wheels for all platforms. (A marker-tagged override would drop
+    # grimp from non-macOS installs entirely.)
+    "grimp<3.16",
+    "tornado>=6.5.9", # GHSA-8423-8fgw-73vq, GHSA-wwv5-g3v4-889x, CVE-2026-82397, GHSA-3hv7-mjh2-fv65, GHSA-c2m8-h5v5-343r, GHSA-chx6-46f5-w4vp
+    "cairosvg>=2.9.1", # CVE-2026-107378
+    "certifi>=2026.10.19", # GHSA-6q48-6c7w-9gw2
+    "jupyter-server>=2.21.0", # GHSA-c3mw-737p-c7g2
+    "jupyterlab>=4.6.4", # CVE-2026-102830, CVE-2026-102831, CVE-2026-102832, CVE-2026-102904
+    "nbconvert>=7.17.2", # CVE-2026-114140
+    "notebook>=7.6.3", # CVE-2026-102831, CVE-2026-102832
+    # Pillow 13 needs Python >= 3.11; the project still supports 3.10.
+    "pillow>=13.0.0 ; python_version >= '3.11'", # 44 CVEs fixed in 13.0.0 (e.g. CVE-2026-112398, CVE-2026-112900)
+    "pillow>=12.3.0 ; python_version < '3.11'", # best available on 3.10
+]
 
 [tool.uv.dependency-groups]
 docs = { requires-python = ">=3.11" }
 
 [tool.complexipy]
-paths = ["matr1x"]
+paths = ["matr1x", "tests"]
 max-complexity-allowed = 15
 snapshot-create = false
 snapshot-ignore = false

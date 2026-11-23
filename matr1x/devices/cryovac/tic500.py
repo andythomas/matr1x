@@ -16,7 +16,7 @@
 """
 TIC500 temperature controller interface module.
 
-This module provides an interface to control TIC500 temperature
+Provides an interface to control TIC500 temperature
 controllers.
 """
 
@@ -45,7 +45,8 @@ class TIC500(VisaDevice):
         write_termination : str, optional
             The string to append to each write command (default: CRLF)
         read_termination : str, optional
-            The string that marks the end of a read response (default: CRLF)
+            The string that marks the end of a read response
+            (default: CRLF)
         timeout : int, optional
             Timeout in milliseconds (default: 2000)
         setlimit : int, optional
@@ -59,10 +60,7 @@ class TIC500(VisaDevice):
             kwargs["read_termination"] = "\r\n"
         if "timeout" not in kwargs:
             kwargs["timeout"] = 2000
-        if "setlimit" not in kwargs:
-            self.setlimit = 301
-        else:
-            self.setlimit = kwargs["setlimit"]
+        self.setlimit = kwargs.get("setlimit", 301)
         super().__init__(interface, **kwargs)
 
     @synchronized
@@ -280,7 +278,7 @@ class TIC500(VisaDevice):
             True if PID control is on, False otherwise
         """
         ret = self.query(f"{channel}.PID.Mode?")
-        return True if ret == "On" else False
+        return ret == "On"
 
     @synchronized
     def set_state(self, state, channel):
@@ -329,7 +327,7 @@ class TIC500(VisaDevice):
             True if output is enabled, False otherwise
         """
         ret = self.query("OutputEnable?")
-        return True if ret == "On" else False
+        return ret == "On"
 
     @synchronized
     def disable_channel(self, channel):

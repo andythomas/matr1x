@@ -50,6 +50,11 @@ for value in range(11):
     measure_system()
 ```
 
+For scripts whose measurement flow is statically known, `matrix-script`
+automatically determines the total number of points for progress and remaining
+time estimation. Dynamic loops and branches continue to run normally, but do
+not have a known total.
+
 ## Data Preview
 
 Matrix Preview can show the raw data from the measurement.

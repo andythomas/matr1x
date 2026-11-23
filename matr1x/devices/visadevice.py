@@ -26,12 +26,13 @@ import logging
 import threading
 import time
 from functools import wraps
+from typing import ClassVar
 
 import pyvisa
 from pyvisa import errors, resources
 from wrapt import synchronized
 
-import matr1x
+import matr1x.core.config as core_config
 
 logger = logging.getLogger(__name__)
 
@@ -60,46 +61,31 @@ class VisaDevice:
     """
     The VISA device class of matr1x.
 
-    Note: Do NOT implement new devices based on this class. Use pymeasure Instrument instead.
-    Pull requests with new devices will not be merged in the future.
+    Note: Do NOT implement new devices based on this class. Use
+    pymeasure Instrument instead. Pull requests with new devices will
+    not be merged in the future.
 
-    Device connection is established upon initialization of this class.
-    The connection is closed by the `close` method after which the device can be
-    reinitialized even within the same Python process.
-
-    Devices derived from this class should be placed in a folder named after the
-    vendor of the device and the class name should contain the vendor and model
-    name. Note that we follow the SnakeCase naming convention for class names.
+    The connection is established upon initialization and closed by
+    the `close` method, after which the device can be reinitialized
+    even within the same Python process.
 
     Parameters
     ----------
     interface : str
-        The used interface as VISA address.
-        e.g. 'TCPIP::192.98.143.1::5025::SOCKET'
+        The used interface as VISA address, e.g.
+        'TCPIP::192.98.143.1::5025::SOCKET'.
     cmdpers : int, optional
-        The maxiumum amount of commands to be send per second.
-        If None (default), no limit is imposed.
+        Maximum amount of commands to be sent per second. If None
+        (default), no limit is imposed.
     **kwargs : dict, optional
-        Keyword arguments, e.g. a='b'. Used keywords are:
-
         * pts : bool
-            'Print to screen'. If True, read and written strings are printerd to
-            the console. Usefull for debuging.
+            Print read and written strings to the console (debugging).
         * visadebug : bool
-            If True, enables the output of debugging information
-            from the pyVISA library.
-        * All other kwargs are passed to the VISA resource connection and can
-            serve to configure the interface. Most common are:
-
-            * write_termination : str
-            * read_termination : str
-            * timeout : float
-            * query_delay : float
-            * baud_rate : int
-            * data_bits : int
-            * stop_bits : int
-            * parity : int
-            * flow_control : int
+            Enable the output of debugging information from pyVISA.
+        * All other kwargs are passed to the VISA resource
+          connection, e.g. write_termination, read_termination,
+          timeout, query_delay, baud_rate, data_bits, stop_bits,
+          parity, flow_control.
 
     Attributes
     ----------
@@ -107,11 +93,9 @@ class VisaDevice:
         The used interface.
     connection : pyVISA resource
         The pyVISA resource used for communication with the device.
-        Usually only important if new features are to be implemented.
-        Please refer to the pyVISA documentation for more information.
     """
 
-    config_params = {}
+    config_params: ClassVar[dict[str, str]] = {}
     """
     Parameters provided in dictionary need to be one of:
 
@@ -127,7 +111,7 @@ class VisaDevice:
         self.interface: resources.MessageBasedResource | str = interface
         self.connection: resources.MessageBasedResource
         self.name = f"{type(self).__name__}@{self.interface}"
-        self._config = matr1x.config.matr1x.devices.visadevice
+        self._config = core_config.config.matr1x.devices.visadevice
         # have never tested these myself
         self.pts = kwargs.pop("pts", self._config.pts)
         if kwargs.pop("visadebug", self._config.visadebug):
@@ -175,7 +159,7 @@ class VisaDevice:
                 if isinstance(connection, resources.MessageBasedResource):
                     self.connection = connection
                 else:
-                    raise ValueError("Invalid resource type")
+                    raise TypeError("Invalid resource type")
                 if self.pts:
                     print(f"C: {self.name}")  # noqa: T201
                 logger.info("Connection to %s opened", self.name)
@@ -185,13 +169,13 @@ class VisaDevice:
                 for key, val in kwargs.items():
                     if hasattr(self.connection, key):
                         setattr(self.connection, key, val)
-            except Exception as e:
+            except Exception:
                 logger.info("Exception during opening of %s", self.name)
                 try:
                     self.connection.close()
                 except AttributeError:
                     pass
-                raise e
+                raise
             self._opened = True
 
     def close(self):
@@ -238,8 +222,9 @@ class VisaDevice:
         """
         Read data from the device.
 
-        If nbytes is set, only so many bytes are read.
-        If not, bytes are read until terminated by the specified character.
+        If nbytes is set, only so many bytes are read. If not,
+        bytes are read until terminated by the specified
+        character.
 
         Parameters
         ----------
@@ -286,11 +271,13 @@ class VisaDevice:
         Parameters
         ----------
         command : str or bytes
-            If a string is passed, terminator is appended and the message is
-            encoded before being sent to the devices.
-            If bytes are passed, this function falls back to visa's write_raw
-            function, which does not modify the commend but just transmits the
-            bytes to the device (no terminator is appended!).
+            If a string is passed, terminator is appended
+            and the message is encoded before being sent to
+            the devices. If bytes are passed, this function
+            falls back to visa's write_raw function, which
+            does not modify the commend but just transmits
+            the bytes to the device (no terminator is
+            appended!).
         """
         logger.debug("%s: Write: %s", self.name, command)
         if self.pts:

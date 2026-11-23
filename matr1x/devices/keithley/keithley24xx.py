@@ -13,23 +13,73 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling Keithley 2400 and 2450 source measurement units."""
+"""Driver for the Keithley 2400 and 2450 source measurement units."""
+
+from typing import ClassVar
 
 from wrapt import synchronized
 
 from matr1x.devices.visadevice import VisaDevice
 
 
-class Keithley2400(VisaDevice):
+class Keithley24xx(VisaDevice):
+    """Shared functionality for Keithley 24xx source measurement units."""
+
+    sourceMode: str
+    outputState: bool
+    _output_command: ClassVar[str] = ":OUTP"
+
+    def output(self, state: bool = False) -> None:
+        """
+        Set the output state of the instrument.
+
+        Parameters
+        ----------
+        state : bool, optional
+            Turn output on (True) or off (False). Default: False.
+
+        Raises
+        ------
+        TypeError
+            If state is not a bool.
+        """
+        if not isinstance(state, bool):
+            raise TypeError("state must be a bool")
+        self.write(f"{self._output_command} {'ON' if state else 'OFF'}")
+        self.outputState = state
+
+    def _apply_output_setting(self, state: bool | None) -> None:
+        """Apply an optional output setting after configuration."""
+        if state is not None:
+            self.output(state)
+
+    def getSetpoint(self) -> float:
+        """
+        Get the current source setpoint value from the instrument.
+
+        Returns
+        -------
+        float
+            The current source setpoint
+        """
+        return float(self.query(":SOUR:" + self.sourceMode + ":LEV:IMM:AMPL?"))
+
+
+class Keithley2400(Keithley24xx):
     """
     Class for controlling Keithley 2400 SourceMeter.
 
-    This class provides methods to configure and control the Keithley
+    Provides methods to configure and control the Keithley
     2400 source measurement unit for various sourcing and measurement
     operations.
     """
 
-    config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}
+    _output_command: ClassVar[str] = ":OUTP:STAT"
+
+    config_params: ClassVar[dict[str, str]] = {
+        "sourceMode": "sourceMode",
+        "senseMode": "senseMode",
+    }
 
     def __init__(self, interface, **kwargs):
         """
@@ -40,7 +90,8 @@ class Keithley2400(VisaDevice):
         interface : str
             VISA resource name for the instrument
         **kwargs : dict
-            Additional arguments to pass to the VISA device initialization
+            Additional arguments to pass to the VISA device
+            initialization
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -83,7 +134,7 @@ class Keithley2400(VisaDevice):
         sourceAutoRange=None,
         sourceRange=None,
         senseLimit=None,
-        output=None,
+        output: bool | None = None,
         delayAuto=None,
         delay=None,
         reset=False,
@@ -94,34 +145,34 @@ class Keithley2400(VisaDevice):
         Parameters
         ----------
         sourceMode : str, optional
-            "VOLT" or "CURR", predefined physical parameter to source
+            "VOLT" or "CURR", physical parameter to source.
         senseMode : str, optional
-            "VOLT" or "CURR", parameter to measure
+            "VOLT" or "CURR", parameter to measure.
         fourWire : bool, optional
-            Four wire measurement. Default: None (use current configuration)
+            Four wire measurement; None uses the current
+            configuration.
         senseAutoRange : bool, optional
-            Autodetect the sense range. Default: None
+            Autodetect the sense range.
         senseRange : float, optional
-            Largest expected measurement value, device will
-            pick the next inclusive range. Default: None
+            Largest expected measurement value; the device picks the
+            next inclusive range.
         sourceAutoRange : bool, optional
-            Autodetect the source range. Default: None
+            Autodetect the source range.
         sourceRange : float, optional
-            Largest expected source current, device will
-            pick the next inclusive range. Default: None
+            Largest expected source current; the device picks the
+            next inclusive range.
         senseLimit : float, optional
-            Voltage limit. Default: 10V
+            Voltage limit.
         output : bool, optional
-            Turn the output on. Default: None
+            Turn the output on.
         delayAuto : bool, optional
-            Automatically choose the delay for stabilizing
-            the output. Default: None
+            Automatically choose the delay for stabilizing the
+            output.
         delay : float, optional
-            Delay in seconds for stabilizing the output before
-            doing an internal measurement. WON'T AFFECT/DELAY
-            OTHER DEVICES! Default: 0.1(s)
+            Delay in seconds for stabilizing the output before doing
+            an internal measurement. Does not affect other devices.
         reset : bool, optional
-            If true, reset the device. Default: False
+            If True, reset the device.
 
         Examples
         --------
@@ -189,23 +240,7 @@ class Keithley2400(VisaDevice):
         for cmd in cmdlist:
             self.write(cmd)
         # if self.outputState != bool(output):
-        self.output(output)
-
-    def output(self, state=False):
-        """
-        Set the output state of the instrument.
-
-        Parameters
-        ----------
-        state : bool, optional
-            Turn output on (True) or off (False). Default: False
-        """
-        if bool(state) is True:
-            self.write(":OUTP:STAT ON")
-            self.outputState = True
-        elif bool(state) is False:
-            self.write(":OUTP:STAT OFF")
-            self.outputState = False
+        self._apply_output_setting(output)
 
     def setSource(self, current):
         """
@@ -214,7 +249,8 @@ class Keithley2400(VisaDevice):
         Parameters
         ----------
         current : float
-            The value to set for the source, either voltage or current depending on the source mode
+            The value to set for the source, either voltage
+            or current depending on the source mode
         """
         cmd = ":SOUR:" + self.sourceMode + ":LEV " + str(current)
         self.write(cmd)
@@ -245,16 +281,19 @@ class Keithley2400(VisaDevice):
         return float(res)
 
 
-class Keithley2450(VisaDevice):
+class Keithley2450(Keithley24xx):
     """
     Class for controlling Keithley 2450 SourceMeter.
 
-    This class provides methods to configure and control the Keithley
+    Provides methods to configure and control the Keithley
     2450 source measurement unit for various sourcing and measurement
     operations.
     """
 
-    config_params = {"sourceMode": "sourceMode", "senseMode": "senseMode"}
+    config_params: ClassVar[dict[str, str]] = {
+        "sourceMode": "sourceMode",
+        "senseMode": "senseMode",
+    }
 
     def __init__(self, interface, **kwargs):
         """
@@ -265,7 +304,8 @@ class Keithley2450(VisaDevice):
         interface : str
             VISA resource name for the instrument
         **kwargs : dict
-            Additional arguments to pass to the VISA device initialization
+            Additional arguments to pass to the VISA device
+            initialization
         """
         if "write_termination" not in kwargs:
             kwargs["write_termination"] = "\n"
@@ -292,49 +332,48 @@ class Keithley2450(VisaDevice):
         sourceAutoRange=None,
         sourceRange=None,
         senseLimit=None,
-        output=None,
+        output: bool | None = None,
         delayAuto=None,
         delay=None,
         resetUnits=True,
         reset=False,
     ):
-        """
-        Configure the Keithley 2450 to source current and sense voltage.
+        """Configure the Keithley 2450 to source current and sense voltage.
 
         Parameters
         ----------
         sourceMode : str, optional
-            "VOLT" or "CURR", predefined physical parameter to source
+            "VOLT" or "CURR", physical parameter to source.
         senseMode : str, optional
-            "VOLT" or "CURR", parameter to measure
+            "VOLT" or "CURR", parameter to measure.
         fourWire : bool, optional
-            Four wire measurement. Default: None (use current configuration)
+            Four wire measurement; None uses the current
+            configuration.
         senseAutoRange : bool, optional
-            Autodetect the sense range. Default: None
+            Autodetect the sense range.
         senseRange : float, optional
-            Largest expected measurement value, device will
-            pick the next inclusive range. Default: None
+            Largest expected measurement value; the device picks the
+            next inclusive range.
         sourceAutoRange : bool, optional
-            Autodetect the source range. Default: None
+            Autodetect the source range.
         sourceRange : float, optional
-            Largest expected source current, device will
-            pick the next inclusive range. Default: None
+            Largest expected source current; the device picks the
+            next inclusive range.
         senseLimit : float, optional
-            Voltage limit. Default: None
+            Voltage limit.
         output : bool, optional
-            Turn the output on. Default: None
+            Turn the output on.
         delayAuto : bool, optional
-            Automatically choose the delay for stabilizing
-            the output. Default: None
+            Automatically choose the delay for stabilizing the
+            output.
         delay : float, optional
-            Delay in seconds for stabilizing the output before
-            doing an internal measurement. WON'T AFFECT/DELAY
-            OTHER DEVICES! Default: 0.1(s)
+            Delay in seconds for stabilizing the output before doing
+            an internal measurement. Does not affect other devices.
         resetUnits : bool, optional
-            If true, Ampere and Volt are restored as default unit for
-            current and voltage measurements. Default: True
+            If True, Ampere and Volt are restored as default units
+            for current and voltage measurements. Default is True.
         reset : bool, optional
-            If true, reset the device. Default: False
+            If True, reset the device.
 
         Examples
         --------
@@ -407,23 +446,7 @@ class Keithley2450(VisaDevice):
 
         for cmd in cmdlist:
             self.write(cmd)
-        self.output(output)
-
-    def output(self, state=False):
-        """
-        Set the output state of the instrument.
-
-        Parameters
-        ----------
-        state : bool, optional
-            Turn output on (True) or off (False). Default: False
-        """
-        if state is True:
-            self.write(":OUTP ON")
-            self.outputState = True
-        elif state is False:
-            self.write(":OUTP OFF")
-            self.outputState = False
+        self._apply_output_setting(output)
 
     def setSource(self, current):
         """
@@ -432,7 +455,8 @@ class Keithley2450(VisaDevice):
         Parameters
         ----------
         current : float
-            The value to set for the source, either voltage or current depending on the source mode
+            The value to set for the source, either voltage
+            or current depending on the source mode
         """
         cmd = ":SOUR:" + self.sourceMode + " " + str(current)
         self.write(cmd)

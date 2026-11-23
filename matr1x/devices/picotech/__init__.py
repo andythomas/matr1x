@@ -13,6 +13,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module with device drivers for devices from Pico Technology."""
+"""Pico Technology device drivers."""
 
 from .vna import PicoVNA

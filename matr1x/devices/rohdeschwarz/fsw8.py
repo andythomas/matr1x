@@ -13,10 +13,10 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for controlling the Rohde & Schwarz FSW8 spectrum analyzer."""
+"""Driver for the Rohde & Schwarz FSW8 spectrum analyzer."""
 
 from struct import unpack
-from typing import Literal
+from typing import ClassVar, Literal
 
 import numpy as np
 from wrapt import synchronized
@@ -31,7 +31,7 @@ class FSW8(VisaDevice):
     It can possibly be used with different models with little changes.
     """
 
-    config_params = {
+    config_params: ClassVar[dict[str, str]] = {
         "n_points": "SWE:POIN?",
         "resBW_Hz": "BWID:RES?",
         "vidBW_Hz": "BWID:VID?",
@@ -69,8 +69,8 @@ class FSW8(VisaDevice):
             The ip andress and port where the device is located.
             e.g. TCPIP::192.168.5.52::5025::SOCKET
         reset : bool, optional
-            If true, the PSA is reset on object creation using the reset method.
-            Default is True.
+            If true, the PSA is reset on object creation
+            using the reset method. Default is True.
         timeout : int, optional
             The timeout of the ethernet connection in milliseconds.
             Default is 60e3 ms.
@@ -117,61 +117,44 @@ class FSW8(VisaDevice):
         Parameters
         ----------
         swePoints : int
-            The number of points per sweep.
+            Number of points per sweep.
         refLev : int
-            Defines the reference level for a spurious emission measurement
-            range.
+            Reference level for a spurious emission measurement range.
         resBW : int
-            Defines the resolution bandwidth and decouples the resolution
-            bandwidth from the span.
-            In the Real-Time application, the resolution bandwidth is always
+            Resolution bandwidth, decoupled from the span. In the
+            Real-Time application the resolution bandwidth is always
             coupled to the span.
         vidBW : int, optional
-            Defines the video bandwidth.
-            If not None, the command decouples the video bandwidth from the
-            resolution bandwidths. Default is None.
+            Video bandwidth. If not None, the video bandwidth is
+            decoupled from the resolution bandwidths.
         intpreamp : int, optional
-            Turns the internal preamplifier on and off. It requires the
-            optional preamplifier hardware.
-            Note that if an optional external preamplifier is activated, the
-            internal preamplifier is automatically disabled, and vice versa.
-            For R&S FSW 8 or 13 models, the preamplification is defined by
-            INPut<ip>:GAIN[:VALue]. Default is None.
+            Turns the internal preamplifier on and off; requires the
+            optional preamplifier hardware. An activated external
+            preamplifier disables the internal one, and vice versa.
+            For R&S FSW 8/13 models the preamplification is defined by
+            INPut<ip>:GAIN[:VALue].
         average : int, optional
-            The number of averages which make up the final values.
-            Default is None.
-        avgType : str, optional
-            The average type of the measurement.
-            Currently implemented are:
-            - 'power': Power levels are converted into Watt prior averaging
-            - 'linear': Power values are averaged before being converted to
-                        logarithmic values
-            - 'logarithmic': Logarithmic power values are averaged.
+            Number of averages which make up the final values.
+        avgType : {'power', 'linear', 'logarithmic'}, optional
+            'power' converts to Watt prior averaging, 'linear'
+            averages before converting to logarithmic values,
+            'logarithmic' averages logarithmic power values.
             Default is 'power'.
-        detector : str, optional
-            The detector type of the measurement.
-            Currently implemented are:
-            - 'rms': Power (RMS) averaging
-            - 'log': Log-Power (video) averaging
-            - 'scalar': Voltage averaging.
+        detector : {'rms', 'log', 'scalar'}, optional
+            'rms' power (RMS) averaging, 'log' log-power (video)
+            averaging, 'scalar' voltage averaging.
             Default is 'rms'.
         attAuto : bool, optional
-            Couples or decouples the attenuation to the reference level.
-            Thus, when the reference level is changed, the R&S FSW determines
-            the signal level for optimal internal data processing and sets
-            the required attenuation accordingly. Default is True.
+            If True, the attenuation is coupled to the reference
+            level and set automatically for optimal internal data
+            processing. Default is True.
         attVal : int, optional
-            Defines the total attenuation for RF input. Default is 0.
-        sweType : str, optional
-            Selects the sweep type.
-            Currently implemented are:
-            - 'fft': FFT mode
-            - 'sweep': Sweep list
-            - 'auto': Automatic selection of the sweep type between sweep
-                     mode and FFT.
+            Total attenuation for RF input. Default is 0.
+        sweType : {'fft', 'sweep', 'auto'}, optional
+            Sweep type; 'auto' selects between sweep mode and FFT.
             Default is 'fft'.
         getData : bool, optional
-            If true, trigger a sweep and return the results directly.
+            If True, trigger a sweep and return the results directly.
             Default is False.
 
         Returns
@@ -245,14 +228,14 @@ class FSW8(VisaDevice):
             self.write(f"INP:ATT {attVal}dB")
         self.query("*OPC?")
 
-        self.write(f"SWE:POIN {str(swePoints)}")
-        self.write(f"BWID:RES {str(resBW)} Hz")
+        self.write(f"SWE:POIN {swePoints!s}")
+        self.write(f"BWID:RES {resBW!s} Hz")
         if vidBW:
-            self.write(f"BWID:VID {str(vidBW)} Hz")
+            self.write(f"BWID:VID {vidBW!s} Hz")
         else:
             # automatic video bandwidth selection
             self.write("BAND:VID:AUTO ON")
-        self.write(f"DISP:TRAC:Y:RLEV {str(refLev)}dbm")
+        self.write(f"DISP:TRAC:Y:RLEV {refLev!s}dbm")
         self.query("*OPC?")
 
         # activates automatic sweep time.
@@ -298,8 +281,8 @@ class FSW8(VisaDevice):
         fSpan : float
             The frequency span in Hz.
         """
-        self.write(f"FREQ:CENT {str(fCent)} HZ")
-        self.write(f"FREQ:SPAN {str(fSpan)} HZ")
+        self.write(f"FREQ:CENT {fCent!s} HZ")
+        self.write(f"FREQ:SPAN {fSpan!s} HZ")
 
     @synchronized
     def setStartStopFreq(self, fStart, fStop):
@@ -334,15 +317,7 @@ class FSW8(VisaDevice):
 
     @synchronized
     def trigger(self):
-        """
-        Trigger the sweep(s).
-
-        Parameters
-        ----------
-        sync : bool, optional
-            If true, the function will wait for the sweep to complete
-            before returning. Default is True.
-        """
+        """Trigger the sweep(s)."""
         self.write("INIT:IMM")
         self.write("*WAI")
 
@@ -354,11 +329,12 @@ class FSW8(VisaDevice):
         Parameters
         ----------
         precision : str, optional
-            One of {'single', 'double', 'ascii'}
-            'single' and 'double' precisions are transferred as binary data,
-            and achieve much faster transfer speeds.
-            'ascii' is only implemented as a fallback method, as it is
-            much easier to debug. Default is 'single'.
+            One of {'single', 'double', 'ascii'} 'single'
+            and 'double' precisions are transferred as
+            binary data, and achieve much faster transfer
+            speeds. 'ascii' is only implemented as a
+            fallback method, as it is much easier to debug.
+            Default is 'single'.
 
         Returns
         -------
@@ -405,8 +381,8 @@ class FSW8(VisaDevice):
         """
         Prepare, trigger, and retrieve sweep data.
 
-        This is a convenience method to prepare and trigger the sweep and transfer
-        the data afterwards.
+        This is a convenience method to prepare and trigger the
+        sweep and transfer the data afterwards.
 
         Returns
         -------

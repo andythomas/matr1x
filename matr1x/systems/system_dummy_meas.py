@@ -16,15 +16,15 @@
 """
 Defines a system for testing and demonstration purposes.
 
-This module provides a sample implementation to showcase how various
+Provides a sample implementation to showcase how various
 systems can be merged together.
 """
 # ============================
 # Custom import area
 # ============================
 
+from matr1x.core.system import System
 from matr1x.devices.dummy import dummy
-from matr1x.system import System
 
 # ============================
 

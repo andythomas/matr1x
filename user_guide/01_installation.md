@@ -1,22 +1,21 @@
 # Installation
 
-## Agentic Installation
-
-An agent can be utilized to perform all the required and recommended steps as indicated on this page automatically.
-Please install the package skills using the agent framework of your choice.
-Create an empty directory, point you agent to this directory and prompt for example:
-
-```markdown
-Please install matr1x as described in the matr1x-install skill.
-```
-
-If you have problems installing the skills, please point the agent to
-
-```markdown
-https://andythomas.github.io/matr1x/.well-known/agent-skills/matr1x-install/SKILL.md
-```
-
 ## Basic Installation
+
+Run the following command in the folder you want to use as your project 
+folder:
+
+```
+uv run --with 'matr1x-measurements' matrix-workspace init
+```
+
+Options:
+1. Additional extras of the package can be installed with an `--extra ` option, e.g. `--extra elab` (elab, mcp, ppms). 
+2. `--project` makes the workspace a uv project.
+3. `--editable` installs matr1x editable from a local checkout instead
+  of PyPI (Please refer to the uv run documentation as well).
+
+## Manual Installation
 
 Please use [Github Desktop](https://desktop.github.com/download/) to clone the repository.
 We recommend to install uv, because it simplifies the installation and downloads the package versions we utilize for testing.

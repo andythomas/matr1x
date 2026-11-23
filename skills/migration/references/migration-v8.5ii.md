@@ -26,8 +26,10 @@ Before:
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
 
+
 class Example(System):
     pass
+
 
 system = Example()
 system.dcdata["source"] = "example"
@@ -40,6 +42,7 @@ After:
 ```python
 from matr1x.devices.dummy import dummy
 from matr1x.system import System
+
 
 class Example(System):
     def __init__(self):

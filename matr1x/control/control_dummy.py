@@ -19,6 +19,7 @@ import collections
 import logging
 import threading
 import time
+from typing import ClassVar
 
 import numpy
 from PySide6.QtGui import QAction
@@ -34,11 +35,11 @@ from matr1x.control import (
     var,
 )
 from matr1x.control import guiObject as go
+from matr1x.core.commands import Command, Get
+from matr1x.core.system import System
 from matr1x.devices.dummy import dummy
 from matr1x.devices.scpi_dev import makeSCPIdevice
-from matr1x.gui_util import get_matrix_icon
-from matr1x.system import System
-from matr1x.util import Command, Get
+from matr1x.gui.helpers import get_matrix_icon
 
 # format is "LayoutKey": Command(type, setfunc, getfunc)
 # type can be one of int, float, bool, tuple or list.
@@ -96,7 +97,7 @@ class exampleDict(GuiDict):
             }}
         """)
 
-    cmds = {
+    cmds: ClassVar[dict[str, Command]] = {
         ":v1": Command(str, "setV1", "V1"),
         ":v2": Command(float, ("dummy", "p2"), "V2", polling_cmd=":v2rd"),
         ":v3": Command(float, ("dummy", "p5"), "V3"),
@@ -104,7 +105,7 @@ class exampleDict(GuiDict):
         ":v4": Command(bool, ("dummy", "p6"), "V4"),
         ":v2rd": Get(bool, "v2ready"),
     }
-    data = {
+    data: ClassVar[dict[str, var]] = {
         "Example": var(None, columns=["Readout", "Setpoint"]),
         "V1": var(
             dtype=str,
@@ -293,8 +294,8 @@ class exampleDict(GuiDict):
         """
         Disable set buttons for testing purposes.
 
-        A real controlGUI should bring all parameters to a safe state here.
-        e.g. remove field from a magnet.
+        A real controlGUI should bring all parameters to a safe
+        state here. e.g. remove field from a magnet.
         """
         super().panic()
         self["toggle"].widgets[2].setEnabled(False)
@@ -319,10 +320,10 @@ class exampleDict2(GuiDict):
     and a fake pressure gauge.
     """
 
-    cmds = {
+    cmds: ClassVar[dict[str, Command]] = {
         ":v5": Command(float, "v5", "V5"),
     }
-    data = {
+    data: ClassVar[dict[str, var]] = {
         "Example2": var(None, columns="Readout"),
         "V5": var(float, columns=go.labeltext, unit="mbar"),
         " ": var(None, columns=go.hline, hide=True),
@@ -348,6 +349,7 @@ class exampleDict2(GuiDict):
         N = 40  # length of all FIFO queues
         self.dataseries = collections.deque(maxlen=N)
         self.timestamps = collections.deque(maxlen=N)
+        self._random_generator: numpy.random.Generator = numpy.random.default_rng()
 
     def create_GUI(self):
         """Build the actual GUI."""
@@ -379,7 +381,7 @@ class exampleDict2(GuiDict):
                 if self.extended_visible:
                     # Update hidden info only while the extended controls are visible.
                     self["Info"].value = self._info_base + f"\n\nSlope: {slope / 60:.3f} mbar/min"
-        self.v5 = round(30 * numpy.random.random(), 3)  # noqa: NPY002
+        self.v5 = round(30 * self._random_generator.random(), 3)
 
 
 # define clientdevice to be used by measurement systems interfacing with this

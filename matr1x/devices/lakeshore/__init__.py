@@ -13,7 +13,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""Module for interfacing with devices from Lakeshore."""
+"""Lakeshore device drivers."""
 
 from .control import SelectLakeshoreInput, WriteLakeshoreZonePID
 from .lakeshore3xx import Lakeshore335, Lakeshore340

@@ -68,3 +68,20 @@ The script editor serves as the core interface for `matrix-script`.
 Built on the [Monaco editor](https://microsoft.github.io/monaco-editor/), it provides essential convenience features such as syntax highlighting, hover help, and error detection via an LSP.
 Here, users combine standard Python language constructs with custom function calls and properties provided by the package to write tailored instrument-control code.
 Upon execution, the software integrates this custom script with the active metadata and device configuration to drive the measurement process, ultimately generating the physical output and saving the collected data into a structured output file.
+
+## Pymeasure Thread Safety
+
+Matr1x supports [PyMeasure](https://pymeasure.readthedocs.io/) instruments alongside its own device drivers.
+Because PyMeasure does not synchronize concurrent communication on a single instrument (see [pymeasure#506](https://github.com/pymeasure/pymeasure/issues/506)), importing matr1x automatically applies a thread-safety monkey patch to `pymeasure.instruments.Instrument` (implemented in `matr1x.core.pymeasure_threading_fix`).
+
+The patch wraps the communication methods (`write`, `read`, `ask`, `values`, and friends) and the property accessors created by `control()`, `setting()`, and `measurement()` with a per-instance reentrant lock, so that concurrent access from multiple threads cannot interleave commands and replies.
+It also adds an `atomic_operation()` context manager to every instrument instance for grouping custom multi-command sequences atomically:
+
+```python
+with instrument.atomic_operation():
+    instrument.write("CONFIG:MODE ADVANCED")
+    result = instrument.ask("MEASURE:DATA?")
+```
+
+The patch is applied when matr1x is imported, i.e. before any instrument is instantiated in a matr1x-based application.
+It can be removed once PyMeasure implements proper thread safety upstream.

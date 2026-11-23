@@ -10,16 +10,9 @@ let webChannelReady = false;
 let monacoReady = false;
 let monacoLoaderRequested = false;
 
-const DEFAULT_MONACO_PORT = "54529";
-
 // Enable additional debug logging level
 console.debug = (...args) => {
   console.log("[DEBUG]", ...args);
-};
-
-const resolveMonacoPort = () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get("port") || DEFAULT_MONACO_PORT;
 };
 
 // Initialize both systems independently
@@ -53,7 +46,7 @@ const initializeMonacoEditor = () => {
   }
 
   require.config({
-    paths: { vs: `http://localhost:${window.MONACO_PORT}/min/vs` },
+    paths: { vs: "monaco://localhost/min/vs" },
   });
 
   require(["vs/editor/editor.main"], () => {
@@ -310,9 +303,9 @@ window.setModificationState = (modified) => {
 window.isModified = () => isModified;
 
 // Line highlighting utility functions
-window.highlightLine = (lineNumber) => {
+window.highlightLines = (lineNumbers) => {
   if (!editor) {
-    console.warn("Editor not ready to highlight a line.");
+    console.warn("Editor not ready to highlight lines.");
     return;
   }
 
@@ -321,6 +314,17 @@ window.highlightLine = (lineNumber) => {
     window.currentLineHighlight = editor.deltaDecorations(window.currentLineHighlight, []);
   }
 
+  const uniqueLineNumbers = [
+    ...new Set(lineNumbers.filter((lineNumber) => Number.isInteger(lineNumber) && lineNumber > 0)),
+  ];
+  window.currentHighlightedLines = uniqueLineNumbers;
+  if (uniqueLineNumbers.length === 0) {
+    window.currentPrimaryHighlightedLine = null;
+    return;
+  }
+  const primaryLineNumber = uniqueLineNumbers[0];
+  window.currentPrimaryHighlightedLine = primaryLineNumber;
+
   // Get theme colors
   const theme = editor._themeService.getColorTheme();
   const backgroundColor =
@@ -328,34 +332,45 @@ window.highlightLine = (lineNumber) => {
     theme.getColor("editor.selectionHighlightBackground");
   const borderColor =
     theme.getColor("editorLineNumber.activeForeground") || theme.getColor("focusBorder");
+  const relatedBackgroundColor = backgroundColor?.transparent(0.35) || backgroundColor;
+  const relatedBorderColor = borderColor?.transparent(0.5) || borderColor;
 
   // Update CSS variables with theme colors
   document.documentElement.style.setProperty("--highlight-bg", backgroundColor);
   document.documentElement.style.setProperty("--highlight-border", borderColor);
+  document.documentElement.style.setProperty("--highlight-related-bg", relatedBackgroundColor);
+  document.documentElement.style.setProperty("--highlight-related-border", relatedBorderColor);
 
   // Add new line highlighting using theme colors
   window.currentLineHighlight = editor.deltaDecorations(
     [],
-    [
-      {
-        range: new monaco.Range(lineNumber, 1, lineNumber, 1),
-        options: {
-          isWholeLine: true,
-          className: "highlighted-line",
-          linesDecorationsClassName: "highlighted-line-decoration",
-        },
-      },
-    ],
+    uniqueLineNumbers.map((lineNumber) => ({
+      range: new monaco.Range(lineNumber, 1, lineNumber, 1),
+      options:
+        lineNumber === primaryLineNumber
+          ? {
+              isWholeLine: true,
+              className: "highlighted-line",
+              linesDecorationsClassName: "highlighted-line-decoration",
+            }
+          : {
+              isWholeLine: true,
+              className: "highlighted-related-line",
+              linesDecorationsClassName: "highlighted-related-line-decoration",
+            },
+    })),
   );
 
-  // Scroll to the highlighted line
-  editor.revealLineInCenter(lineNumber);
+  // Keep the innermost execution point visible.
+  editor.revealLineInCenter(primaryLineNumber);
 };
 
 window.clearLineHighlight = () => {
   if (editor && window.currentLineHighlight) {
     window.currentLineHighlight = editor.deltaDecorations(window.currentLineHighlight, []);
   }
+  window.currentHighlightedLines = [];
+  window.currentPrimaryHighlightedLine = null;
 };
 
 // Function to enable/disable tab completion
@@ -389,7 +404,6 @@ window.insertText = (text) => {
 
 // Initialize the editor immediately
 initializeWebChannel();
-window.MONACO_PORT = resolveMonacoPort();
 
 const loadMonacoLoader = () => {
   if (window.require && typeof window.require.config === "function") {
@@ -402,7 +416,7 @@ const loadMonacoLoader = () => {
   }
 
   const loaderScript = document.createElement("script");
-  loaderScript.src = `http://localhost:${window.MONACO_PORT}/min/vs/loader.js`;
+  loaderScript.src = "monaco://localhost/min/vs/loader.js";
   loaderScript.onload = () => {
     monacoLoaderRequested = false;
     initializeMonacoEditor();
