@@ -26,7 +26,10 @@ dependencies = [
     "polars >= 1.0, != 2.0.0",                      # core.eval
     "psutil >= 5.9.0",                              # control
     "pyqtgraph >= 0.12.3",                          # gui plotting
-    "PySide6 >= 6.4.0",                             # gui
+    # PySide6 6.12.0 crashes on Linux (none_dealloc, refcount corruption in
+    # the Qt GUI tests); the 6.11 series is stable. Drop the cap when a fixed
+    # 6.12.x is released.
+    "PySide6 >= 6.4.0, < 6.12",                     # gui
     "PySide6 >= 6.5.0 ; platform_system == 'Windows'",  # gui
     "pygit2 >= 1.16",                               # core.util, devices.git
     "pygit2 >= 1.19; python_version >= '3.14'",     # core.util, devices.git (Py 3.14+)
@@ -246,8 +249,6 @@ override-dependencies = [
     # has cp314 wheels for all platforms. (A marker-tagged override would drop
     # grimp from non-macOS installs entirely.)
     "grimp<3.16",
-    # TEMPORARY bisect: none_dealloc crash on Linux 3.11 with 6.12.0
-    "pyside6==6.11.3",
 ]
 
 [tool.complexipy]
