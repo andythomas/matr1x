@@ -1,5 +1,261 @@
 # CHANGELOG
 
+## v8.6.0 (2026-11-23)
+
+### Bug fixes
+
+* fix(email): allow multiple recipients (#229) *by Dominik Kriegner* ([`a44d1b5`](https://github.com/andythomas/matr1x/commit/a44d1b5b0abb8bf404a6868ffeccd9ce40011875))
+
+* fix(deps): keep pillow installed on Python 3.10 *by Andy Thomas* ([`191723e`](https://github.com/andythomas/matr1x/commit/191723ec6db7fe4342508b1a6346c607fe52535b))
+
+* fix(sweep-generator): don't prefill save name (#222) *by Andy Thomas* ([`cb5d8a1`](https://github.com/andythomas/matr1x/commit/cb5d8a178c1982fda28e2e2e2a9db5ee0d28cf67))
+
+* fix(sweep-generator): enable save after load (#221) *by Andy Thomas* ([`51603b1`](https://github.com/andythomas/matr1x/commit/51603b1e8cfc0d5bbee95bfead3de5474d1d7223))
+
+* fix(matrix-preview): new plots start unselected and zoom exactly to selection (#220) *by Andy Thomas* ([`d99798f`](https://github.com/andythomas/matr1x/commit/d99798f51e9b98056c3924fc3eb8092cb2ce4100))
+
+* fix(matrix-preview): new plots start unselected *by Andy Thomas* ([`d99798f`](https://github.com/andythomas/matr1x/commit/d99798f51e9b98056c3924fc3eb8092cb2ce4100))
+
+* fix(matrix-preview): zoom exactly to selection *by Andy Thomas* ([`d99798f`](https://github.com/andythomas/matr1x/commit/d99798f51e9b98056c3924fc3eb8092cb2ce4100))
+
+* fix: harden loadmatrix and data file writer (#214) *by Andy Thomas* ([`8600b87`](https://github.com/andythomas/matr1x/commit/8600b87adc834e2462c90a43e7be679b0051b15b))
+
+* fix(loadmatrix): allow header only files *by Andy Thomas* ([`8600b87`](https://github.com/andythomas/matr1x/commit/8600b87adc834e2462c90a43e7be679b0051b15b))
+
+* fix: do not write corrupt data files *by Andy Thomas* ([`8600b87`](https://github.com/andythomas/matr1x/commit/8600b87adc834e2462c90a43e7be679b0051b15b))
+
+* fix(script): shorten notifier error messages (#209) *by Andy Thomas* ([`4d08005`](https://github.com/andythomas/matr1x/commit/4d08005e686c0d2027e9b0cd151993151365fea4))
+
+* fix: use renamed apps directory for app icons (#212) *by Andy Thomas* ([`db4d8ae`](https://github.com/andythomas/matr1x/commit/db4d8aeb65986fb2d6c2d41263aab2776648828f))
+
+* fix(elabftw): satisfy ruff 0.16 defaults (#208) *by Andy Thomas* ([`bfe3e21`](https://github.com/andythomas/matr1x/commit/bfe3e21d350bc75ce6d0f3921ece67bdbe510f06))
+
+* fix: reliably close devices after use (#196) *by Andy Thomas* ([`bb5eaff`](https://github.com/andythomas/matr1x/commit/bb5eaff8914907d2432a4a85140bc716f6e9a2e2))
+
+* fix: properly close devices after use *by Andy Thomas* ([`bb5eaff`](https://github.com/andythomas/matr1x/commit/bb5eaff8914907d2432a4a85140bc716f6e9a2e2))
+
+* fix(matrix-preview): notify on unreadable files (#186) *by Andy Thomas* ([`42a1864`](https://github.com/andythomas/matr1x/commit/42a18640d49fe4fcd688ee4377398e49949bd675))
+
+* fix(matrix-preview): notify on unreadable files *by Andy Thomas* ([`42a1864`](https://github.com/andythomas/matr1x/commit/42a18640d49fe4fcd688ee4377398e49949bd675))
+
+* fix(cryogenics): add tracebacks to VISA retry logs (#185) *by Andy Thomas* ([`af3cd7e`](https://github.com/andythomas/matr1x/commit/af3cd7ec8c9bf9b1f568908af727453b03dd9865))
+
+* fix(cryogenics): add tracebacks to VISA retry logs *by Andy Thomas* ([`af3cd7e`](https://github.com/andythomas/matr1x/commit/af3cd7ec8c9bf9b1f568908af727453b03dd9865))
+
+* fix(matrix-script): make Table output behave like in matrix-gui (#178) *by Dominik Kriegner* ([`badeb28`](https://github.com/andythomas/matr1x/commit/badeb28b27698ba2b38b1709f6241c80a674ef6f))
+
+* fix(Table): correct handling of columns with multiple values *by Dominik Kriegner* ([`badeb28`](https://github.com/andythomas/matr1x/commit/badeb28b27698ba2b38b1709f6241c80a674ef6f))
+
+* fix(matrix-script): make Table output behave like in matrix-gui *by Dominik Kriegner* ([`badeb28`](https://github.com/andythomas/matr1x/commit/badeb28b27698ba2b38b1709f6241c80a674ef6f))
+
+* fix(editor): reduce error scope and/or log errors (#184) *by Andy Thomas* ([`934cc67`](https://github.com/andythomas/matr1x/commit/934cc67f09668809c870c1b6785fed9c106928dc))
+
+* fix(desktop-integration): properly attempt di removal and error handling (#182) *by Andy Thomas* ([`f78efc2`](https://github.com/andythomas/matr1x/commit/f78efc2ade2b324dde3970b369ce281848c9b192))
+
+* fix(stateful_system): more strict uniqueness criteria (#174) *by Dominik Kriegner* ([`c34d091`](https://github.com/andythomas/matr1x/commit/c34d0910009b0bdcf2bfa5fb1dbbb4606da06c54))
+
+* fix(stateful_system): more strict uniqueness criteria *by Dominik Kriegner* ([`c34d091`](https://github.com/andythomas/matr1x/commit/c34d0910009b0bdcf2bfa5fb1dbbb4606da06c54))
+
+* fix: use create_no_window flag for subprocesses (#177) *by Dominik Kriegner* ([`bea16ff`](https://github.com/andythomas/matr1x/commit/bea16ff0e9be3badc237b7779b781c71337d008d))
+
+* fix: use create_no_window flag for subprocesses *by Dominik Kriegner* ([`bea16ff`](https://github.com/andythomas/matr1x/commit/bea16ff0e9be3badc237b7779b781c71337d008d))
+
+* fix(HTMC11): improve stability on frequent requests (#176) *by Dominik Kriegner* ([`661a799`](https://github.com/andythomas/matr1x/commit/661a799389d18d5d0bd37901fdf108b7098af9b9))
+
+* fix(HTMC11): improve stability on frequent requests *by Dominik Kriegner* ([`661a799`](https://github.com/andythomas/matr1x/commit/661a799389d18d5d0bd37901fdf108b7098af9b9))
+
+* fix(GuiDict): MergedSystem now refreshes device identifiers upon restart of GuiDict (#150) *by Dominik Kriegner* ([`29144b3`](https://github.com/andythomas/matr1x/commit/29144b34df84b3478f990998827daf6fdeeaaffb))
+
+* fix: find ty and matrix binary in all cases (#155) *by Andy Thomas* ([`ff7708c`](https://github.com/andythomas/matr1x/commit/ff7708cf962a568645a83b794999608a4bfa39c8))
+
+* fix: find ty and matrix binary in all cases *by Andy Thomas* ([`ff7708c`](https://github.com/andythomas/matr1x/commit/ff7708cf962a568645a83b794999608a4bfa39c8))
+
+* fix(windows): never spawn console-python children *by Andy Thomas* ([`ff7708c`](https://github.com/andythomas/matr1x/commit/ff7708cf962a568645a83b794999608a4bfa39c8))
+
+* fix: remove inactive log_default (#145) *by Andy Thomas* ([`514144d`](https://github.com/andythomas/matr1x/commit/514144da5568159c1dea4cd1bc9d225a79a6fe0c))
+
+* fix(ConfigEditor): Improve system config validation and editor handling *by Dominik Kriegner* ([`f543853`](https://github.com/andythomas/matr1x/commit/f543853b0360799332c0047c92c66ad2698304bf))
+
+* fix(ConfigEditor): preserve values and reveal validation errors *by Dominik Kriegner* ([`f543853`](https://github.com/andythomas/matr1x/commit/f543853b0360799332c0047c92c66ad2698304bf))
+
+* fix(controlGUI): enforce unique System names in control GUIs *by Dominik Kriegner* ([`f543853`](https://github.com/andythomas/matr1x/commit/f543853b0360799332c0047c92c66ad2698304bf))
+
+* fix(matrix-script): make measure_system behave as atomic function. (#132) *by Dominik Kriegner* ([`c368620`](https://github.com/andythomas/matr1x/commit/c368620fc2b6a200a787da5afe99bad983006031))
+
+* fix(log): properly rotate the log (#131) *by Andy Thomas* ([`74d2385`](https://github.com/andythomas/matr1x/commit/74d2385490844d2a40ea55cd749b8b24258fe17f))
+
+* fix(log): properly rotate the log *by Andy Thomas* ([`74d2385`](https://github.com/andythomas/matr1x/commit/74d2385490844d2a40ea55cd749b8b24258fe17f))
+
+* fix(matrix-script): do not require init_datafile (#124) *by Dominik Kriegner* ([`7018cc5`](https://github.com/andythomas/matr1x/commit/7018cc5a57316a774d06068e88019813317e1cc7))
+
+* fix(agent): resolve agentic loop bug and update AGENTS.md (#120) *by Andy Thomas* ([`8f54f96`](https://github.com/andythomas/matr1x/commit/8f54f96b64a860f31e56b5e38c41f082c17ea35c))
+
+* fix(ConfigEditor): preserve values and reveal validation errors (#54) *by Dominik Kriegner* ([`3c0ae55`](https://github.com/andythomas/matr1x/commit/3c0ae55ba523e592a487f03195187a172a253e12))
+
+* fix(ConfigEditor): Improve system config validation and editor handling *by Dominik Kriegner* ([`3c0ae55`](https://github.com/andythomas/matr1x/commit/3c0ae55ba523e592a487f03195187a172a253e12))
+
+* fix(ConfigEditor): preserve values and reveal validation errors *by Dominik Kriegner* ([`3c0ae55`](https://github.com/andythomas/matr1x/commit/3c0ae55ba523e592a487f03195187a172a253e12))
+
+* fix(release): commit the generated uv lock *by Dominik Kriegner* ([`546ea4e`](https://github.com/andythomas/matr1x/commit/546ea4e8acec647fffbe5b3a9ac3e83a4cb0506c))
+
+* fix: input queries and script abort (#111) *by Andy Thomas* ([`b0495ce`](https://github.com/andythomas/matr1x/commit/b0495ce55e6faa843e3cbb202fcc9aa6538bb195))
+
+* fix: use QDialog instead of QMessagebox *by Andy Thomas* ([`b0495ce`](https://github.com/andythomas/matr1x/commit/b0495ce55e6faa843e3cbb202fcc9aa6538bb195))
+
+* fix(matrix-script): ensure correct line highlighted *by Dominik Kriegner* ([`81071a6`](https://github.com/andythomas/matr1x/commit/81071a67957f28c832d02ad16cb7456fdec6f228))
+
+* fix(controlGUI): enforce unique System names (#55) *by Dominik Kriegner* ([`98f8163`](https://github.com/andythomas/matr1x/commit/98f81632f685277572459d71dde4589d3115c790))
+
+* fix(controlGUI): enforce unique System names in control GUIs *by Dominik Kriegner* ([`98f8163`](https://github.com/andythomas/matr1x/commit/98f81632f685277572459d71dde4589d3115c790))
+
+* fix(ConfigEditor): Improve system config validation and editor handling (#52) *by Dominik Kriegner* ([`9924fb9`](https://github.com/andythomas/matr1x/commit/9924fb9bbbbd523a99e087f37d9925f84f7d615a))
+
+* fix(ConfigEditor): Improve system config validation and editor handling *by Dominik Kriegner* ([`9924fb9`](https://github.com/andythomas/matr1x/commit/9924fb9bbbbd523a99e087f37d9925f84f7d615a))
+
+### Build system
+
+* build(deps): exclude polars 2.0.0 (#213) *by Andy Thomas* ([`3224104`](https://github.com/andythomas/matr1x/commit/3224104225c0025a5f3ac05565d4f9cf3fc70c03))
+
+* build: backend change to uv_build (#113) *by Dominik Kriegner* ([`546ea4e`](https://github.com/andythomas/matr1x/commit/546ea4e8acec647fffbe5b3a9ac3e83a4cb0506c))
+
+### Documentation
+
+* docs: replace install skill with workspace command *by Andy Thomas* ([`742735f`](https://github.com/andythomas/matr1x/commit/742735fa85cb32e87c7d8fe91f61c65f558e6c22))
+
+* docs(skills): clarify thread-safety of drivers (#223) *by Andy Thomas* ([`c291a0d`](https://github.com/andythomas/matr1x/commit/c291a0d802851215dbfd6eeb0fcaa95c2f1b930f))
+
+* docs(skills): clarify thread-safety of drivers *by Andy Thomas* ([`c291a0d`](https://github.com/andythomas/matr1x/commit/c291a0d802851215dbfd6eeb0fcaa95c2f1b930f))
+
+* docs(skills): require panic to stop running sets *by Andy Thomas* ([`c291a0d`](https://github.com/andythomas/matr1x/commit/c291a0d802851215dbfd6eeb0fcaa95c2f1b930f))
+
+* docs: add mcp block to great-docs config *by Andy Thomas* ([`b0e157d`](https://github.com/andythomas/matr1x/commit/b0e157dc81081b9fde43db93afd84bbed87c9ddc))
+
+* docs: clean docstrings and re-enable pydocstyle D rules (#211) *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs(agents): add docstring brevity rule *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs: trim verbose docstrings *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs(agents): forbid self-ref openers *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs: remove self-referencing docstring openers *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs(agents): shorten AGENTS.md *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs: rewrap docstring prose at 72 chars *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs(agents): restore commit message rule *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs: drop artifact-noun docstring openers *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs: shorten docstring summaries over 72 chars *by Andy Thomas* ([`60543d0`](https://github.com/andythomas/matr1x/commit/60543d0acb90a3b28389e9e6dc423a98644e409c))
+
+* docs(skills): add skill for authoring control GUIs (#204) *by Andy Thomas* ([`7050bc3`](https://github.com/andythomas/matr1x/commit/7050bc360a1ef234bad1c2f9657472554a0b2ec1))
+
+* docs(control): document GuiDict subclass contract and var API (#203) *by Andy Thomas* ([`7464ad4`](https://github.com/andythomas/matr1x/commit/7464ad4150e63d76243a9ab936052f59cfed96bb))
+
+* docs: fix docs building warnings (#205) *by Andy Thomas* ([`17ad58a`](https://github.com/andythomas/matr1x/commit/17ad58ad84947b11b9533c97204e72feac790e0d))
+
+* docs: create script API *by Andy Thomas* ([`e2b67d6`](https://github.com/andythomas/matr1x/commit/e2b67d6a7829149c353c0967144964e9cb740157))
+
+* docs: fix script API reference format and add to public API snapshot *by Andy Thomas* ([`e2b67d6`](https://github.com/andythomas/matr1x/commit/e2b67d6a7829149c353c0967144964e9cb740157))
+
+* docs: draft public api (#154) *by Andy Thomas* ([`8b32130`](https://github.com/andythomas/matr1x/commit/8b32130ea17283c11f56631b789bc4478dfd27fc))
+
+* docs(precommit-hook): include import linter in suggested pre-commit hook (#175) *by Dominik Kriegner* ([`bb748fc`](https://github.com/andythomas/matr1x/commit/bb748fc9794281f39b34f9409a4e8d9946f9698d))
+
+* docs: update great-docs and add more content (#70) *by Dominik Kriegner* ([`81071a6`](https://github.com/andythomas/matr1x/commit/81071a67957f28c832d02ad16cb7456fdec6f228))
+
+* docs: update pre-commit-config.yaml to working version (#106) *by Dominik Kriegner* ([`e2ee0c9`](https://github.com/andythomas/matr1x/commit/e2ee0c9c47b9775798253ad8e3bea924d351559c))
+
+* docs: rectify sr830 remedy (#104) *by Andy Thomas* ([`80f8c66`](https://github.com/andythomas/matr1x/commit/80f8c66d1802b99390096f721185da3af2e0d98b))
+
+* docs: reflect changes in 8.5 release (#99) *by Andy Thomas* ([`05b54c9`](https://github.com/andythomas/matr1x/commit/05b54c99682789f4e9b348ce57c9938ad5846ff9))
+
+* docs: announce public version (#96) *by Andy Thomas* ([`d6d84ce`](https://github.com/andythomas/matr1x/commit/d6d84ce31e970976d1713819e44d5ee6c0c0c77c))
+
+### Features
+
+* feat(workspace): add matrix-workspace init command (#228) *by Andy Thomas* ([`742735f`](https://github.com/andythomas/matr1x/commit/742735fa85cb32e87c7d8fe91f61c65f558e6c22))
+
+* feat(apps): add matrix-workspace init command *by Andy Thomas* ([`742735f`](https://github.com/andythomas/matr1x/commit/742735fa85cb32e87c7d8fe91f61c65f558e6c22))
+
+* feat(workspace): validate version, keep extras *by Andy Thomas* ([`742735f`](https://github.com/andythomas/matr1x/commit/742735fa85cb32e87c7d8fe91f61c65f558e6c22))
+
+* feat(workspace): seed uv.lock from matr1x *by Andy Thomas* ([`742735f`](https://github.com/andythomas/matr1x/commit/742735fa85cb32e87c7d8fe91f61c65f558e6c22))
+
+* feat(apps): add MCP server with plot_ma8 tool (#216) *by Andy Thomas* ([`8bf3d0e`](https://github.com/andythomas/matr1x/commit/8bf3d0eaa8f12754c502df6cb6c83f408cc13e7c))
+
+* feat(apps): add MCP server with plot_ma8 tool *by Andy Thomas* ([`8bf3d0e`](https://github.com/andythomas/matr1x/commit/8bf3d0eaa8f12754c502df6cb6c83f408cc13e7c))
+
+* feat(config): remove logging-format option (#200) *by Andy Thomas* ([`b48d415`](https://github.com/andythomas/matr1x/commit/b48d415a19c38c866abc16542a8cd6d3b2195ba2))
+
+* feat(config): remove logging_format option *by Andy Thomas* ([`b48d415`](https://github.com/andythomas/matr1x/commit/b48d415a19c38c866abc16542a8cd6d3b2195ba2))
+
+* feat(matrix-gui): notify and stop the queue when a measurement fails (#202) *by Andy Thomas* ([`0d12652`](https://github.com/andythomas/matr1x/commit/0d12652d0df36830967b06fb4d1a76fe8cf5bbbf))
+
+* feat(elabftw): improve tag handling and team-group permission support (#191) *by Dominik Kriegner* ([`b27c75c`](https://github.com/andythomas/matr1x/commit/b27c75cfa74f7d4faed5bf5fdb7b12e175044538))
+
+* feat: parse text matrix files with polars (#151) *by Andy Thomas* ([`68112a2`](https://github.com/andythomas/matr1x/commit/68112a2187d072d2773e6276e123d5ee9efb8d59))
+
+* feat: parse text matrix files with polars *by Andy Thomas* ([`68112a2`](https://github.com/andythomas/matr1x/commit/68112a2187d072d2773e6276e123d5ee9efb8d59))
+
+* feat(matrix-script): show monaco download progress (#166) *by Andy Thomas* ([`3124321`](https://github.com/andythomas/matr1x/commit/3124321604f01d593a3f0d0171f20a8b844524ff))
+
+* feat(matrix-script): show monaco download progress *by Andy Thomas* ([`3124321`](https://github.com/andythomas/matr1x/commit/3124321604f01d593a3f0d0171f20a8b844524ff))
+
+* feat: getSetpoint method for Keithley SMU (#157) *by Dominik Kriegner* ([`1a9c056`](https://github.com/andythomas/matr1x/commit/1a9c056a8df09cb1385550576bc189efcc1d4415))
+
+* feat: Keithley2182A adding trigger delay (#156) *by Dominik Kriegner* ([`8d809d5`](https://github.com/andythomas/matr1x/commit/8d809d5ee88009d7be7725b4037da03423ab23db))
+
+* feat: improved visa_address validation and sub-types (#127) *by Dominik Kriegner* ([`af07621`](https://github.com/andythomas/matr1x/commit/af0762184b067beb0343ed548d9fa037d437a8bf))
+
+* feat: improved visa_address validation and sub-types *by Dominik Kriegner* ([`af07621`](https://github.com/andythomas/matr1x/commit/af0762184b067beb0343ed548d9fa037d437a8bf))
+
+* feat(system): add stateful system instances (#59) *by Dominik Kriegner* ([`f543853`](https://github.com/andythomas/matr1x/commit/f543853b0360799332c0047c92c66ad2698304bf))
+
+* feat(ConfigEditor): individual reload buttons for each system *by Dominik Kriegner* ([`f543853`](https://github.com/andythomas/matr1x/commit/f543853b0360799332c0047c92c66ad2698304bf))
+
+* feat(system): add reusable labelled system instances *by Dominik Kriegner* ([`f543853`](https://github.com/andythomas/matr1x/commit/f543853b0360799332c0047c92c66ad2698304bf))
+
+* feat(matrix-script): add table and terminal docks with progress bar (#130) *by Andy Thomas* ([`aa3c0f8`](https://github.com/andythomas/matr1x/commit/aa3c0f865062c8ca9764cee4048ec040a7884cb3))
+
+* feat(matrix-script): add progress bar to the status bar *by Andy Thomas* ([`aa3c0f8`](https://github.com/andythomas/matr1x/commit/aa3c0f865062c8ca9764cee4048ec040a7884cb3))
+
+* feat(matrix-script): move terminal output to a dock widget *by Andy Thomas* ([`aa3c0f8`](https://github.com/andythomas/matr1x/commit/aa3c0f865062c8ca9764cee4048ec040a7884cb3))
+
+* feat(matrix-script): add measurement table dock *by Andy Thomas* ([`aa3c0f8`](https://github.com/andythomas/matr1x/commit/aa3c0f865062c8ca9764cee4048ec040a7884cb3))
+
+* feat(matrix-script): best effort automatic point number detection (#126) *by Dominik Kriegner* ([`e6cba21`](https://github.com/andythomas/matr1x/commit/e6cba21cbb0d1782228916e0accb9ea29a1512ea))
+
+* feat(matrix-script): best effort automatic point number detection *by Dominik Kriegner* ([`e6cba21`](https://github.com/andythomas/matr1x/commit/e6cba21cbb0d1782228916e0accb9ea29a1512ea))
+
+* feat: deprecation notifications (#119) *by Andy Thomas* ([`f8dd2f2`](https://github.com/andythomas/matr1x/commit/f8dd2f23764cd9f452496709c8d58394be367947))
+
+* feat(ConfigEditor): individual reload buttons for each system (#56) *by Dominik Kriegner* ([`70c786e`](https://github.com/andythomas/matr1x/commit/70c786e29a9b8946c573ed591e39076e29790d60))
+
+* feat(ConfigEditor): individual reload buttons for each system *by Dominik Kriegner* ([`70c786e`](https://github.com/andythomas/matr1x/commit/70c786e29a9b8946c573ed591e39076e29790d60))
+
+* feat(matrix-script): multiline highlighting for scripts with loops (#63) *by Dominik Kriegner* ([`81071a6`](https://github.com/andythomas/matr1x/commit/81071a67957f28c832d02ad16cb7456fdec6f228))
+
+* feat(matrix-script): multiline highlighting for scripts with loops *by Dominik Kriegner* ([`81071a6`](https://github.com/andythomas/matr1x/commit/81071a67957f28c832d02ad16cb7456fdec6f228))
+
+* feat: remove sys fallback for systems (#107) *by Andy Thomas* ([`2edaf6a`](https://github.com/andythomas/matr1x/commit/2edaf6a92e101fb4dd400db9b996cb3e383a5fad))
+
+* feat(system): remove sys option *by Andy Thomas* ([`2edaf6a`](https://github.com/andythomas/matr1x/commit/2edaf6a92e101fb4dd400db9b996cb3e383a5fad))
+
+* feat(devices): remove deprecated SR830 (#103) *by Andy Thomas* ([`6762dc5`](https://github.com/andythomas/matr1x/commit/6762dc51a730713a8133300e90800feb36524846))
+
+* feat(eval): remove loadh5matrix (#102) *by Andy Thomas* ([`5b07a2e`](https://github.com/andythomas/matr1x/commit/5b07a2ea05df8c670e0e45c4d32b3e7773781f93))
+
+* feat(sweep-generator): remove sweep functions (#100) *by Andy Thomas* ([`194c9f0`](https://github.com/andythomas/matr1x/commit/194c9f0eb2ac40265b2f02cfa5b5cdd38241b463))
+
+### Performance improvements
+
+* perf(matrix-gui): avoid loading systems twice for metadata (#164) *by Dominik Kriegner* ([`0aa4778`](https://github.com/andythomas/matr1x/commit/0aa4778ba764b385199ebf972c0f45f7309dc75f))
+
+* perf(matrix-gui): avoid loading systems twice for metadata *by Dominik Kriegner* ([`0aa4778`](https://github.com/andythomas/matr1x/commit/0aa4778ba764b385199ebf972c0f45f7309dc75f))
+
 ## v8.5.1 (2026-09-09)
 
 ### Bug fixes
