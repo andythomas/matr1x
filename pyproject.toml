@@ -246,6 +246,8 @@ override-dependencies = [
     # has cp314 wheels for all platforms. (A marker-tagged override would drop
     # grimp from non-macOS installs entirely.)
     "grimp<3.16",
+    # TEMPORARY bisect: none_dealloc crash on Linux 3.11 with 6.12.0
+    "pyside6==6.11.3",
 ]
 
 [tool.complexipy]
