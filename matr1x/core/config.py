@@ -87,12 +87,6 @@ class _RemovedEntry:
 
 MIGRATIONS = [
     _Migration(
-        old_path=("matr1x", "scripts", "matrix-script", "duplicate_output_to_logfile"),
-        new_path=("matr1x", "duplicate_output_to_logfile"),
-        warning="Please move all 'duplicate_output_to_logfile' entries "
-        "to [matr1x.duplicate_output_to_logfile]\n",
-    ),
-    _Migration(
         old_path=("matr1x", "scripts", "matrix-script", "print_to_comment"),
         new_path=("matr1x", "print_to_comment"),
         warning="Please move all 'print_to_comment' entries to [matr1x.print_to_comment]\n",
