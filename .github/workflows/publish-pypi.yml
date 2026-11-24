@@ -5,20 +5,26 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Ref to build and publish (default: the dispatched ref)"
+        required: false
+        default: ""
 
 concurrency:
   group: pypi
   cancel-in-progress: false
 
-permissions:
-  id-token: write
-
 jobs:
   publish:
     runs-on: ubuntu-latest
     environment: pypi
+    permissions:
+      id-token: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Set up Python 3.14
         uses: ./.github/actions/setup-uv
@@ -29,8 +35,6 @@ jobs:
         run: uv build --no-sources
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1
+        uses: pypa/gh-action-pypi-publish@aef6c9b6e301dc803e1bc9133e9ce67ae9b0906b # v1.14.3
         with:
           packages-dir: dist
-          pypi-trusted-publishing: true
-          pypi-publishing-secret: pypi
