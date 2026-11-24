@@ -36,7 +36,7 @@ dependencies = [
     "wrapt > 2.0",                                  # devices
     "urwid > 2.0",                                  # TUI (apps.cli)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
-    "monaco-assets == 0.7.1",                        # gui.editor (matrix-script)
+    "monaco-assets == 0.57.0",                        # gui.editor (matrix-script)
     "ruff ~= 0.17.0",                                  # gui.editor (run as subprocess)
     "ty == 0.0.63",                                 # gui.editor (run as subprocess)
     "pymeasure >= 0.16.0",                          # core and device drivers
@@ -244,6 +244,7 @@ docs = [
 
 [tool.uv]
 exclude-newer = "2 days"
+exclude-newer-package = { monaco-assets = "2026-11-24" }
 override-dependencies = [
     # grimp 3.16 has no cp314 macOS wheel (Rust build fails in CI-less envs); 3.15
     # has cp314 wheels for all platforms. (A marker-tagged override would drop

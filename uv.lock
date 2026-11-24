@@ -20,6 +20,9 @@ resolution-markers = [
 exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P2D"
 
+[options.exclude-newer-package]
+monaco-assets = "2026-11-24T23:00:00Z"
+
 [manifest]
 overrides = [{ name = "grimp", specifier = "<3.16" }]
 
@@ -2200,7 +2203,7 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'mcp'", specifier = ">=3.6" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=2.0.0" },
     { name = "minimalmodbus" },
-    { name = "monaco-assets", specifier = "==0.7.1" },
+    { name = "monaco-assets", specifier = "==0.57.0" },
     { name = "multipyvu", marker = "extra == 'ppms'", specifier = ">=3.6.1" },
     { name = "numpy", specifier = ">=1.21.2" },
     { name = "polars", specifier = ">=1.0,!=2.0.0" },
@@ -2309,7 +2312,7 @@ wheels = [
 
 [[package]]
 name = "monaco-assets"
-version = "0.7.1"
+version = "0.57.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -2317,9 +2320,9 @@ dependencies = [
     { name = "platformdirs" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/99/79/5f08c2c1bde800de255b5ddbfeeb00947a2003071e914b62946a31cbd20e/monaco_assets-0.7.1.tar.gz", hash = "sha256:d6339b17888a12f32c9a86a81a2830c2426ddf5b11b05d5f04b99a8d73d3ad72", size = 5953, upload-time = "2026-09-11T10:33:57.367Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0e/8d/083d578a2b691eb2966d29f53ab1e442f6e639f14333c714e0eea31184bd/monaco_assets-0.57.0.tar.gz", hash = "sha256:89e81fa791f1bdb9eba645dc916486fad2f04f605d77b6527a087bb1f6fd3602", size = 5937, upload-time = "2026-11-24T19:13:19.396Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/da/80/20e76cd7b20c4b9cecf2e064cb4aad3448d99bb3ae48a4f8f97f29c81634/monaco_assets-0.7.1-py3-none-any.whl", hash = "sha256:243ee1513d62c0d93a5f859d21e6eb86ac8abdf7c93e19d0e19d0a0b696afd5f", size = 6145, upload-time = "2026-09-11T10:33:55.952Z" },
+    { url = "https://files.pythonhosted.org/packages/40/fb/edd69545ff91530fef4550c2940d200a7ebacb1e63f06a952084df60726a/monaco_assets-0.57.0-py3-none-any.whl", hash = "sha256:61c112e1afad35e6a6828fa1b54987bd5ef2e2d1bc2e7c371cfdaeafe2e249d2", size = 6147, upload-time = "2026-11-24T19:13:18.31Z" },
 ]
 
 [[package]]
