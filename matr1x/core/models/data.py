@@ -17,7 +17,7 @@
 
 import logging
 import math
-from typing import Any, TypedDict, cast, final
+from typing import Any, TypedDict, final
 
 from pydantic import BaseModel, Field
 
@@ -79,18 +79,15 @@ class HeaderDict(RequiredHeader, OptionalFields):
 
 def create_empty_header() -> HeaderDict:
     """Create an empty HeaderDict with all required fields initialized."""
-    return cast(
-        HeaderDict,
-        {
-            "columns": [],
-            "units": [],
-            "comments": [],
-            "status": None,
-            "system query": {},
-            "input filename": "",
-            "system filename": "",
-        },
-    )
+    return {
+        "columns": [],
+        "units": [],
+        "comments": [],
+        "status": None,
+        "system query": {},
+        "input filename": "",
+        "system filename": "",
+    }
 
 
 @final

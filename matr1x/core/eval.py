@@ -412,7 +412,7 @@ def _process_header_lines(
 
         # Concatenate with existing value
         val = strippedline if val is None else f"{val}\n{strippedline}"
-        header[key.lower()] = val  # ty: ignore[invalid-key]
+        header[key.lower()] = val  # ty: ignore[non-literal-typed-dict-key]
     else:
         strippedline = line.removeprefix("# ").removesuffix("\n")
         if strippedline == "Matrix outputfile":
@@ -427,7 +427,7 @@ def _process_header_lines(
         else:
             val = val[1:]  # remove initial space
 
-        header[key.lower()] = val  # ty: ignore[invalid-key]
+        header[key.lower()] = val  # ty: ignore[non-literal-typed-dict-key]
     return key, val
 
 
@@ -555,7 +555,7 @@ def _parse_text_polars(filename: str | Path) -> tuple[HeaderDict, pl.DataFrame]:
             val = val.strip('"')  # strip " from header strings
             # remove escaping of other " in datafile
             val = val.replace(r"\"", '"')
-            header[key] = val  # ty: ignore[invalid-key]
+            header[key] = val  # ty: ignore[non-literal-typed-dict-key]
 
     # Skip the header lines (comment lines plus the columns/units rows)
     # and let polars parse only the data, skipping '#' comment lines

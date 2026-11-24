@@ -167,13 +167,13 @@ def test_loadmatrix_hdf5_ma7(data_dir: Path):
     h, d = matr1x.core.eval.loadmatrix(datafile)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, np.ndarray), f"Expected np.ndarray, got {type(d)}"
-    assert h["dc.publisher"] == "matr1x;University of Konstanz"  # ty:ignore[invalid-key]
+    assert h["dc.publisher"] == "matr1x;University of Konstanz"  # ty:ignore[invalid-typed-dict-key]
     assert len(h["columns"]) == 11  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert get_array_field_count(d) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][4] == "HallProbe Temp"  # check specific column name
     assert h["units"][4] == "C"  # check specific unit entry
-    assert len(h["device query"]) == 570  # ty:ignore[invalid-key]
+    assert len(h["device query"]) == 570  # ty:ignore[invalid-typed-dict-key]
     assert d["FSW8 f"].shape == (1, 2001)  # check shape of dataset
     assert d["timeUTC"].shape == (1,)  # check shape of dataset
     assert pytest.approx(d["FSW8 f"][0, 501], 1e-6) == 2.9555e9  # check specific data value
@@ -192,13 +192,13 @@ def test_loadmatrix_ma7(data_dir: Path):
     h, d = matr1x.core.eval.loadmatrix(datafile, to_polars=True)
     assert ma7_header_keys <= set(h.keys())
     assert isinstance(d, pl.DataFrame), f"Expected pl.DataFrame, got {type(d)}"
-    assert h["dc.type"] == "Transport data"  # ty:ignore[invalid-key]
+    assert h["dc.type"] == "Transport data"  # ty:ignore[invalid-typed-dict-key]
     assert len(h["columns"]) == 7  # check number of data columns
     assert len(h["columns"]) == len(h["units"])  # check amount of specified units
     assert len(d.columns) == len(h["columns"])  # check appropriate data column number
     assert h["columns"][3] == "Ismu02"  # check specific column name
     assert h["units"][3] == "A"  # check specific unit entry
-    assert len(h["device query"]) == 167  # ty:ignore[invalid-key]
+    assert len(h["device query"]) == 167  # ty:ignore[invalid-typed-dict-key]
     assert d["y field"].len() == 1460  # check length of dataset
     assert d["timeUTC"].len() == 1460  # check length of dataset
     assert (

@@ -120,7 +120,7 @@ class FileDropMixin:
             if (isinstance(extension, re.Pattern) and extension.match(suffix)) or (
                 isinstance(extension, str) and suffix == extension
             ):
-                self.file_dropped.emit(urls[0].toLocalFile())
+                self.file_dropped.emit(urls[0].toLocalFile())  # ty: ignore[invalid-attribute-access]
                 a0.acceptProposedAction()
                 return
         QMessageBox.warning(
@@ -147,7 +147,7 @@ class ThemeChangeMixin:
         """
         if event.type() == QEvent.Type.PaletteChange:
             self.update_colors()
-        super().changeEvent(event)  # ty: ignore[unresolved-attribute]
+        super().changeEvent(event)  # ty: ignore[missing-attribute]
 
 
 class hasLogActions(Protocol):

@@ -26,6 +26,7 @@ import threading
 import time
 
 from matr1x.core.config import datetimefmt
+from matr1x.core.error_handling import InternalInvariantError
 
 DEFAULT_PORT = 8898
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
     and parse commands specified in the server's command list.
     """
 
-    server: ThreadedTCPServer
+    server: ThreadedTCPServer | socketserver.BaseServer
 
     @staticmethod
     def _normalize_cmd(cmd):
@@ -80,6 +81,8 @@ class ThreadedTCPRequestHandler(socketserver.StreamRequestHandler):
         """
         super().setup()
         self.terminate = False
+        if not isinstance(self.server, ThreadedTCPServer):
+            raise InternalInvariantError("Server must be a ThreadedTCPServer!")
         self.normkeys = [self._normalize_cmd(cmd) for cmd in self.server.cmd_list]
         self.cmdvalues = list(self.server.cmd_list.values())
 
