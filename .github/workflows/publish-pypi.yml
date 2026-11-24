@@ -35,6 +35,6 @@ jobs:
         run: uv build --no-sources
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@aef6c9b6e301dc803e1bc9133e9ce67ae9b0906b # v1.14.3
+        uses: pypa/gh-action-pypi-publish@v1.14.3
         with:
           packages-dir: dist
