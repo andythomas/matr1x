@@ -1,0 +1,36 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: pypi
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Python 3.14
+        uses: ./.github/actions/setup-uv
+        with:
+          python-version: "3.14"
+
+      - name: Build distributions
+        run: uv build --no-sources
+
+      - name: Publish to PyPI
+        uses: pypi-publish/pypi-publish@v3
+        with:
+          packages-dir: dist
+          pypi-trusted-publishing: true
+          pypi-publishing-secret: pypi
