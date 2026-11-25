@@ -24,7 +24,7 @@ from typing import Any
 
 from matr1x.core import deprecation
 
-# deprecated name -> module holding the canonical definition
+# deprecated name -> module holding the canonical definitions
 _CANONICAL = {
     "delta": "matr1x.core.eval",
     "delta3p": "matr1x.core.eval",
