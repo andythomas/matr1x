@@ -1,11 +1,29 @@
 [
   {
+    "path": "matr1x/gui/plot.py",
+    "file_name": "plot.py",
+    "functions": [
+      {
+        "name": "SimplePlotWidget::PlotObject::_get_math",
+        "complexity": 19
+      },
+      {
+        "name": "SimplePlotWidget::_update_linesetting",
+        "complexity": 20
+      },
+      {
+        "name": "SimplePlotWidget::PlotObject::plot",
+        "complexity": 41
+      }
+    ]
+  },
+  {
     "path": "matr1x/apps/cli.py",
     "file_name": "cli.py",
     "functions": [
       {
         "name": "parse_inputfile",
-        "complexity": 21
+        "complexity": 18
       },
       {
         "name": "UrwidMeasurement::inputcb",
@@ -37,11 +55,11 @@
     "functions": [
       {
         "name": "SweepPreview::reload_data_curve",
-        "complexity": 38
+        "complexity": 37
       },
       {
         "name": "SweepPreview::reload_data_2d",
-        "complexity": 66
+        "complexity": 65
       }
     ]
   },
@@ -50,12 +68,8 @@
     "file_name": "script.py",
     "functions": [
       {
-        "name": "MainWindow::update_system_commands",
-        "complexity": 16
-      },
-      {
         "name": "MainWindow::load_from_filename",
-        "complexity": 30
+        "complexity": 19
       }
     ]
   },
@@ -86,10 +100,6 @@
     "file_name": "eval.py",
     "functions": [
       {
-        "name": "_process_special_lines",
-        "complexity": 16
-      },
-      {
         "name": "_process_header_lines",
         "complexity": 18
       },
@@ -113,7 +123,7 @@
       },
       {
         "name": "matrix_script_process",
-        "complexity": 37
+        "complexity": 45
       }
     ]
   },
@@ -145,11 +155,11 @@
       },
       {
         "name": "System::_device_query",
-        "complexity": 24
+        "complexity": 26
       },
       {
         "name": "Parameter::__init__",
-        "complexity": 51
+        "complexity": 48
       }
     ]
   },
@@ -197,7 +207,7 @@
       },
       {
         "name": "Keithley6221::generateArbWave",
-        "complexity": 24
+        "complexity": 22
       }
     ]
   },
@@ -251,17 +261,25 @@
     "functions": [
       {
         "name": "CodeEditor::_process_lsp_completions",
-        "complexity": 25
+        "complexity": 26
       }
     ]
   },
   {
-    "path": "matr1x/gui/plot.py",
-    "file_name": "plot.py",
+    "path": "matr1x/gui/meta_viewer.py",
+    "file_name": "meta_viewer.py",
     "functions": [
       {
-        "name": "SimplePlotWidget::_update_linesetting",
-        "complexity": 20
+        "name": "MetaViewerWidget::resolve_schema",
+        "complexity": 16
+      },
+      {
+        "name": "MetaViewerWidget::EditableDelegate::createEditor",
+        "complexity": 25
+      },
+      {
+        "name": "MetaViewerWidget::TreeItem::__init__",
+        "complexity": 57
       }
     ]
   }
