@@ -79,7 +79,7 @@ _RELAXING_KIND_CHANGES = {
 }
 
 
-def _load_reference() -> tuple[str, dict[str, bool]]:
+def _load_reference() -> tuple[Any, dict[str, bool]]:
     """
     Parse the reference section of great-docs.yml.
 
@@ -90,7 +90,7 @@ def _load_reference() -> tuple[str, dict[str, bool]]:
         (``module:qualname``) to whether its members are documented
         (``members`` is not ``false``).
     """
-    config = read_yaml(GREAT_DOCS_YML)
+    config: Any = read_yaml(GREAT_DOCS_YML)
     if not isinstance(config, dict):
         msg = "great-docs.yml must contain a mapping at the top level"
         raise TypeError(msg)

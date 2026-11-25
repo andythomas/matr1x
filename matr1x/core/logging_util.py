@@ -20,6 +20,8 @@ import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
+from matr1x.core.error_handling import expect_not_none
+
 __all__ = ["WeekRotatingFileHandler"]
 
 
@@ -41,7 +43,7 @@ class WeekRotatingFileHandler(logging.FileHandler):
     """
 
     # Handler.__init__ always replaces the default None with an RLock.
-    lock: threading.RLock
+    lock: "threading.RLock | None"
 
     @staticmethod
     def _current_iso_week() -> tuple[int, int]:
@@ -68,7 +70,8 @@ class WeekRotatingFileHandler(logging.FileHandler):
         from multiple threads. Errors are reported via `handleError`,
         so logging never interrupts the caller.
         """
-        with self.lock:
+        lock = expect_not_none(self.lock, "The lock cannot be None.")
+        with lock:
             week = self._current_iso_week()
             if week != self._week:
                 try:

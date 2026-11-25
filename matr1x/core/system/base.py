@@ -1252,7 +1252,7 @@ class System:
 
         if isinstance(values, Iterable):
             # parameter list, verify values
-            values = list(map(float, values))  # type: ignore
+            values = list(map(float, values))
         else:
             values = float(values)
 
