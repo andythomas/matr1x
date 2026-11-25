@@ -86,10 +86,6 @@
         "complexity": 18
       },
       {
-        "name": "catchEmitError",
-        "complexity": 19
-      },
-      {
         "name": "GuiDict::toggle_hidden",
         "complexity": 38
       }

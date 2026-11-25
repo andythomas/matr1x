@@ -21,8 +21,7 @@ import math
 import re
 from typing import ClassVar, TypeAlias, cast
 
-from wrapt import synchronized
-
+from matr1x.core.locking import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)

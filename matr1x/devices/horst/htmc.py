@@ -19,8 +19,8 @@ import enum
 import time
 
 import serial
-from wrapt import synchronized
 
+from matr1x.core.locking import synchronized
 from matr1x.devices.modbusdevice import ModbusDevice
 
 

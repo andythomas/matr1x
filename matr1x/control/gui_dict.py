@@ -16,6 +16,7 @@
 """Contains the GuiDict class and its supporting types for control GUIs."""
 
 import copy
+import functools
 import inspect
 import itertools
 import logging
@@ -27,7 +28,6 @@ from enum import IntEnum
 from operator import attrgetter
 from typing import Any, ClassVar, Protocol, TypeAlias, TypeVar, cast, overload
 
-from decorator import FunctionMaker
 from pydantic import BaseModel, ValidationInfo, field_validator, model_validator
 from pydantic_core import PydanticCustomError
 from PySide6.QtCore import QObject, QSize, Qt, QThread, QTimer, Signal
@@ -134,6 +134,7 @@ def catchEmitError(method: _F) -> _F:
         The decorated method.
     """
 
+    @functools.wraps(method)
     def call(self, *args, **kwargs):
         try:
             return method(self, *args, **kwargs)
@@ -159,15 +160,7 @@ def catchEmitError(method: _F) -> _F:
             elif hasattr(self, "parent") and self.parent:
                 self.parent.sig_error.emit(exc_type, exc_value, pointer)
 
-    return cast(
-        _F,
-        FunctionMaker.create(
-            method,
-            "return call(%(shortsignature)s)",
-            {"call": call, "_method": method},
-            __wrapped__=method,
-        ),
-    )
+    return cast(_F, call)
 
 
 class MethodBundle:

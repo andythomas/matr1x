@@ -18,8 +18,7 @@
 import logging
 from typing import ClassVar
 
-from wrapt import synchronized
-
+from matr1x.core.locking import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)

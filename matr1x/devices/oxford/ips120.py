@@ -20,7 +20,8 @@ import time
 from typing import ClassVar
 
 from pyvisa import constants
-from wrapt import synchronized
+
+from matr1x.core.locking import synchronized
 
 from .isobus import IsobusDevice
 

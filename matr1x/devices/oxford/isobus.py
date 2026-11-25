@@ -21,8 +21,8 @@ from collections.abc import Callable
 from typing import Any
 
 from pyvisa import errors
-from wrapt import synchronized
 
+from matr1x.core.locking import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)

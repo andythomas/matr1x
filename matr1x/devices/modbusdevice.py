@@ -25,7 +25,8 @@ import logging
 
 import minimalmodbus
 import serial
-from wrapt import synchronized
+
+from matr1x.core.locking import synchronized
 
 logger = logging.getLogger(__name__)
 
