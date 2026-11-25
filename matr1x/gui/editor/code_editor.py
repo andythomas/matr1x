@@ -550,7 +550,10 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
         tc_server = LSPServer(name="ty", binary=find_ty_bin(), parameters=["server"])
         self.lsp_tc = LSPClient(tc_server)
         self.lsp_tc.start()
-        self.lsp_initialize()
+        # Handshake in the background: a slow cold start of the type checker
+        # must not lose the race against the 50 ms request timeout.
+        self._lsp_ready = threading.Event()
+        threading.Thread(target=self._warmup_lsp, daemon=True).start()
         self._assets_dir: Path | None = None
         self._asset_signals = _AssetDownloadSignals()
         self._assets_ready = threading.Event()
@@ -603,6 +606,8 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
             )
             self.logger.error(message)
             raise RuntimeError(message)
+        # First hover/completion must not fail.
+        self._lsp_ready.wait(timeout=10.0)
         self.setAcceptDrops(True)
         self._highlight_timer = QTimer(self)
         self._highlight_timer.setSingleShot(True)
@@ -852,7 +857,18 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
         self._pending_highlight_lines = None
         self._run_javascript(f"window.highlightLines({json.dumps(line_numbers)})")
 
-    def lsp_initialize(self) -> None:
+    def _warmup_lsp(self) -> None:
+        """Warm up the LSP while the assets download and the page load."""
+        try:
+            if not self.lsp_initialize():
+                # A fresh process: a second initialize is a protocol error.
+                self.lsp_tc.stop()
+                self.lsp_tc.start()
+                self.lsp_initialize()
+        finally:
+            self._lsp_ready.set()
+
+    def lsp_initialize(self) -> bool:
         """Initialize the server/client communication."""
         capabilities = {
             "textDocument": {
@@ -865,9 +881,10 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
                 },
             }
         }
-        init = self.lsp_tc.send_request("initialize", {"capabilities": capabilities})
+        # Off the GUI thread: we can afford to wait out a slow cold start.
+        init = self.lsp_tc.send_request("initialize", {"capabilities": capabilities}, timeout=10.0)
         if isinstance(init, Error):
-            return
+            return False
         self.lsp_tc.send_notification("initialized", {})
         self.lsp_tc.send_notification(
             "textDocument/didOpen",
@@ -880,6 +897,7 @@ class CodeEditor(ThemeChangeMixin, FileDropMixin, QWebEngineView, LoggerMixin):
                 }
             },
         )
+        return True
 
     @AutoSlot
     def on_notification(self, notification: JsonRpcNotification) -> None:

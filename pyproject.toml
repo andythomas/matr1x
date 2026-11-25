@@ -36,7 +36,7 @@ dependencies = [
     "wrapt > 2.0",                                  # devices
     "urwid > 2.0",                                  # TUI (apps.cli)
     "script2bundle >= 0.3.0 ; platform_system == 'Darwin'",  # post_install (desktop integration)
-    "monaco-assets == 0.7.1",                        # gui.editor (matrix-script)
+    "monaco-assets == 0.57.0",                        # gui.editor (matrix-script)
     "ruff ~= 0.17.0",                                  # gui.editor (run as subprocess)
     "ty == 0.0.109",                                # gui.editor (run as subprocess)
     "pymeasure >= 0.16.0",                          # core and device drivers
@@ -246,7 +246,7 @@ docs = [
 exclude-newer = "2 days"
 # ty is pinned to an exact version; allow locking versions published after the
 # relative exclude-newer cutoff (the cutoff is anchored to the lock date).
-exclude-newer-package = { ty = "2026-11-24" }
+exclude-newer-package = { ty = "2026-11-24", monaco-assets = "2026-11-24" }
 
 [tool.complexipy]
 paths = ["matr1x", "tests"]
