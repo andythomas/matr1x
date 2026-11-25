@@ -87,14 +87,6 @@ class _RemovedEntry:
 
 MIGRATIONS = [
     _Migration(
-        old_path=("matr1x", "scripts", "matrix-script", "duplicate_output_to_logfile"),
-        new_path=("matr1x", "duplicate_output_to_logfile"),
-        warning="Please move all 'duplicate_output_to_logfile' entries "
-        "to [matr1x.duplicate_output_to_logfile]\n",
-    ),
-    # The app section must be renamed before the key migrations above stop
-    # matching, so this entry stays after them.
-    _Migration(
         old_path=("matr1x", "scripts"),
         new_path=("matr1x", "apps"),
         warning="The [matr1x.scripts] config section is deprecated; rename it to "
