@@ -24,7 +24,6 @@ dependencies = [
     "decorator >= 5.2.1",                           # control.gui_dict
     # polars 2.0.0 bug, fix pending in pola-rs/polars#29811
     "polars >= 1.0, != 2.0.0",                      # core.eval
-    "psutil >= 5.9.0",                              # control
     "pyqtgraph >= 0.12.3",                          # gui plotting
     # PySide6 6.12.0 crashes on Linux (none_dealloc, refcount corruption in
     # the Qt GUI tests); the 6.11 series is stable. Drop the cap when a fixed

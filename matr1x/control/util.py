@@ -41,7 +41,6 @@ from subprocess import PIPE, Popen
 from typing import TYPE_CHECKING, Any
 
 import numpy
-import psutil
 from numpy.typing import ArrayLike
 from PySide6.QtCore import QStandardPaths
 from PySide6.QtWidgets import QMessageBox, QWidget
@@ -206,6 +205,29 @@ def sendNotificationEmail(
         logger.exception("Ignoring error during sending email")
 
 
+def _pid_alive(pid: int) -> bool:
+    """Check whether a process with the given PID exists."""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        from ctypes import windll
+
+        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+        handle = windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+        if handle == 0:
+            return False
+        windll.kernel32.CloseHandle(handle)
+        return True
+    try:
+        os.kill(pid, 0)  # signal 0 only checks for existence
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        # process exists but is owned by another user
+        return True
+    return True
+
+
 def control_main(
     name: str,
     window_class: "type[ControlWindow]",
@@ -267,8 +289,7 @@ def control_main(
             # check if process still running
             with lockfilename.open(encoding="utf-8") as lockf:
                 otherpid = int(lockf.read())
-            try:
-                psutil.Process(otherpid)
+            if _pid_alive(otherpid):
                 QMessageBox.critical(
                     QWidget(),
                     "Other instance running",
@@ -277,9 +298,6 @@ The control GUI can not start.
 Kill the other process ({otherpid}) before restarting.""",
                 )
                 sys.exit()
-            except psutil.NoSuchProcess:
-                # this is the normal behavior in this case -> move on.
-                pass
         # generate lockfile and write in the process ID
         with lockfilename.open("w", encoding="utf-8") as lockf:
             lockf.write(f"{os.getpid()}\n")
