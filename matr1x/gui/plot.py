@@ -939,7 +939,7 @@ class SimplePlotWidget(QGroupBox):
         initial_plot = self.PlotObject(
             self.gl, self.cb_error, self.l_slider, False, 0, [-1, -1, -1]
         )
-        self.plots: list[self.PlotObject] = [initial_plot]
+        self.plots = [initial_plot]
 
         # Connect X-axis linking signal for automatic linking
         if hasattr(initial_plot, "vb") and initial_plot.vb is not None:

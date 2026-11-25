@@ -150,7 +150,7 @@ class QueueListWidget(QListWidget):
             change_config = menu.addAction("Change Config")
             menu.addSeparator()
             remove = menu.addAction("Remove")
-            action = menu.exec(self.mapToGlobal(pos))  # ty: ignore[invalid-argument-type]
+            action = menu.exec(self.mapToGlobal(pos))
             if action == remove:
                 self.takeItem(row)
             elif action == change_output:

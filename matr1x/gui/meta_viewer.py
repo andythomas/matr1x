@@ -26,7 +26,7 @@ import re
 import sys
 import tempfile
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from pathlib import Path
 from typing import (
     Any,
@@ -1161,7 +1161,7 @@ class MetaViewerWidget(QDockWidget):
 
         self.tree_view: QTreeView = QTreeView()
 
-        self.model: self.TreeModel = self.TreeModel(self.parse_header(metadata))
+        self.model = self.TreeModel(self.parse_header(metadata))
         self.tree_view.setModel(self.model)
         for i in range(2):
             self.tree_view.resizeColumnToContents(i)
@@ -1249,7 +1249,7 @@ class MetaViewerWidget(QDockWidget):
 
 
 @contextlib.contextmanager
-def blocked_signals(*objects: QObject) -> Iterator[None]:
+def blocked_signals(*objects: QObject) -> Generator[None]:
     """Temporarily block signals for Qt objects."""
     blocked_objects = [(obj, obj.blockSignals(True)) for obj in objects]
     try:

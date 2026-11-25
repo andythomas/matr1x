@@ -436,26 +436,34 @@ class ColumnData(BaseModel):
         return Success(max(depths))
 
 
-class FocusInMixin:
-    """Add focusInEvent to QWidgets without it."""
+class CheckBoxFocus(QCheckBox):
+    """Reimplement CheckBox with focusInEvent."""
 
     focusIn = Signal()
 
     def focusInEvent(self, e: QFocusEvent) -> None:
-        super().focusInEvent(e)  # ty: ignore[unresolved-attribute]
+        super().focusInEvent(e)
         self.focusIn.emit()
 
 
-class CheckBoxFocus(FocusInMixin, QCheckBox):
-    """Reimplement CheckBox with focusInEvent."""
-
-
-class LineEditFocus(FocusInMixin, QLineEdit):
+class LineEditFocus(QLineEdit):
     """Reimplement LineEdit with focusInEvent."""
 
+    focusIn = Signal()
 
-class SpinBoxFocus(FocusInMixin, QSpinBox):
+    def focusInEvent(self, e: QFocusEvent) -> None:
+        super().focusInEvent(e)
+        self.focusIn.emit()
+
+
+class SpinBoxFocus(QSpinBox):
     """Reimplement QSpinBox with focusInEvent."""
+
+    focusIn = Signal()
+
+    def focusInEvent(self, e: QFocusEvent) -> None:
+        super().focusInEvent(e)
+        self.focusIn.emit()
 
 
 class QLabelWithColor(ThemeChangeMixin, QLabel):

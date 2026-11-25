@@ -33,6 +33,7 @@ from jinja2 import Template
 from pydantic import Field, field_validator
 from urllib3.exceptions import HTTPError
 
+from matr1x.core.error_handling import InternalInvariantError
 from matr1x.core.models import Message, SystemConfigModel
 from matr1x.core.system import MergedSystem, System
 
@@ -206,7 +207,6 @@ class Elab(System):
 
     def __init__(self):
         super().__init__()
-        self.merged_system: MergedSystem
         # clean meta data for this system
         for key in self.dcdata:
             self.dcdata[key] = ""
@@ -265,10 +265,18 @@ class Elab(System):
         except (ApiException, HTTPError, OSError) as error:
             self._handle_connection_error(error)
 
+    def _require_merged_system(self) -> MergedSystem:
+        """Return the merged system this system is part of."""
+        merged_system = self.merged_system
+        if not isinstance(merged_system, MergedSystem):
+            raise InternalInvariantError("Elab must be run in a merged system.")
+        return merged_system
+
     def _link_or_create_sample_resources(self) -> None:
         """Add resource links for sample names in metadata, creating if requested."""
+        merged_system = self._require_merged_system()
         for key in ["identifier", "relation"]:
-            samplename = self.merged_system.dcdata[key]
+            samplename = merged_system.dcdata[key]
             if not samplename:
                 continue
             try:
@@ -285,8 +293,8 @@ class Elab(System):
                     self._resources[samplename] = resource_id
                     self._created_resources[samplename] = resource_id
 
-        identifier = self.merged_system.dcdata.get("identifier")
-        relation = self.merged_system.dcdata.get("relation")
+        identifier = merged_system.dcdata.get("identifier")
+        relation = merged_system.dcdata.get("relation")
         if identifier in self._created_resources and relation in self._resources:
             identifier_id = self._created_resources[identifier]
             relation_id = self._resources[relation]
@@ -529,6 +537,7 @@ class Elab(System):
         access to the `filename` and `dcdata` variables in its
         context.
         """
+        merged_system = self._require_merged_system()
         if _is_template_content(template):
             template_str = template
         else:
@@ -544,8 +553,8 @@ class Elab(System):
         return jinjatemplate.render(
             base_filename=self.filename.name if self.filename else "",
             filename=self.filename,
-            dcdata=self.merged_system.dcdata,
-            query=self.merged_system.query_dict,
+            dcdata=merged_system.dcdata,
+            query=merged_system.query_dict,
         )
 
     def _determine_userid(self) -> int | None:
@@ -560,6 +569,7 @@ class Elab(System):
         self._resolved_user = None
         if not self.api_client:
             return None
+        merged_system = self._require_merged_system()
         userApi = elabapi_python.UsersApi(self.api_client)
         try:
             response = userApi.read_users()
@@ -571,7 +581,7 @@ class Elab(System):
         # Handle potential None values in orgid safely
         orgids = [str(user["orgid"]).lower() if user["orgid"] else None for user in response]
 
-        search_string = self.merged_system.dcdata.get("creator")
+        search_string = merged_system.dcdata.get("creator")
         if not search_string:
             return None
 
@@ -843,11 +853,13 @@ class Elab(System):
         if not self.config.enable_elab or not self.api_client:
             return
 
+        merged_system = self._require_merged_system()
+
         title = self._render_template(self.config.title_template)
         body = self._render_template(self.config.body_template)
 
-        if self.config.parse_hashtags and self.merged_system.dcdata.get("description"):
-            additional_tags = self._parse_tags_from_text(self.merged_system.dcdata["description"])
+        if self.config.parse_hashtags and merged_system.dcdata.get("description"):
+            additional_tags = self._parse_tags_from_text(merged_system.dcdata["description"])
             for tag in additional_tags or []:
                 self.add_tag(tag)
 
