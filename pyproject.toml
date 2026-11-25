@@ -246,13 +246,7 @@ docs = [
 exclude-newer = "2 days"
 # ty is pinned to an exact version; allow locking versions published after the
 # relative exclude-newer cutoff (the cutoff is anchored to the lock date).
-exclude-newer-package = { ty = "2026-11-24", monaco-assets = "2026-11-24"  }
-override-dependencies = [
-    # grimp 3.16 has no cp314 macOS wheel (Rust build fails in CI-less envs); 3.15
-    # has cp314 wheels for all platforms. (A marker-tagged override would drop
-    # grimp from non-macOS installs entirely.)
-    "grimp<3.16",
-]
+exclude-newer-package = { ty = "2026-11-24", monaco-assets = "2026-11-24" }
 
 [tool.complexipy]
 paths = ["matr1x", "tests"]
