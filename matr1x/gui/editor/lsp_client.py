@@ -103,7 +103,7 @@ class LSPClient(QObject, LoggerMixin):
         self.logger.info("LSP server stopped.")
 
     def send_request(
-        self, method: str, params: dict | None = None
+        self, method: str, params: dict | None = None, timeout: float = 0.05
     ) -> Result[JsonRpcResponse, None]:
         """
         Send a request to the LSP to trigger a response.
@@ -114,8 +114,10 @@ class LSPClient(QObject, LoggerMixin):
             A string with the name of the method to be invoked.
         params: dict (optional)
             An object to be passed as parameters to the defined method.
+        timeout : float, optional
+            Seconds to wait for the response. The call blocks the calling
+            thread, so keep this short on the GUI thread.
         """
-        timeout = 0.05  # timeout should be >0.01 on my Mac
         if (
             self.stop_event.is_set()
             or not self.process
