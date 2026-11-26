@@ -19,8 +19,8 @@ from struct import unpack
 from typing import ClassVar, Literal
 
 import numpy as np
-from wrapt import synchronized
 
+from matr1x.core.locking import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 

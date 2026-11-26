@@ -30,6 +30,7 @@ module-level state is isolated per script run.
 
 import builtins
 import datetime
+import functools
 import inspect
 import textwrap
 import time
@@ -37,8 +38,6 @@ import types
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
-
-import wrapt
 
 import matr1x.core.config as core_config
 from matr1x.core.execthread import Status
@@ -210,7 +209,22 @@ def capture_initial_meta_data() -> None:
     state.initial_meta_data = dict(state.system.dcdata)
 
 
-@wrapt.decorator
+def _decorator(
+    wrapper: Callable[[Any, Any, tuple[Any, ...], dict[str, Any]], Any],
+) -> Callable[[Any], Any]:
+    """Create a decorator calling wrapper(wrapped, instance, args, kwargs)."""
+
+    def decorator(func: Any) -> Any:
+        @functools.wraps(func)
+        def wrapped_func(*args: Any, **kwargs: Any) -> Any:
+            return wrapper(func, getattr(func, "__self__", None), args, kwargs)
+
+        return wrapped_func
+
+    return decorator
+
+
+@_decorator
 def _lineno_decorator(
     wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
@@ -219,7 +233,7 @@ def _lineno_decorator(
     return wrapped(*args, **kwargs)
 
 
-@wrapt.decorator
+@_decorator
 def _breakpoint(wrapped: Any, instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Add a breakpoint check."""
     # avoid recursive loop (a decorated function calling another)
@@ -274,7 +288,7 @@ def _inject_decorator(instance: System, decorator: Callable[..., Any]) -> None:
 
 def _install_sleep_hook() -> None:
     """Replace time.sleep with a wrapper that reports the line number."""
-    time.sleep = _lineno_decorator(time.sleep)  # ty: ignore[invalid-assignment]
+    time.sleep = _lineno_decorator(time.sleep)
 
 
 def _reset_setvalues() -> None:

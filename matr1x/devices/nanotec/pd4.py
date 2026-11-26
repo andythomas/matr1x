@@ -20,8 +20,8 @@ import time
 
 from numpy import clip, sign
 from pyvisa.errors import VisaIOError
-from wrapt import synchronized
 
+from matr1x.core.locking import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 

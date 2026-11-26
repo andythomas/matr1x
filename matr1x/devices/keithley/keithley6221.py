@@ -19,8 +19,8 @@ import time
 from typing import ClassVar
 
 from numpy import asarray, ceil
-from wrapt import synchronized
 
+from matr1x.core.locking import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 

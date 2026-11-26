@@ -18,7 +18,8 @@
 import time
 
 import MultiPyVu as mpv
-from wrapt import synchronized
+
+from matr1x.core.locking import synchronized
 
 
 class PPMS:

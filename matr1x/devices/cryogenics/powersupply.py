@@ -27,8 +27,8 @@ import time
 from typing import ClassVar
 
 import pyvisa.errors
-from wrapt import synchronized
 
+from matr1x.core.locking import synchronized
 from matr1x.devices.visadevice import VisaDevice
 
 logger = logging.getLogger(__name__)

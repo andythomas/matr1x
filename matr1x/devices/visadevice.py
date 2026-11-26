@@ -30,9 +30,9 @@ from typing import ClassVar
 
 import pyvisa
 from pyvisa import errors, resources
-from wrapt import synchronized
 
 import matr1x.core.config as core_config
+from matr1x.core.locking import synchronized
 
 logger = logging.getLogger(__name__)
 
