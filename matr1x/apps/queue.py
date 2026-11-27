@@ -64,7 +64,7 @@ from matr1x.core.models import (
     Telemetry,
 )
 from matr1x.core.system import get_system_info
-from matr1x.core.util import SUBPROCESS_CREATION_FLAGS
+from matr1x.core.util import SUBPROCESS_CREATION_FLAGS, generate_script
 from matr1x.gui.app import AboutBox, MApplication
 from matr1x.gui.error_dialog import install_qt_error_dialog
 from matr1x.gui.helpers import (
@@ -144,8 +144,9 @@ class QueueListWidget(QListWidget):
         row = self.row(item)
         self.active = True
         try:
+            parameters = item.data(Qt.ItemDataRole.UserRole)
             menu = QMenu(self)
-            change_output = menu.addAction("Change Output")
+            change_output = menu.addAction("Change Output") if parameters.kind == "sweep" else None
             change_metadata = menu.addAction("Change Metadata")
             change_config = menu.addAction("Change Config")
             menu.addSeparator()
@@ -153,7 +154,7 @@ class QueueListWidget(QListWidget):
             action = menu.exec(self.mapToGlobal(pos))
             if action == remove:
                 self.takeItem(row)
-            elif action == change_output:
+            elif change_output is not None and action == change_output:
                 self.change_output(row)
             elif action == change_metadata:
                 self.change_metadata(row)
@@ -770,18 +771,35 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         # create parameter set for measurement, make sure to copy the meta data
         if not self.ui.widgets.config_editor.system_info:
             raise InternalInvariantError("System info should not be None at this point.")
-        parameters = MeasurementItem(
-            kind="sweep",
-            input_file=inputFile,
+        if Path(inputFile).suffix == ".matrix":
+            parameters = self._create_script_item(inputFile)
+        else:
+            parameters = MeasurementItem(
+                kind="sweep",
+                input_file=inputFile,
+                output_file="",
+                metadata=self.sys_meta_data.copy(),
+                config=self.ui.widgets.config_editor.get_config_dict(),
+                systems=self.ui.widgets.config_editor.full_system_list.copy(),
+                system_info=self.ui.widgets.config_editor.system_info.model_copy(deep=True),
+            )
+        self.ui.widgets.meas_list.add_parameters(parameters)
+        if not self.running:
+            self.ui.actions.start.setEnabled(True)
+
+    def _create_script_item(self, input_file: str) -> MeasurementItem:
+        """Create a queue item that runs a .matrix script file."""
+        script = generate_script(Path(input_file).read_text())
+        return MeasurementItem(
+            kind="script",
+            input_file=script,
             output_file="",
+            display_name=input_file,
             metadata=self.sys_meta_data.copy(),
             config=self.ui.widgets.config_editor.get_config_dict(),
             systems=self.ui.widgets.config_editor.full_system_list.copy(),
             system_info=self.ui.widgets.config_editor.system_info.model_copy(deep=True),
         )
-        self.ui.widgets.meas_list.add_parameters(parameters)
-        if not self.running:
-            self.ui.actions.start.setEnabled(True)
 
     def run_matrix(self) -> None:
         """Start running the queued measurements."""

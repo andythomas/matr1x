@@ -84,3 +84,44 @@ def test_matrix_gui_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: Pat
     assert main_window.ui.widgets.config_editor.isVisible()
     main_window.queue_measurement()
     assert main_window.ui.widgets.meas_list.count() == 0
+
+
+def test_matrix_gui_queue_script(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: Path):
+    """
+    Test queueing and running a .matrix script in matrix-gui.
+
+    Asserts
+    -------
+    queue action is enabled for a .matrix input file
+    the queued item is a script item showing the input file name
+    the script runs and writes a data file with the expected points
+    """
+    main_window = matrix_gui.MainWindow()
+    main_window.show()
+    qtbot.waitExposed(main_window)
+    qapp.processEvents()
+
+    script_file = tmp_path / "test_script.matrix"
+    shutil.copy(input_dir / "matrix_script_gui.matrix", script_file)
+    monkeypatch.chdir(tmp_path)
+
+    main_window.ui.widgets.input_file.setText(str(script_file))
+    qtbot.waitUntil(lambda: main_window.ui.actions.queue.isEnabled(), timeout=2000)
+    main_window.queue_measurement()
+
+    assert main_window.ui.widgets.meas_list.count() == 1
+    item = main_window.ui.widgets.meas_list.parameters(0)
+    assert item.kind == "script"
+    assert item.display_name == str(script_file)
+    assert "boring_testrun" in item.input_file  # generated script content
+    assert (
+        main_window.ui.widgets.meas_list.item(0).text()
+        == "Input: test_script.matrix - Output: <use input>"
+    )
+
+    main_window.ui.actions.start.trigger()
+    qtbot.waitUntil(lambda: not main_window.running, timeout=15000)
+    files = list(tmp_path.glob("boring_testrun*"))
+    assert len(files) == 1
+    _header, data = loadmatrix(files[0], to_polars=True)
+    assert len(data) == 10

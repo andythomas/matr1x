@@ -932,12 +932,18 @@ class MeasurementItem:
     systems: list[str]
     kind: Literal["script", "sweep"]
     system_info: SystemInfo | None = None
+    # For script items, input_file holds the script content, so the
+    # original file path is kept here for display purposes.
+    display_name: str | None = None
 
     @property
     def list_entry(self) -> str:
         """Return a human-readable representation of the list entry."""
         output = Path(self.output_file).name if self.output_file else "<use input>"
-        return f"Input: {Path(self.input_file).name} - Output: {output}"
+        input_name = (
+            Path(self.display_name).name if self.display_name else Path(self.input_file).name
+        )
+        return f"Input: {input_name} - Output: {output}"
 
     @staticmethod
     def remove_nones(d: dict) -> dict:
@@ -949,7 +955,7 @@ class MeasurementItem:
     @property
     def tooltip(self) -> str:
         """Return a tooltip with all data."""
-        input_file = f"Input:\n{self.input_file}\n\n"
+        input_file = f"Input:\n{self.display_name or self.input_file}\n\n"
         output_file = f"Output:\n{self.output_file or '<use input>'}\n\n"
         metadata = f"Metadata:\n{tomli_w.dumps(self.remove_nones(self.metadata))}"
         normalized_config = self.remove_nones(self.config)
