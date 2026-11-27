@@ -98,13 +98,7 @@ from matr1x.gui.helpers import (
     open_matrix_toml,
     save_messagebox,
 )
-from matr1x.gui.input_dialogs import (
-    NumericalInputDialog,
-    TextInputDialog,
-    TimeoutDialogBase,
-    YesNoAbortDialog,
-    parse_numerical_default,
-)
+from matr1x.gui.input_dialogs import get_script_input
 from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import ConfigEditWidget
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin, ThemeChangeMixin
@@ -794,7 +788,12 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif isinstance(data, Datafile):
             self.update_filename(data.datafile)
         elif isinstance(data, InputParameters):
-            self._get_script_input(data)
+            get_script_input(
+                data,
+                self,
+                self.ui.widgets.measurement_thread,
+                warn=self.ui.widgets.status_preview.appendPlainText,
+            )
         elif isinstance(data, Message):
             self._process_message(data)
         elif isinstance(data, ErrorMessage):
@@ -978,84 +977,6 @@ class MainWindow(LogWindowMixin, MMainWindow):
         elif self.ui.widgets.script_edit.isModified():
             text += "<unsaved>"
         self.setWindowTitle(text)
-
-    @AutoSlot
-    def _get_script_input(self, params: InputParameters) -> None:
-        """
-        Open a dialog and forward input to the script.
-
-        Parameters
-        ----------
-        params: InputParameters
-            Object containing all input parameters including query,
-            input_type, timeout, default_value, min_value, max_value,
-            step, and decimals.
-        """
-        if params.input_type == "string":
-            dialog = TextInputDialog(
-                params.query,
-                parent=self,
-                timeout=params.timeout,
-                default_value=params.default_value,
-            )
-            dialog.exec()
-            ret = dialog.get_input_text()
-        elif params.input_type == "bool":
-            dialog = YesNoAbortDialog(
-                params.query,
-                timeout=params.timeout,
-                parent=self,
-                default_value=params.default_value,
-            )
-            ret = dialog.get_response()
-        elif params.input_type == "numerical":
-            numerical_default_value = self._parse_numerical_default(params.default_value)
-            dialog = NumericalInputDialog(
-                params.query,
-                parent=self,
-                timeout=params.timeout,
-                default_value=numerical_default_value,
-                min_value=params.min_value,
-                max_value=params.max_value,
-                step=params.step,
-                decimals=params.decimals,
-            )
-            dialog.exec()
-            ret = str(dialog.get_input_value())
-        else:
-            ret = ""
-
-        if self._handle_dialog_result(dialog) is not None:
-            return
-        self.ui.widgets.measurement_thread.pass_input(ret)
-
-    def _handle_dialog_result(self, dialog: TimeoutDialogBase) -> str | None:
-        """
-        Handle the result of a dialog and abort the script if needed.
-
-        Returns
-        -------
-        None
-            If the user accepted the dialog (input should be
-            passed to script).
-        str
-            The abort character ("a" or "f") if the user
-            clicked Abort or Finish.
-        """
-        result = dialog.result()
-        if result == QDialog.DialogCode.Accepted:
-            return None
-        if result == 3:
-            self.ui.widgets.measurement_thread.abort("f")
-            return "f"
-        self.ui.widgets.measurement_thread.abort("a")
-        return "a"
-
-    def _parse_numerical_default(self, default_value: str) -> float:
-        """Parse a default value string into a float, with warning on failure."""
-        return parse_numerical_default(
-            default_value, warn=self.ui.widgets.status_preview.appendPlainText
-        )
 
     def kill_thread(self) -> None:
         """Kill the thread."""

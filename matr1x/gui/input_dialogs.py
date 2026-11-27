@@ -40,7 +40,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from matr1x.core.models import InputParameters
 from matr1x.gui.helpers import get_matrix_icon
+from matr1x.gui.shared import MeasurementThread
+
+# Dialog result codes for the "End Script" buttons.
+RESULT_ABORTED = 2
+RESULT_FINISHED = 3
 
 
 def parse_numerical_default(
@@ -127,9 +133,9 @@ class TimeoutDialogBase(QDialog):
         self.abort_finished_button.setIcon(get_matrix_icon("CUSTOM_Stop", color=QColor("#388E3C")))
 
         self.abort_aborted_button.clicked.connect(self._button_clicked)
-        self.abort_aborted_button.clicked.connect(lambda: self.done(2))
+        self.abort_aborted_button.clicked.connect(lambda: self.done(RESULT_ABORTED))
         self.abort_finished_button.clicked.connect(self._button_clicked)
-        self.abort_finished_button.clicked.connect(lambda: self.done(3))
+        self.abort_finished_button.clicked.connect(lambda: self.done(RESULT_FINISHED))
 
         self.setWindowModality(Qt.WindowModality.ApplicationModal)
 
@@ -406,3 +412,80 @@ class YesNoAbortDialog(TimeoutDialogBase):
         if self._timeout_occurred and not self.user_responded:
             return self._default_value
         return self._response
+
+
+def get_script_input(
+    params: InputParameters,
+    parent: QWidget,
+    thread: MeasurementThread,
+    warn: Callable[[str], None] | None = None,
+) -> None:
+    """
+    Open the dialog for a script input request and forward the result.
+
+    The dialog matching the requested input type is shown modally. On
+    acceptance the input is passed to the script via the measurement
+    thread; the dialog's Abort and Finish buttons abort the script.
+
+    Parameters
+    ----------
+    params : InputParameters
+        Object containing all input parameters including query,
+        input_type, timeout, default_value, min_value, max_value,
+        step, and decimals.
+    parent : QWidget
+        The parent widget of the dialog.
+    thread : MeasurementThread
+        The measurement thread to pass the input to or to abort.
+    warn : callable, optional
+        Called with a warning message if a numerical default value
+        cannot be parsed.
+    """
+    if params.input_type == "string":
+        dialog = TextInputDialog(
+            params.query,
+            parent=parent,
+            timeout=params.timeout,
+            default_value=params.default_value,
+        )
+        dialog.exec()
+        ret = dialog.get_input_text()
+    elif params.input_type == "bool":
+        dialog = YesNoAbortDialog(
+            params.query,
+            parent=parent,
+            timeout=params.timeout,
+            default_value=params.default_value,
+        )
+        ret = dialog.get_response()
+    elif params.input_type == "numerical":
+        default_value = parse_numerical_default(params.default_value, warn=warn)
+        dialog = NumericalInputDialog(
+            params.query,
+            parent=parent,
+            timeout=params.timeout,
+            default_value=default_value,
+            min_value=params.min_value,
+            max_value=params.max_value,
+            step=params.step,
+            decimals=params.decimals,
+        )
+        dialog.exec()
+        ret = str(dialog.get_input_value())
+    else:
+        ret = ""
+    if _handle_dialog_result(dialog, thread) is not None:
+        return
+    thread.pass_input(ret)
+
+
+def _handle_dialog_result(dialog: TimeoutDialogBase, thread: MeasurementThread) -> str | None:
+    """Abort or finish the script if the user requested it in the dialog."""
+    result = dialog.result()
+    if result == QDialog.DialogCode.Accepted:
+        return None
+    if result == RESULT_FINISHED:
+        thread.abort("f")
+        return "f"
+    thread.abort("a")
+    return "a"
