@@ -517,7 +517,7 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         self.sys_meta_data: dict[str, Any] = {}
         self._create_connections()
         self.setAcceptDrops(True)
-        self.setValidExtensions([".sw8", re.compile(r"\.\d+t$")])
+        self.setValidExtensions([".sw8", ".matrix"])
         self.file_dropped.connect(lambda file: self.ui.widgets.input_file.setText(file))
         check_desktop_integration()
 
@@ -630,9 +630,11 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
     def show_input_dialog(self) -> None:
         """Open a QFileDialog with filter for input files."""
         folder = self.ui.widgets.input_file.text() or core_config.usersfolder
-        # remove old pattern with next major update
         filename = QFileDialog.getOpenFileName(
-            self, "Select input file", str(folder), "Sweep 8 files (*.sw8);;t files (*.*t)"
+            self,
+            "Select input file",
+            str(folder),
+            "Sweep 8 files (*.sw8);;matrix files (*.matrix)",
         )
         if filename[0] != "":
             self.ui.widgets.input_file.setText(filename[0])
@@ -679,9 +681,9 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         try:
             with Path(input_file_path).open("r") as f:
                 for line in f:
-                    system_pattern = r"^# [Ss]ystem filename : (.+)"
+                    system_pattern = r"^# [Ss]ystem (?:filename|def) : (.+)"
                     if match := re.match(system_pattern, line.strip()):
-                        return match.group(1).split(",")
+                        return [s.strip() for s in match.group(1).split(",") if s.strip()]
                     if line.strip() and not line.strip().startswith("#"):
                         QMessageBox.warning(
                             self, "System file error!", "No system specified in input file."

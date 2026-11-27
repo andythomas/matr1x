@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import inspect
 import logging
-import re
 import sys
 import types
 from collections.abc import Callable
@@ -90,15 +89,14 @@ class FileDropMixin:
         super().__init__(*args, **kwargs)
         self.valid_extensions: list = []
 
-    def setValidExtensions(self, valid_extensions: list[str | re.Pattern]) -> None:
+    def setValidExtensions(self, valid_extensions: list[str]) -> None:
         """
         Set the valid extensions.
 
         Parameters
         ----------
-        valid_extensions: list[str | re.Pattern]
-            A list where each element is either a string or a compiled!
-            RegEx pattern.
+        valid_extensions: list[str]
+            File suffixes (including the leading dot) accepted on drop.
         """
         self.valid_extensions = valid_extensions
 
@@ -116,13 +114,10 @@ class FileDropMixin:
             QMessageBox.warning(None, "Too many Files", "Please only drop a single file.")
             return
         suffix = Path(urls[0].toLocalFile()).suffix
-        for extension in self.valid_extensions:
-            if (isinstance(extension, re.Pattern) and extension.match(suffix)) or (
-                isinstance(extension, str) and suffix == extension
-            ):
-                self.file_dropped.emit(urls[0].toLocalFile())  # ty: ignore[invalid-attribute-access]
-                a0.acceptProposedAction()
-                return
+        if suffix in self.valid_extensions:
+            self.file_dropped.emit(urls[0].toLocalFile())  # ty: ignore[invalid-attribute-access]
+            a0.acceptProposedAction()
+            return
         QMessageBox.warning(
             None,
             "Invalid File",
