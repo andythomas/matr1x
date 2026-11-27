@@ -17,11 +17,14 @@
 
 import shutil
 from pathlib import Path
+from typing import ClassVar
 
 from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QDialog
 
 from matr1x.apps import queue as matrix_gui
 from matr1x.core.eval import loadmatrix
+from matr1x.gui import input_dialogs
 
 
 def test_matrix_gui_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: Path):
@@ -125,3 +128,63 @@ def test_matrix_gui_queue_script(qtbot, qapp, monkeypatch, input_dir: Path, tmp_
     assert len(files) == 1
     _header, data = loadmatrix(files[0], to_polars=True)
     assert len(data) == 10
+
+
+def test_matrix_gui_queue_script_input(qtbot, qapp, monkeypatch, tmp_path: Path):
+    """
+    Test user input dialogs for a queued .matrix script.
+
+    Asserts
+    -------
+    a text input request from the script opens the (faked) dialog
+    the dialog answer is passed to the script and ends up in the datafile
+    """
+    main_window = matrix_gui.MainWindow()
+    main_window.show()
+    qtbot.waitExposed(main_window)
+    qapp.processEvents()
+
+    class FakeTextInputDialog:
+        """Stand-in for TextInputDialog that answers without user interaction."""
+
+        queries: ClassVar[list[str]] = []
+
+        def __init__(self, query, parent=None, timeout=None, default_value=""):
+            self.queries.append(query)
+
+        def exec(self):
+            return True
+
+        def get_input_text(self):
+            return "Andy"
+
+        def result(self):
+            return QDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(input_dialogs, "TextInputDialog", FakeTextInputDialog)
+
+    script_file = tmp_path / "input_test.matrix"
+    script_file.write_text(
+        "# system def : matr1x.systems.system_dummy\n"
+        "# system names : dev p2,timeUTC\n"
+        "# system units : cnt,s\n"
+        "# file v8, time stamp : 2026-02-06T12:00:00\n"
+        'name = input("Who is running this?")\n'
+        'init_datafile("input_e2e", comment=name)\n'
+        "set_value(1, 0.01)\n"
+        "measure_system()\n"
+        "end_script(True)\n"
+    )
+    monkeypatch.chdir(tmp_path)
+
+    main_window.ui.widgets.input_file.setText(str(script_file))
+    qtbot.waitUntil(lambda: main_window.ui.actions.queue.isEnabled(), timeout=2000)
+    main_window.queue_measurement()
+    main_window.ui.actions.start.trigger()
+    qtbot.waitUntil(lambda: not main_window.running, timeout=15000)
+
+    assert FakeTextInputDialog.queries == ["Who is running this?"]
+    files = list(tmp_path.glob("input_e2e*"))
+    assert len(files) == 1
+    header, _data = loadmatrix(files[0], to_polars=True)
+    assert header["dcterms:description"] == "Andy"

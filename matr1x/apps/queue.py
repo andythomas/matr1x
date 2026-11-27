@@ -57,6 +57,7 @@ from matr1x.core.models import (
     Envelope,
     ErrorMessage,
     Header,
+    InputParameters,
     MeasuredValues,
     Message,
     SetValues,
@@ -74,6 +75,7 @@ from matr1x.gui.helpers import (
     get_matrix_icon,
     open_matrix_toml,
 )
+from matr1x.gui.input_dialogs import get_script_input
 from matr1x.gui.logging import LoggingWindow
 from matr1x.gui.meta_viewer import ConfigEditWidget
 from matr1x.gui.mixins import AutoSlot, FileDropMixin, LogWindowMixin
@@ -592,6 +594,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 self.ui.widgets.progress.setText(str(data))
         elif isinstance(data, (SetValues, MeasuredValues, Header)):
             self.ui.widgets.table.apply(data)
+        elif isinstance(data, InputParameters):
+            get_script_input(data, self, self.ui.widgets.measurement_thread)
         elif isinstance(data, ErrorMessage):
             logger.error(data.error)
             self.measurement_failed = True
@@ -789,6 +793,8 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
 
     def _create_script_item(self, input_file: str) -> MeasurementItem:
         """Create a queue item that runs a .matrix script file."""
+        if not self.ui.widgets.config_editor.system_info:
+            raise InternalInvariantError("System info should not be None at this point.")
         script = generate_script(Path(input_file).read_text())
         return MeasurementItem(
             kind="script",
