@@ -27,6 +27,18 @@ from matr1x.core.eval import loadmatrix
 from matr1x.gui import input_dialogs
 
 
+def test_script_input_calls():
+    """Test detection of script input calls, ignoring comments and strings."""
+    assert matrix_gui._script_input_calls('input("a")') == ["input"]
+    assert matrix_gui._script_input_calls("input_bool('q')\nx = input_numerical('v')") == [
+        "input_bool",
+        "input_numerical",
+    ]
+    assert matrix_gui._script_input_calls("# input('a')\nx = 'input(b)'") == []
+    assert matrix_gui._script_input_calls("x = dev.input('a')") == []
+    assert matrix_gui._script_input_calls("def broken(:") == []
+
+
 def test_matrix_gui_run(qtbot, qapp, monkeypatch, input_dir: Path, tmp_path: Path):
     """
     Test basic matrix-gui functionality.

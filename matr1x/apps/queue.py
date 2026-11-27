@@ -15,6 +15,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """Provide a graphical user interface for matrix measurements."""
 
+import ast
 import logging
 import os
 import re
@@ -795,7 +796,17 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
         """Create a queue item that runs a .matrix script file."""
         if not self.ui.widgets.config_editor.system_info:
             raise InternalInvariantError("System info should not be None at this point.")
-        script = generate_script(Path(input_file).read_text())
+        user_script = Path(input_file).read_text()
+        input_calls = _script_input_calls(user_script)
+        if input_calls:
+            self.ui.widgets.notifier.show_message(
+                NotifierMessage(
+                    f"Script uses {', '.join(input_calls)}() and will ask for user"
+                    " input during the run.",
+                    level=logging.WARNING,
+                )
+            )
+        script = generate_script(user_script)
         return MeasurementItem(
             kind="script",
             input_file=script,
@@ -900,6 +911,20 @@ class MainWindow(FileDropMixin, LogWindowMixin, MMainWindow):
                 f"from matr1x.apps import preview; preview.main(file=r'{output}')",
             ]
             subprocess.Popen(preview, creationflags=SUBPROCESS_CREATION_FLAGS)
+
+
+def _script_input_calls(content: str) -> list[str]:
+    """Return the script input functions called in the script content."""
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return []
+    names = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    return sorted(names & {"input", "input_bool", "input_numerical"})
 
 
 def main() -> None:
